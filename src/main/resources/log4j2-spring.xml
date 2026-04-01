@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</Property>
+    </Properties>
+
+    <Appenders>
+        <!-- 控制台：显示所有日志（包括框架启动） -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <!-- 业务日志文件：只记录业务代码日志 -->
+        <RollingFile name="BusinessFile" fileName="logs/business.log"
+                     filePattern="logs/business-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- 业务日志：com.syt.graduationproject 包下的日志输出到业务文件 -->
+        <Logger name="com.syt.graduationproject" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="BusinessFile"/>
+        </Logger>
+
+        <!-- Spring 框架日志：只在控制台显示 -->
+        <Logger name="org.springframework" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <!-- MyBatis-Plus 日志：只在控制台显示 -->
+        <Logger name="com.baomidou.mybatisplus" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <!-- Tomcat 日志：只在控制台显示 -->
+        <Logger name="org.apache.catalina" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+
+        <!-- 根 Logger：所有日志输出到控制台 -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
