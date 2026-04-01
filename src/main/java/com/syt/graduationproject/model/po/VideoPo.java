@@ -63,36 +63,6 @@ public class VideoPo {
     private Integer duration;
 
     /**
-     * 播放数量
-     */
-    @TableField(value = "play_num")
-    private Long playNum;
-
-    /**
-     * 点赞数量
-     */
-    @TableField(value = "like_num")
-    private Long likeNum;
-
-    /**
-     * 评论数量
-     */
-    @TableField(value = "comment_num")
-    private Long commentNum;
-
-    /**
-     * 收藏数量
-     */
-    @TableField(value = "collect_num")
-    private Long collectNum;
-
-    /**
-     * 分享数量
-     */
-    @TableField(value = "share_num")
-    private Long shareNum;
-
-    /**
      * 状态 0-审核中 1-已发布 2-下架
      */
     @TableField(value = "status")

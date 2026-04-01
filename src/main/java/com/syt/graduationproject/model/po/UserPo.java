@@ -57,36 +57,6 @@ public class UserPo {
     private String bio;
 
     /**
-     * 获赞数量
-     */
-    @TableField(value = "like_num")
-    private Long likeNum;
-
-    /**
-     * 粉丝数量
-     */
-    @TableField(value = "fan_num")
-    private Long fansNum;
-
-    /**
-     * 关注数量
-     */
-    @TableField(value = "follow_num")
-    private Long followNum;
-
-    /**
-     * 收藏数量
-     */
-    @TableField(value = "collect_num")
-    private Long collectNum;
-
-    /**
-     * 视频数量
-     */
-    @TableField(value = "video_num")
-    private Long videoNum;
-
-    /**
      * 状态：0-删除 1-正常 2-封禁
      */
     @TableField(value = "status")

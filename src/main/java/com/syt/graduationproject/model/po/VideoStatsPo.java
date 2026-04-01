@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,32 +12,62 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 关注记录表
+ * 视频数据统计表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_follow_record")
-public class FollowRecordPo {
+@TableName("tb_video_stats")
+public class VideoStatsPo {
 
     /**
-     * 唯一 id
+     * 自增ID
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 关注者 ID
+     * 视频ID
      */
-    @TableField(value = "follower_id")
-    private Long followerId;
+    @TableField(value = "video_id")
+    private Long videoId;
 
     /**
-     * 被关注者 ID
+     * 播放量
      */
-    @TableField(value = "followee_id")
-    private Long followeeId;
+    @TableField(value = "play_count")
+    private Long playCount;
+
+    /**
+     * 点赞数
+     */
+    @TableField(value = "like_count")
+    private Long likeCount;
+
+    /**
+     * 投币数
+     */
+    @TableField(value = "coin_count")
+    private Long coinCount;
+
+    /**
+     * 收藏数
+     */
+    @TableField(value = "collect_count")
+    private Long collectCount;
+
+    /**
+     * 分享数
+     */
+    @TableField(value = "share_count")
+    private Long shareCount;
+
+    /**
+     * 评论数
+     */
+    @TableField(value = "comment_count")
+    private Long commentCount;
 
     /**
      * 状态 0-未删除 1-已删除

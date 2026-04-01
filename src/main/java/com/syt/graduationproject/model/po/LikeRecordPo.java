@@ -45,10 +45,10 @@ public class LikeRecordPo {
     private Long targetId;
 
     /**
-     * 状态 0-取消 1-有效
+     * 状态 0-未删除 1-已删除
      */
-    @TableField(value = "status")
-    private Integer status;
+    @TableField(value = "is_deleted")
+    private Integer isDeleted;
 
     /**
      * 创建时间

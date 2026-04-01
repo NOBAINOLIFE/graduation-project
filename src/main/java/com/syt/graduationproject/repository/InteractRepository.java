@@ -23,4 +23,29 @@ public interface InteractRepository {
      * 查询用户获赞数量
      */
     Long queryUserLikeNum(Long myId);
+
+    /**
+     * 更新用户粉丝数
+     */
+    void updateUserFansNum(Long userId, Long addNum);
+
+    /**
+     * 更新用户关注数
+     */
+    void updateUserFollowNum(Long userId, Long addNum);
+
+    /**
+     * 更新用户获赞数
+     */
+    void updateUserLikeNum(Long userId, Long addNum);
+
+    /**
+     * 更新用户视频数
+     */
+    void updateUserVideoNum(Long userId, Long addNum);
+
+    /**
+     * 初始化用户数据统计信息
+     */
+    void initUserStats(Long userId);
 }

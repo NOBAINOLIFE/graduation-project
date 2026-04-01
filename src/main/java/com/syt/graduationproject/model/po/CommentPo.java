@@ -10,7 +10,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 
 /**
  * 评论信息表
@@ -70,10 +69,10 @@ public class CommentPo {
     private Long replyNum;
     
     /**
-     * 状态 0-已删除 1-正常
+     * 状态 0-未删除 1-已删除
      */
-    @TableField(value = "status")
-    private Integer status;
+    @TableField(value = "is_deleted")
+    private Integer isDeleted;
     
     /**
      * 创建时间

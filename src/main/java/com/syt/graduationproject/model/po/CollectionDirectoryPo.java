@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,32 +12,50 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 关注记录表
+ * 收藏夹目录表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_follow_record")
-public class FollowRecordPo {
+@TableName("tb_collection_directory")
+public class CollectionDirectoryPo {
 
     /**
-     * 唯一 id
+     * 自增ID
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 关注者 ID
+     * 所属用户ID
      */
-    @TableField(value = "follower_id")
-    private Long followerId;
+    @TableField(value = "user_id")
+    private Long userId;
 
     /**
-     * 被关注者 ID
+     * 收藏夹名称
      */
-    @TableField(value = "followee_id")
-    private Long followeeId;
+    @TableField(value = "name")
+    private String name;
+
+    /**
+     * 描述
+     */
+    @TableField(value = "description")
+    private String description;
+
+    /**
+     * 封面图
+     */
+    @TableField(value = "cover_url")
+    private String coverUrl;
+
+    /**
+     * 是否公开：0-私有，1-公开
+     */
+    @TableField(value = "is_public")
+    private Integer isPublic;
 
     /**
      * 状态 0-未删除 1-已删除

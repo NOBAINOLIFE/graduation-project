@@ -20,6 +20,7 @@ import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -46,6 +47,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void register(RegisterRequest request) {
         Long account = request.getAccount();
         String password = request.getPassword();
@@ -67,6 +69,9 @@ public class UserServiceImpl implements UserService {
                 .bio(DEFAULT_BIO)
                 .build();
         userMapper.insert(newUser);
+
+        // 初始化用户数据统计信息
+        interactRepository.initUserStats(newUser.getId());
         log.info("用户注册成功，注册请求：{}", request);
     }
 
