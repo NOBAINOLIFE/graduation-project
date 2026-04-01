@@ -1,0 +1,100 @@
+package com.syt.graduationproject.model.po;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+/**
+ * 用户信息表
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@TableName("tb_user")
+public class UserPo {
+    /**
+     * 唯一 id
+     */
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    /**
+     * 账号
+     */
+    @TableField(value = "account")
+    private Long account;
+
+    /**
+     * 用户名
+     */
+    @TableField(value = "username")
+    private String username;
+
+    /**
+     * 密码
+     */
+    @TableField(value = "password")
+    private String password;
+
+    /**
+     * 头像地址
+     */
+    @TableField(value = "avatar")
+    private String avatar;
+
+    /**
+     * 个人简介
+     */
+    @TableField(value = "bio")
+    private String bio;
+
+    /**
+     * 获赞数量
+     */
+    @TableField(value = "like_num")
+    private Long likeNum;
+
+    /**
+     * 粉丝数量
+     */
+    @TableField(value = "fan_num")
+    private Long fanNum;
+
+    /**
+     * 关注数量
+     */
+    @TableField(value = "follow_num")
+    private Long followNum;
+
+    /**
+     * 收藏数量
+     */
+    @TableField(value = "collect_num")
+    private Long collectNum;
+
+    /**
+     * 视频数量
+     */
+    @TableField(value = "video_num")
+    private Long videoNum;
+
+    /**
+     * 创建时间
+     */
+    @TableField(value = "create_time")
+    private LocalDateTime createTime;
+
+    /**
+     * 更新时间
+     */
+    @TableField(value = "update_time")
+    private LocalDateTime updateTime;
+}
