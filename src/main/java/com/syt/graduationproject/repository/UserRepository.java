@@ -9,4 +9,9 @@ public interface UserRepository {
      * 根据账号查询用户
      */
     UserPo queryUserByAccount(Long account);
+
+    /**
+     * 根据ID查询用户
+     */
+    UserPo queryUserById(Long userId);
 }

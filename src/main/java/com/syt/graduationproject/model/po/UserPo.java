@@ -66,7 +66,7 @@ public class UserPo {
      * 粉丝数量
      */
     @TableField(value = "fan_num")
-    private Long fanNum;
+    private Long fansNum;
 
     /**
      * 关注数量

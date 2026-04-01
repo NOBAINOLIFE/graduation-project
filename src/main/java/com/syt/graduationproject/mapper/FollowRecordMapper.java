@@ -9,4 +9,8 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface FollowRecordMapper extends BaseMapper<FollowRecordPo> {
+
+    Integer FOLLOW = 0;
+
+    Integer UNFOLLOW = 1;
 }

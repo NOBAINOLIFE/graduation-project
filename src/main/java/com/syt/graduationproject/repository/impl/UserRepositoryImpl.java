@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import static com.syt.graduationproject.constant.CommonConstant.STATUS;
 import static com.syt.graduationproject.constant.UserConstant.ACCOUNT;
+import static com.syt.graduationproject.constant.UserConstant.USER_ID;
 
 @Repository
 @RequiredArgsConstructor
@@ -23,8 +24,18 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public UserPo queryUserByAccount(Long account) {
         QueryWrapper<UserPo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq(ACCOUNT, account);
-        queryWrapper.eq(STATUS, UserStatusEnum.NORMAL.getCode());
+        queryWrapper.lambda()
+                .eq(UserPo::getAccount, account)
+                .eq(UserPo::getStatus, UserStatusEnum.NORMAL.getCode());
+        return userMapper.selectOne(queryWrapper);
+    }
+
+    @Override
+    public UserPo queryUserById(Long userId) {
+        QueryWrapper<UserPo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.lambda()
+                .eq(UserPo::getId, userId)
+                .eq(UserPo::getStatus, UserStatusEnum.NORMAL.getCode());
         return userMapper.selectOne(queryWrapper);
     }
 }

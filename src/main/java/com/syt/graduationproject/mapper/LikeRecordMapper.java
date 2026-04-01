@@ -9,4 +9,8 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface LikeRecordMapper extends BaseMapper<LikeRecordPo> {
+
+    Integer LIKE = 0;
+
+    Integer UNLIKE = 1;
 }

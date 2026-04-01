@@ -22,7 +22,7 @@ public class FollowRecordPo {
     /**
      * 被关注者 ID
      */
-    private Long followedId;
+    private Long followeeId;
     
     /**
      * 状态 0-取消关注 1-有效
