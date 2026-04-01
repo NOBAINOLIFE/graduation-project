@@ -47,8 +47,8 @@ public class UserPo {
     /**
      * 头像地址
      */
-    @TableField(value = "avatar")
-    private String avatar;
+    @TableField(value = "avatar_url")
+    private String avatarUrl;
 
     /**
      * 个人简介
@@ -85,6 +85,12 @@ public class UserPo {
      */
     @TableField(value = "video_num")
     private Long videoNum;
+
+    /**
+     * 状态：0-删除 1-正常 2-封禁
+     */
+    @TableField(value = "status")
+    private Integer status;
 
     /**
      * 创建时间
