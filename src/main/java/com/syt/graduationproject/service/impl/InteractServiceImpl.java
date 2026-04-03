@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.bo.FollowBo;
+import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
@@ -40,6 +41,10 @@ public class InteractServiceImpl implements InteractService {
     private final LikeVideoMapper likeVideoMapper;
 
     private final LikeCommentMapper likeCommentMapper;
+
+    private final CoinRecordMapper coinRecordMapper;
+
+    private final CollectionItemMapper collectionItemMapper;
 
     /**
      * 查询两者关注关系
@@ -208,5 +213,25 @@ public class InteractServiceImpl implements InteractService {
                 commentStatsMapper.updateLikeCount(commentId, -1);
             }
         }
+    }
+
+    /**
+     * 查询用户视频互动信息
+     */
+    @Override
+    public UserVideoInteractionBo queryUserVideoInteraction(Long userId, Long videoId) {
+        return UserVideoInteractionBo.builder()
+                .userId(userId)
+                .videoId(videoId)
+                .isLike(likeVideoMapper.selectCount(new QueryWrapper<LikeVideoPo>().lambda()
+                        .eq(LikeVideoPo::getUserId, userId)
+                        .eq(LikeVideoPo::getVideoId, videoId)) > 0)
+                .isCoin(coinRecordMapper.selectCount(new QueryWrapper<CoinRecordPo>().lambda()
+                        .eq(CoinRecordPo::getUserId, userId)
+                        .eq(CoinRecordPo::getVideoId, videoId)) > 0)
+                .isCollect(collectionItemMapper.selectCount(new QueryWrapper<CollectionItemPo>().lambda()
+                        .eq(CollectionItemPo::getUserId, userId)
+                        .eq(CollectionItemPo::getVideoId, videoId)) > 0)
+                .build();
     }
 }

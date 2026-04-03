@@ -12,29 +12,23 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 收藏内容明细表
+ * 视频投币记录表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_collection_item")
-public class CollectionItemPo {
+@TableName("tb_coin_record")
+public class CoinRecordPo {
 
     /**
-     * id
+     * 唯一id
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 所属收藏夹ID
-     */
-    @TableField(value = "directory_id")
-    private Long directoryId;
-
-    /**
-     * 用户ID
+     * 投币人ID
      */
     @TableField(value = "user_id")
     private Long userId;
@@ -46,13 +40,13 @@ public class CollectionItemPo {
     private Long videoId;
 
     /**
-     * 状态 0-未删除 1-已删除
+     * 投币数量（通常上限为2）
      */
-    @TableField(value = "is_deleted")
-    private Integer isDeleted;
+    @TableField(value = "amount")
+    private Integer amount;
 
     /**
-     * 创建时间
+     * 投币时间
      */
     @TableField(value = "create_time")
     private LocalDateTime createTime;

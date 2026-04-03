@@ -1,0 +1,52 @@
+package com.syt.graduationproject.model.vo;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+/**
+ * 视频播放页详情
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class VideoPlayDetailVo {
+
+    private Long videoId;
+
+    private Long userId;
+
+    private String title;
+
+    private String description;
+
+    private String coverUrl;
+
+    private String videoUrl;
+
+    private Integer duration;
+
+    private Integer lastPlayTime;
+
+    private Long playCount;
+
+    private Long likeCount;
+
+    private Long coinCount;
+
+    private Long collectCount;
+
+    private Long shareCount;
+
+    private Boolean isLike;
+
+    private Boolean isCoin;
+
+    private Boolean isCollect;
+
+    private LocalDateTime createTime;
+}
