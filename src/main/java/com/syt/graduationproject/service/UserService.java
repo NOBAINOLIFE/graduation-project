@@ -4,9 +4,11 @@ import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
 import com.syt.graduationproject.model.vo.LoginVo;
 import com.syt.graduationproject.model.vo.UserInfoVo;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface UserService {
 
+    @Transactional(rollbackFor = Exception.class)
     void register(RegisterRequest request);
 
     LoginVo login(LoginRequest request);

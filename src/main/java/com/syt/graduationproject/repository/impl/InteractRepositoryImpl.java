@@ -2,7 +2,6 @@ package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.mapper.FollowRecordMapper;
-import com.syt.graduationproject.mapper.LikeRecordMapper;
 import com.syt.graduationproject.mapper.UserStatsMapper;
 import com.syt.graduationproject.model.po.FollowRecordPo;
 import com.syt.graduationproject.model.po.UserStatsPo;
@@ -17,8 +16,6 @@ import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 public class InteractRepositoryImpl implements InteractRepository {
 
     private final FollowRecordMapper followRecordMapper;
-
-    private final LikeRecordMapper likeRecordMapper;
 
     private final UserStatsMapper userStatsMapper;
 

@@ -9,9 +9,15 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FollowRequest {
+public class CommentRequest {
 
-    private Long followeeId;
+    private Long videoId;
 
-    private Integer operation;
+    private Long rootId;
+
+    private Long parentId;
+
+    private Long replyUserId;
+
+    private String content;
 }

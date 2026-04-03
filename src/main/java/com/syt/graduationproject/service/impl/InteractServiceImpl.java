@@ -1,9 +1,15 @@
 package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.syt.graduationproject.mapper.CommentMapper;
+import com.syt.graduationproject.mapper.CommentStatsMapper;
 import com.syt.graduationproject.mapper.FollowRecordMapper;
+import com.syt.graduationproject.mapper.VideoStatsMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
+import com.syt.graduationproject.model.po.CommentPo;
+import com.syt.graduationproject.model.po.CommentStatsPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
+import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
@@ -12,8 +18,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.Optional;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
@@ -24,6 +30,12 @@ public class InteractServiceImpl implements InteractService {
     private final InteractRepository interactRepository;
 
     private final FollowRecordMapper followRecordMapper;
+
+    private final CommentMapper commentMapper;
+
+    private final CommentStatsMapper commentStatsMapper;
+
+    private final VideoStatsMapper videoStatsMapper;
 
     /**
      * 查询两者关注关系
@@ -85,6 +97,44 @@ public class InteractServiceImpl implements InteractService {
                 interactRepository.updateUserFollowNum(myId, -1L);
                 interactRepository.updateUserFansNum(followeeId, -1L);
             }
+        }
+    }
+
+    /**
+     * 评论
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void comment(CommentRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        // 1. 构造并插入评论主表
+        CommentPo comment = CommentPo.builder()
+                .userId(myId)
+                .videoId(request.getVideoId())
+                .content(request.getContent())
+                .rootId(request.getRootId())
+                .parentId(Optional.ofNullable(request.getParentId()).orElse(0L))
+                .replyUserId(Optional.ofNullable(request.getReplyUserId()).orElse(0L))
+                .build();
+        commentMapper.insert(comment);
+
+        // 2. 为每一条新评论初始化统计行
+        CommentStatsPo commentStatsPo = CommentStatsPo.builder()
+                .commentId(comment.getId())
+                .likeCount(0L)
+                .replyCount(0L)
+                .build();
+        commentStatsMapper.insert(commentStatsPo);
+
+        // 3. 维护层级计数逻辑
+        if (comment.getRootId() != 0) {
+            // 如果是回复（子评论），给它的“根评论”回复数 +1
+            commentStatsMapper.incrReplyCount(comment.getRootId());
+        }
+
+        // 4. 更新视频维度的总评论数
+        if (request.getRootId() == 0) {
+            videoStatsMapper.incrCommentCount(comment.getVideoId());
         }
     }
 }

@@ -12,14 +12,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 点赞记录表
+ * 评论点赞明细表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_like_record")
-public class LikeRecordPo {
+@TableName("tb_like_comment")
+public class LikeCommentPo {
+
     /**
      * 唯一 id
      */
@@ -33,32 +34,14 @@ public class LikeRecordPo {
     private Long userId;
 
     /**
-     * 目标类型 1-视频 2-评论
+     * 评论 ID
      */
-    @TableField(value = "target_type")
-    private Integer targetType;
-
-    /**
-     * 目标 ID
-     */
-    @TableField(value = "target_id")
-    private Long targetId;
-
-    /**
-     * 状态 0-未删除 1-已删除
-     */
-    @TableField(value = "is_deleted")
-    private Integer isDeleted;
+    @TableField(value = "comment_id")
+    private Long commentId;
 
     /**
      * 创建时间
      */
     @TableField(value = "create_time")
     private LocalDateTime createTime;
-
-    /**
-     * 更新时间
-     */
-    @TableField(value = "update_time")
-    private LocalDateTime updateTime;
 }

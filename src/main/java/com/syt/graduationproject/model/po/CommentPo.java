@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +13,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 评论信息表
+ * 二级评论表
  */
 @Data
 @Builder
@@ -20,66 +21,61 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @TableName("tb_comment")
 public class CommentPo {
+
     /**
-     * 唯一 id
+     * 主键ID
      */
     @TableId(type = IdType.AUTO)
     private Long id;
-    
+
     /**
-     * 评论用户 ID
+     * 所属内容ID（如视频ID）
+     */
+    @TableField(value = "video_id")
+    private Long videoId;
+
+    /**
+     * 评论者ID
      */
     @TableField(value = "user_id")
     private Long userId;
-    
+
     /**
-     * 目标类型 1-视频 2-评论
+     * 根评论ID：0表示自己是根评论，非0表示属于哪条主评论
      */
-    @TableField(value = "target_type")
-    private Integer targetType;
-    
+    @TableField(value = "root_id")
+    private Long rootId;
+
     /**
-     * 目标 ID
-     */
-    @TableField(value = "target")
-    private Long targetId;
-    
-    /**
-     * 父评论 ID
+     * 父评论ID：回复的是哪一条具体评论
      */
     @TableField(value = "parent_id")
     private Long parentId;
-    
+
+    /**
+     * 被回复者ID（冗余，方便显示：回复 @xxx）
+     */
+    @TableField(value = "reply_user_id")
+    private Long replyUserId;
+
     /**
      * 评论内容
      */
     @TableField(value = "content")
     private String content;
-    
+
     /**
-     * 点赞数量
-     */
-    @TableField(value = "like_num")
-    private Long likeNum;
-    
-    /**
-     * 回复数量
-     */
-    @TableField(value = "reply_num")
-    private Long replyNum;
-    
-    /**
-     * 状态 0-未删除 1-已删除
+     * 手动逻辑删除标志
      */
     @TableField(value = "is_deleted")
     private Integer isDeleted;
-    
+
     /**
      * 创建时间
      */
     @TableField(value = "create_time")
     private LocalDateTime createTime;
-    
+
     /**
      * 更新时间
      */
