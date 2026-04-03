@@ -9,3 +9,9 @@ spring:
     url: jdbc:mysql://127.0.0.1:3306/graduation-project
     username: root
     password: 12120605
+
+minio:
+  endpoint: http://127.0.0.1:9000
+  accessKey: admin
+  secretKey: 12120605
+  bucketName: graduation-project
