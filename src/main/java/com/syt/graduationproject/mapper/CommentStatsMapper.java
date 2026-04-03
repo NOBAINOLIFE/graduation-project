@@ -16,8 +16,8 @@ public interface CommentStatsMapper extends BaseMapper<CommentStatsPo> {
     int incrReplyCount(@Param("rootId") Long rootId);
 
     /**
-     * 原子增加点赞数（预留）
+     * 原子更新评论的点赞数
      */
-    @Update("UPDATE tb_comment_stats SET like_count = like_count + 1 WHERE comment_id = #{commentId}")
-    int incrLikeCount(@Param("commentId") Long commentId);
+    @Update("UPDATE tb_comment_stats SET like_count = like_count + #{addNum} WHERE comment_id = #{commentId}")
+    int updateLikeCount(@Param("commentId") Long commentId, @Param("addNum") int addNum);
 }

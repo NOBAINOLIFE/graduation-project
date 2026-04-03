@@ -1,20 +1,19 @@
 package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.syt.graduationproject.mapper.CommentMapper;
-import com.syt.graduationproject.mapper.CommentStatsMapper;
-import com.syt.graduationproject.mapper.FollowRecordMapper;
-import com.syt.graduationproject.mapper.VideoStatsMapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.bo.FollowBo;
-import com.syt.graduationproject.model.po.CommentPo;
-import com.syt.graduationproject.model.po.CommentStatsPo;
-import com.syt.graduationproject.model.po.FollowRecordPo;
+import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
+import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +22,7 @@ import java.util.Optional;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class InteractServiceImpl implements InteractService {
@@ -36,6 +36,10 @@ public class InteractServiceImpl implements InteractService {
     private final CommentStatsMapper commentStatsMapper;
 
     private final VideoStatsMapper videoStatsMapper;
+
+    private final LikeVideoMapper likeVideoMapper;
+
+    private final LikeCommentMapper likeCommentMapper;
 
     /**
      * 查询两者关注关系
@@ -135,6 +139,74 @@ public class InteractServiceImpl implements InteractService {
         // 4. 更新视频维度的总评论数
         if (request.getRootId() == 0) {
             videoStatsMapper.incrCommentCount(comment.getVideoId());
+        }
+    }
+
+    /**
+     * 点赞/取消点赞视频
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void likeVideo(LikeRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        Long videoId = request.getTargetId();
+        Integer operation = request.getOperation();
+        if (operation == 1) {
+            // --- 执行点赞 ---
+            LikeVideoPo likeVideoPo = LikeVideoPo.builder().userId(myId).videoId(videoId).build();
+            try {
+                likeVideoMapper.insert(likeVideoPo);
+                // 插入成功，增加计数
+                videoStatsMapper.updateLikeCount(videoId, 1);
+            } catch (DuplicateKeyException e) {
+                // 幂等处理：如果已经点过赞，直接忽略，不重复加分
+                log.warn("用户重复点赞，用户ID：{}，视频ID：{}", myId, videoId);
+            }
+        } else {
+            // --- 执行取消 ---
+            QueryWrapper<LikeVideoPo> wrapper = new QueryWrapper<>();
+            wrapper.lambda()
+                    .eq(LikeVideoPo::getUserId, myId)
+                    .eq(LikeVideoPo::getVideoId, videoId);
+            int rows = likeVideoMapper.delete(wrapper);
+            if (rows > 0) {
+                // 只有真正删除了记录，才减少计数
+                videoStatsMapper.updateLikeCount(videoId, -1);
+            }
+        }
+    }
+
+    /**
+     * 点赞/取消点赞评论
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void likeComment(LikeRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        Long commentId = request.getTargetId();
+        Integer operation = request.getOperation();
+        if (operation == 1) {
+            // --- 执行点赞 ---
+            LikeCommentPo likeCommentPo = LikeCommentPo.builder().userId(myId).commentId(commentId).build();
+            try {
+                likeCommentMapper.insert(likeCommentPo);
+                // 插入成功，增加计数
+                commentStatsMapper.updateLikeCount(commentId, 1);
+            } catch (DuplicateKeyException e) {
+                // 幂等处理：如果已经点过赞，直接忽略，不重复加分
+                log.warn("用户重复点赞，用户ID：{}，评论ID：{}", myId, commentId);
+            }
+        } else {
+            // --- 执行取消 ---
+            QueryWrapper<LikeCommentPo> wrapper = new QueryWrapper<>();
+            wrapper.lambda()
+                    .eq(LikeCommentPo::getUserId, myId)
+                    .eq(LikeCommentPo::getCommentId, commentId);
+            int rows = likeCommentMapper.delete(wrapper);
+            if (rows > 0) {
+                // 只有真正删除了记录，才减少计数
+                commentStatsMapper.updateLikeCount(commentId, -1);
+            }
         }
     }
 }

@@ -17,7 +17,7 @@ public class LikeRequest {
     private Long targetId;
 
     /**
-     * 0：视频点赞，2：评论点赞
+     * 0：视频点赞，1：评论点赞
      */
     private Integer type;
 

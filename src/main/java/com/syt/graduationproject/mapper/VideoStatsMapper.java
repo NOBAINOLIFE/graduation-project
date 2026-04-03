@@ -14,4 +14,10 @@ public interface VideoStatsMapper extends BaseMapper<VideoStatsPo> {
      */
     @Update("UPDATE tb_video_stats SET comment_count = comment_count + 1 WHERE video_id = #{videoId}")
     int incrCommentCount(@Param("videoId") Long videoId);
+
+    /**
+     * 原子更新视频的点赞数
+     */
+    @Update("UPDATE tb_video_stats SET like_count = like_count + #{addNum} WHERE video_id = #{videoId}")
+    int updateLikeCount(@Param("videoId") Long videoId, @Param("addNum") int addNum);
 }
