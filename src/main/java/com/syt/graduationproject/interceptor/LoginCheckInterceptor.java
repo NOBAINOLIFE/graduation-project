@@ -1,8 +1,8 @@
 package com.syt.graduationproject.interceptor;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.syt.graduationproject.model.dto.UserDto;
 import com.syt.graduationproject.model.response.Response;
+import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.JwtUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import io.jsonwebtoken.Claims;
@@ -39,7 +39,7 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
             log.error("请求头token为空，返回未登录的信息");
             response.setCharacterEncoding("UTF-8");
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write(JSONObject.toJSONString(Response.fail("未登录")));
+            response.getWriter().write(JsonUtil.toJson(Response.fail("未登录")));
             return false;
         }
 
@@ -55,7 +55,7 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
             log.error("解析JWT令牌失败", e);
             response.setCharacterEncoding("UTF-8");
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write(JSONObject.toJSONString(Response.fail("登录失败")));
+            response.getWriter().write(JsonUtil.toJson(Response.fail("登录失败")));
             return false;
         }
         return true;

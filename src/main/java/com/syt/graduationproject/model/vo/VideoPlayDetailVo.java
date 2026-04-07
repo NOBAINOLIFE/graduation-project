@@ -1,11 +1,13 @@
 package com.syt.graduationproject.model.vo;
 
+import com.syt.graduationproject.model.bo.VideoSourceBo;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 视频播放页详情
@@ -26,7 +28,7 @@ public class VideoPlayDetailVo {
 
     private String coverUrl;
 
-    private String videoUrl;
+    private List<VideoSourceBo> videoSourceList;
 
     private Integer duration;
 

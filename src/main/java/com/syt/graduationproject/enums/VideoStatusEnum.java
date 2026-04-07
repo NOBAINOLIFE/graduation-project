@@ -7,13 +7,19 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum VideoStatusEnum {
 
-    NORMAL(0, "正常"),
+    WAITING_UPLOAD(0, "待上传"),
 
-    AUDITING(1, "审核中"),
+    UPLOADED(1, "上传完成"),
 
-    BANNED(2, "封禁"),
+    TRANSCODING(2, "转码中"),
 
-    DELETED(3, "删除");
+    AUDITING(3, "审核中"),
+
+    NORMAL(4, "正常"),
+
+    BANNED(5, "封禁"),
+
+    DELETED(6, "删除");
 
     private final int code;
 

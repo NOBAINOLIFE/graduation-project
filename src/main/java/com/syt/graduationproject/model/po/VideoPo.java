@@ -51,19 +51,13 @@ public class VideoPo {
     private String coverUrl;
 
     /**
-     * 视频地址
-     */
-    @TableField(value = "video_url")
-    private String videoUrl;
-
-    /**
      * 视频时长 (秒)
      */
     @TableField(value = "duration")
     private Integer duration;
 
     /**
-     * 状态 0-审核中 1-已发布 2-下架
+     * 状态 0-待上传 1-上传完成 2-转码中 3-审核中 4-已发布 5-封禁 6-删除
      */
     @TableField(value = "status")
     private Integer status;

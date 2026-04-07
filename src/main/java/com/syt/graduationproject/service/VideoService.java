@@ -1,8 +1,10 @@
 package com.syt.graduationproject.service;
 
-import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
-import com.syt.graduationproject.model.po.UserVideoHistoryPo;
+import com.syt.graduationproject.model.request.VideoUploadRequest;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
+import com.syt.graduationproject.model.vo.VideoUploadConfirmVo;
+import com.syt.graduationproject.model.vo.VideoUploadVo;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface VideoService {
 
@@ -16,4 +18,13 @@ public interface VideoService {
      */
     VideoPlayDetailVo queryVideoInfo(Long videoId);
 
+    /**
+     * 获取视频上传链接
+     */
+    VideoUploadVo askForUpload(VideoUploadRequest request);
+
+    /**
+     * 确认视频上传
+     */
+    VideoUploadConfirmVo confirmUpload(Long videoId);
 }
