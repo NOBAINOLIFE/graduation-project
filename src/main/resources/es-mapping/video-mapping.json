@@ -1,0 +1,45 @@
+{
+  "mappings": {
+    "properties": {
+      "videoId": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "userId": {
+        "type": "keyword"
+      },
+      "username": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "coverUrl": {
+        "type": "keyword"
+      },
+      "playCount": {
+        "type": "long"
+      },
+      "createTime": {
+        "type": "date"
+      },
+      "collectionCount": {
+        "type": "long"
+      },
+      "duration": {
+        "type": "integer"
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.syt.graduationproject.mapper.PrivateMessageMapper">
+
+    <!-- 历史消息（游标分页：beforeId 为空表示取最新） -->
+    <select id="queryHistory" resultType="com.syt.graduationproject.model.vo.PrivateMessageVo">
+        select
+          id, from_user_id as fromUserId, to_user_id as toUserId, content, status, create_time as createTime,
+          delivered_time as deliveredTime, acked_time as ackedTime, read_time as readTime
+        from tb_private_message
+        where
+         (from_user_id = #{myId} and to_user_id = #{withUserId})
+          or
+         (from_user_id = #{withUserId} and to_user_id = #{myId})
+        <if test="beforeId != null">
+          and id &lt; #{beforeId}
+        </if>
+        order by id desc
+        limit #{pageSize}
+    </select>
+
+    <!-- 会话列表（按双方 userId 聚合出最近一条 + 未读数） -->
+    <select id="querySessions" resultType="com.syt.graduationproject.model.vo.ChatSessionVo">
+        select
+          t.withUserId as withUserId,
+          t.lastMsgId as lastMsgId,
+          m.content as lastContent,
+          m.create_time as lastTime,
+          ifnull(u.unreadCount, 0) as unreadCount
+        from (
+          select
+            case when from_user_id = #{myId} then to_user_id else from_user_id end as withUserId,
+            max(id) as lastMsgId
+          from tb_private_message
+          where from_user_id = #{myId} or to_user_id = #{myId}
+          group by case when from_user_id = #{myId} then to_user_id else from_user_id end
+        ) t
+        join tb_private_message m on m.id = t.lastMsgId
+        left join (
+          select from_user_id as withUserId, count(1) as unreadCount
+          from tb_private_message
+          where to_user_id = #{myId} and (status &lt;&gt; #{readStatus})
+          group by from_user_id
+        ) u on u.withUserId = t.withUserId
+        order by t.lastMsgId desc
+    </select>
+
+    <!-- 标记已读（把对方 -> 我 的消息，id<=upToMsgId 的置为 READ） -->
+    <update id="markRead">
+        update tb_private_message
+        set status = #{readStatus}, read_time = #{readTime}, update_time = #{readTime}
+        where from_user_id = #{withUserId}
+          and to_user_id = #{myId}
+        <if test="upToMsgId != null">
+          and id &lt;= #{upToMsgId}
+        </if>
+          and (status &lt;&gt; #{readStatus})
+    </update>
+
+    <!-- 按消息ID批量标记已读（用于离线消息上线推送后批量更新） -->
+    <update id="markReadByIds">
+        update tb_private_message
+        set status = #{readStatus}, read_time = #{readTime}, update_time = #{readTime}
+        where to_user_id = #{myId}
+          and id in
+          <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+          </foreach>
+    </update>
+
+</mapper>
+

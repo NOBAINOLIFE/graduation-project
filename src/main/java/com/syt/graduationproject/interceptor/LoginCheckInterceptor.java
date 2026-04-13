@@ -4,10 +4,12 @@ import com.syt.graduationproject.model.dto.UserDto;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.JwtUtil;
+import com.syt.graduationproject.util.RedisJwtWhitelistUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
@@ -23,6 +25,9 @@ import static com.syt.graduationproject.constant.UserConstant.USER_ID;
 public class LoginCheckInterceptor implements HandlerInterceptor {
 
     private static final String JWT_HTTP_HEADER = "token";
+
+    @Autowired
+    private RedisJwtWhitelistUtil redisJwtWhitelistUtil;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
@@ -40,6 +45,14 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
             response.setCharacterEncoding("UTF-8");
             response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write(JsonUtil.toJson(Response.fail("未登录")));
+            return false;
+        }
+        // 校验token是否在Redis白名单
+        if (!redisJwtWhitelistUtil.isTokenWhitelisted(jwtToken)) {
+            log.error("token未在白名单，疑似已登出或失效");
+            response.setCharacterEncoding("UTF-8");
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write(JsonUtil.toJson(Response.fail("未登录或已失效")));
             return false;
         }
 

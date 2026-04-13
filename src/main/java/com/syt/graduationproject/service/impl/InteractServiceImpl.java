@@ -3,6 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.mapper.*;
+import com.syt.graduationproject.enums.PrivateMessageStatusEnum;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
@@ -12,14 +13,34 @@ import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
+import com.syt.graduationproject.websocket.model.PrivateChatMessage;
+import com.syt.graduationproject.websocket.model.PrivateChatSendRequest;
+import com.syt.graduationproject.websocket.model.WsEnvelope;
+import com.syt.graduationproject.util.JsonUtil;
+import com.syt.graduationproject.model.vo.ChatSessionVo;
+import com.syt.graduationproject.model.vo.PrivateMessageVo;
+import com.syt.graduationproject.websocket.ChatRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
@@ -45,6 +66,25 @@ public class InteractServiceImpl implements InteractService {
     private final CoinRecordMapper coinRecordMapper;
 
     private final CollectionItemMapper collectionItemMapper;
+
+    private final PrivateMessageMapper privateMessageMapper;
+
+    private final StringRedisTemplate stringRedisTemplate;
+
+    /**
+     * 在线私聊会话：userId -> sessions（多端登录）
+     */
+    private final Map<Long, Set<WebSocketSession>> chatSessions = new ConcurrentHashMap<>();
+
+    /**
+     * 心跳时间：sessionId -> lastSeenMillis
+     */
+    private final Map<String, Long> sessionLastSeen = new ConcurrentHashMap<>();
+
+    /**
+     * 在线映射在 Redis 的 TTL（心跳会刷新）
+     */
+    private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
 
     /**
      * 查询两者关注关系
@@ -233,5 +273,303 @@ public class InteractServiceImpl implements InteractService {
                         .eq(CollectionItemPo::getUserId, userId)
                         .eq(CollectionItemPo::getVideoId, videoId)) > 0)
                 .build();
+    }
+
+    @Override
+    public void registerChatSession(Long userId, WebSocketSession session) {
+        chatSessions.computeIfAbsent(userId, k -> new CopyOnWriteArraySet<>()).add(session);
+        sessionLastSeen.put(session.getId(), System.currentTimeMillis());
+        // 1) 写入 Redis：userId -> sessionId（用于在线判断/多实例扩展的基础）
+        stringRedisTemplate.opsForValue().set(ChatRedisKeys.onlineKey(userId), session.getId(), ONLINE_TTL);
+        // 2) 上线即拉取离线消息（Redis List）并顺序推送，推完批量标已读并清空
+        deliverOfflineMessages(userId);
+    }
+
+    @Override
+    public void removeChatSession(Long userId, WebSocketSession session) {
+        Set<WebSocketSession> set = chatSessions.get(userId);
+        if (set == null) {
+            return;
+        }
+        set.remove(session);
+        sessionLastSeen.remove(session.getId());
+        if (set.isEmpty()) {
+            chatSessions.remove(userId);
+        }
+        // Redis 在线 key：只有当用户没有任何会话时才删除（避免多端误删）
+        Set<WebSocketSession> still = chatSessions.get(userId);
+        if (still == null || still.isEmpty()) {
+            stringRedisTemplate.delete(ChatRedisKeys.onlineKey(userId));
+        }
+    }
+
+    @Override
+    public void sendPrivateChat(Long fromUserId, PrivateChatSendRequest request) {
+        if (request == null || request.getToUserId() == null) {
+            throw new IllegalArgumentException("toUserId 不能为空");
+        }
+        String content = Optional.ofNullable(request.getContent()).orElse("").trim();
+        if (content.isEmpty()) {
+            throw new IllegalArgumentException("content 不能为空");
+        }
+
+        Long toUserId = request.getToUserId();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1) 落库（生成 serverMsgId）——MySQL 兜底：无论在线/离线都先写入历史
+        PrivateMessagePo po = PrivateMessagePo.builder()
+                .fromUserId(fromUserId)
+                .toUserId(toUserId)
+                .clientMsgId(request.getClientMsgId())
+                .content(content)
+                .status(PrivateMessageStatusEnum.SAVED.getCode())
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        try {
+            privateMessageMapper.insert(po);
+        } catch (DuplicateKeyException e) {
+            // 幂等：相同 from_user_id + client_msg_id 重复发送时，直接查回已有记录并继续推送
+            PrivateMessagePo existed = privateMessageMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PrivateMessagePo>()
+                    .eq(PrivateMessagePo::getFromUserId, fromUserId)
+                    .eq(PrivateMessagePo::getClientMsgId, request.getClientMsgId())
+                    .last("limit 1"));
+            if (existed != null) {
+                po = existed;
+            } else {
+                throw e;
+            }
+        }
+
+        Long serverMsgId = po.getId();
+        PrivateChatMessage chatMsg = PrivateChatMessage.builder()
+                .serverMsgId(serverMsgId)
+                .clientMsgId(request.getClientMsgId())
+                .fromUserId(fromUserId)
+                .toUserId(toUserId)
+                .content(content)
+                .sendTime(now)
+                .build();
+
+        WsEnvelope<PrivateChatMessage> chatEnvelope = WsEnvelope.<PrivateChatMessage>builder()
+                .type("chat")
+                .data(chatMsg)
+                .build();
+
+        // 2) 在线判断：优先用 Redis 判断是否在线；若在线则实时转发，否则写离线队列
+        boolean isOnline = stringRedisTemplate.hasKey(ChatRedisKeys.onlineKey(toUserId));
+        boolean delivered = false;
+        if (isOnline) {
+            delivered = broadcastToUser(toUserId, chatEnvelope);
+        }
+        if (!delivered) {
+            // 离线：写入 Redis List（按顺序）——缓存加速
+            String offlineJson = JsonUtil.toJson(chatEnvelope);
+            stringRedisTemplate.opsForList().rightPush(ChatRedisKeys.offlineListKey(toUserId), offlineJson);
+        }
+
+        // 3) 更新 MySQL 状态：在线投递成功 -> DELIVERED；离线则保持“未读”（即非 READ）
+        if (delivered) {
+            PrivateMessagePo update = PrivateMessagePo.builder()
+                    .status(PrivateMessageStatusEnum.DELIVERED.getCode())
+                    .deliveredTime(LocalDateTime.now())
+                    .updateTime(LocalDateTime.now())
+                    .build();
+            privateMessageMapper.update(update,
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PrivateMessagePo>()
+                            .eq(PrivateMessagePo::getId, serverMsgId));
+        }
+
+        // 4) 给发送方推送 ack（包含是否实时投递成功）
+        broadcastToUser(fromUserId, WsEnvelope.<Object>builder()
+                .type("ack")
+                .data(new AckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered))
+                .build());
+    }
+
+    private boolean broadcastToUser(Long userId, WsEnvelope<?> envelope) {
+        Set<WebSocketSession> set = chatSessions.get(userId);
+        if (set == null || set.isEmpty()) {
+            return false;
+        }
+        String json = JsonUtil.toJson(envelope);
+        TextMessage textMessage = new TextMessage(json);
+        boolean any = false;
+        for (WebSocketSession s : set) {
+            try {
+                if (s != null && s.isOpen()) {
+                    s.sendMessage(textMessage);
+                    any = true;
+                }
+            } catch (Exception e) {
+                log.warn("WebSocket 推送失败，userId: {}, sessionId: {}", userId, s.getId(), e);
+            }
+        }
+        return any;
+    }
+
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class AckPayload {
+        private String clientMsgId;
+        private Long serverMsgId;
+        private Long toUserId;
+        private Boolean delivered;
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class ReadPayload {
+        private Long readByUserId;
+        private Long upToMsgId;
+    }
+
+    @Override
+    public void ackPrivateMessage(Long userId, Long serverMsgId) {
+        if (serverMsgId == null) {
+            return;
+        }
+        // 只有接收方才能 ack（userId == toUserId）
+        PrivateMessagePo update = PrivateMessagePo.builder()
+                .status(PrivateMessageStatusEnum.ACKED.getCode())
+                .ackedTime(LocalDateTime.now())
+                .updateTime(LocalDateTime.now())
+                .build();
+        privateMessageMapper.update(update,
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PrivateMessagePo>()
+                        .eq(PrivateMessagePo::getId, serverMsgId)
+                        .eq(PrivateMessagePo::getToUserId, userId));
+    }
+
+    @Override
+    public void heartbeat(Long userId, WebSocketSession session) {
+        if (session != null) {
+            sessionLastSeen.put(session.getId(), System.currentTimeMillis());
+        }
+        // 心跳刷新在线 TTL（Redis）
+        if (userId != null) {
+            stringRedisTemplate.expire(ChatRedisKeys.onlineKey(userId), ONLINE_TTL);
+        }
+    }
+
+    /**
+     * 用户上线后拉取离线消息：按顺序推送 -> 批量更新 DB 为 READ -> 清空 Redis List
+     */
+    public void deliverOfflineMessages(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        String listKey = ChatRedisKeys.offlineListKey(userId);
+        Long size = stringRedisTemplate.opsForList().size(listKey);
+        if (size == null || size <= 0) {
+            return;
+        }
+
+        List<String> items = stringRedisTemplate.opsForList().range(listKey, 0, -1);
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        List<Long> msgIds = new ArrayList<>();
+        for (String json : items) {
+            if (json == null || json.trim().isEmpty()) {
+                continue;
+            }
+            // 推送给当前用户（按顺序）
+            broadcastToUser(userId, JsonUtil.fromJson(json, WsEnvelope.class));
+
+            // 收集 serverMsgId，用于批量标记已读
+            try {
+                // 先把 envelope 转成 Map 再提取 data.serverMsgId（避免泛型问题）
+                @SuppressWarnings("unchecked")
+                Map<String, Object> raw = (Map<String, Object>) JsonUtil.fromJson(json, Map.class);
+                Object data = raw.get("data");
+                if (data instanceof Map) {
+                    Map<?, ?> dataMap = (Map<?, ?>) data;
+                    Object serverMsgId = dataMap.get("serverMsgId");
+                    if (serverMsgId != null) {
+                        msgIds.add(Long.valueOf(String.valueOf(serverMsgId)));
+                    }
+                }
+            } catch (Exception ignore) {
+            }
+        }
+
+        if (!msgIds.isEmpty()) {
+            privateMessageMapper.markReadByIds(
+                    userId,
+                    msgIds.stream().distinct().collect(Collectors.toList()),
+                    PrivateMessageStatusEnum.READ.getCode(),
+                    LocalDateTime.now()
+            );
+        }
+
+        // 最后清空离线队列
+        stringRedisTemplate.delete(listKey);
+    }
+
+    @Override
+    public List<PrivateMessageVo> queryChatHistory(Long myId, Long withUserId, Long beforeId, Integer pageSize) {
+        int size = pageSize == null ? 20 : Math.min(Math.max(pageSize, 1), 100);
+        return privateMessageMapper.queryHistory(myId, withUserId, beforeId, size);
+    }
+
+    @Override
+    public List<ChatSessionVo> queryChatSessions(Long myId) {
+        return privateMessageMapper.querySessions(myId, PrivateMessageStatusEnum.READ.getCode());
+    }
+
+    @Override
+    public Long queryTotalUnread(Long myId) {
+        return privateMessageMapper.queryTotalUnread(myId, PrivateMessageStatusEnum.READ.getCode());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int markChatRead(Long myId, Long withUserId, Long upToMsgId) {
+        int rows = privateMessageMapper.markRead(
+                myId,
+                withUserId,
+                upToMsgId,
+                PrivateMessageStatusEnum.READ.getCode(),
+                LocalDateTime.now()
+        );
+        if (rows > 0) {
+            WsEnvelope<Object> readEvent = WsEnvelope.builder()
+                    .type("read")
+                    .data(new ReadPayload(myId, upToMsgId))
+                    .build();
+            broadcastToUser(withUserId, readEvent);
+        }
+        return rows;
+    }
+
+    /**
+     * 供定时任务调用：关闭超时会话并清理映射
+     */
+    public void closeIdleChatSessions(long idleMillis) {
+        long now = System.currentTimeMillis();
+        for (Map.Entry<Long, Set<WebSocketSession>> entry : chatSessions.entrySet()) {
+            Long userId = entry.getKey();
+            Set<WebSocketSession> sessions = entry.getValue();
+            if (sessions == null || sessions.isEmpty()) {
+                continue;
+            }
+            for (WebSocketSession s : sessions) {
+                if (s == null) {
+                    continue;
+                }
+                Long last = sessionLastSeen.get(s.getId());
+                if (last != null && (now - last) > idleMillis) {
+                    try {
+                        s.close(CloseStatus.SESSION_NOT_RELIABLE.withReason("心跳超时"));
+                    } catch (Exception ignore) {
+                    } finally {
+                        removeChatSession(userId, s);
+                    }
+                }
+            }
+        }
     }
 }

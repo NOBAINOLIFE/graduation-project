@@ -1,0 +1,36 @@
+{
+  "mappings": {
+    "properties": {
+      "userId": {
+        "type": "keyword"
+      },
+      "username": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "avatar": {
+        "type": "keyword"
+      },
+      "fansCount": {
+        "type": "long"
+      },
+      "videoCount": {
+        "type": "long"
+      },
+      "bio": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}

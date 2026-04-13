@@ -8,19 +8,25 @@ import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.po.UserPo;
 import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
+import com.syt.graduationproject.model.request.UserInfoUpdateRequest;
+import com.syt.graduationproject.model.request.UserPasswordUpdateRequest;
 import com.syt.graduationproject.model.vo.LoginVo;
 import com.syt.graduationproject.model.vo.UserInfoVo;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
+import com.syt.graduationproject.service.MinioService;
 import com.syt.graduationproject.service.UserService;
 import com.syt.graduationproject.util.JwtUtil;
+import com.syt.graduationproject.util.RedisJwtWhitelistUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +51,12 @@ public class UserServiceImpl implements UserService {
     private final InteractRepository interactRepository;
 
     private final UserMapper userMapper;
+
+    @Autowired
+    private RedisJwtWhitelistUtil redisJwtWhitelistUtil;
+
+    @Autowired
+    private MinioService minioService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -102,7 +114,8 @@ public class UserServiceImpl implements UserService {
         claimMap.put(USERNAME, userPo.getUsername());
         String jwtToken = JwtUtil.generateJwtToken(claimMap);
         log.info("用户登录成功，用户ID：{}，用户名：{}，JWT令牌：{}", userId, userPo.getUsername(), jwtToken);
-
+        // 加入Redis白名单
+        redisJwtWhitelistUtil.addToken(jwtToken, 24 * 60 * 60 * 1000L);
         return LoginVo.builder()
                 .userId(userId)
                 .username(userPo.getUsername())
@@ -153,5 +166,56 @@ public class UserServiceImpl implements UserService {
 
         log.info("查询用户信息成功，用户ID：{}，用户信息：{}", userId, userInfoVo);
         return userInfoVo;
+    }
+
+    @Override
+    public void updateUserInfo(Long userId, UserInfoUpdateRequest request) {
+        UserPo userPo = userRepository.queryUserById(userId);
+        if (userPo == null) {
+            throw new ErrorOperationException("用户不存在");
+        }
+        boolean changed = false;
+        if (request.getUsername() != null) {
+            userPo.setUsername(request.getUsername());
+            changed = true;
+        }
+        if (request.getAvatarUrl() != null && request.getAvatarUrl().startsWith("data:")) {
+            // 前端传 base64 或 MultipartFile，实际应为 MultipartFile，假设 controller 先上传
+            throw new ErrorOperationException("请通过头像上传接口上传头像文件");
+        } else if (request.getAvatarUrl() != null) {
+            userPo.setAvatarUrl(request.getAvatarUrl());
+            changed = true;
+        }
+        if (request.getBio() != null) {
+            userPo.setBio(request.getBio());
+            changed = true;
+        }
+        if (changed) {
+            userMapper.updateById(userPo);
+        }
+    }
+
+    @Override
+    public String uploadAvatar(MultipartFile file) {
+        try {
+            // 头像上传到 avatars 文件夹
+            return minioService.uploadFile(file, "avatars");
+        } catch (Exception e) {
+            log.error("上传头像到Minio失败", e);
+            throw new ErrorOperationException("上传头像失败");
+        }
+    }
+
+    @Override
+    public void updatePassword(Long userId, UserPasswordUpdateRequest request) {
+        UserPo userPo = userRepository.queryUserById(userId);
+        if (userPo == null) {
+            throw new ErrorOperationException("用户不存在");
+        }
+        if (!userPo.getPassword().equals(request.getOldPassword())) {
+            throw new ErrorParamException("原密码错误");
+        }
+        userPo.setPassword(request.getNewPassword());
+        userMapper.updateById(userPo);
     }
 }

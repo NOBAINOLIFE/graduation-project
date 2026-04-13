@@ -34,22 +34,29 @@ public class MinioService {
     @Value("${minio.bucketName}")
     private String bucketName;
 
-    /**
-     * 上传文件
-     */
-    public String uploadFile(MultipartFile file) throws Exception {
-        // 生成唯一文件名，防止覆盖
-        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+    @Value("${minio.endpoint}")
+    private String endpoint;
 
+    /**
+     * 上传文件到指定文件夹
+     */
+    public String uploadFile(MultipartFile file, String folder) throws Exception {
+        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String objectName = folder + "/" + fileName;
         minioClient.putObject(
                 PutObjectArgs.builder()
                         .bucket(bucketName)
-                        .object(fileName)
+                        .object(objectName)
                         .stream(file.getInputStream(), file.getSize(), -1)
                         .contentType(file.getContentType())
                         .build()
         );
-        return fileName;
+        return getFileUrl(objectName);
+    }
+
+    // 保持原有兼容性，默认上传到根目录
+    public String uploadFile(MultipartFile file) throws Exception {
+        return uploadFile(file, "");
     }
 
     /**
@@ -147,6 +154,13 @@ public class MinioService {
                 out.write(buffer, 0, len);
             }
         }
+    }
+
+    /**
+     * 获取文件的完整访问URL
+     */
+    public String getFileUrl(String objectName) {
+        return endpoint + "/" + bucketName + "/" + objectName;
     }
 
 }
