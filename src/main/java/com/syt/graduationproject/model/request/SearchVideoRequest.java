@@ -1,0 +1,56 @@
+package com.syt.graduationproject.model.request;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class SearchVideoRequest {
+
+    /**
+     * 视频标题关键词
+     */
+    private String keyword;
+
+    /**
+     * 排序方式：1-最多播放 2-最新发布 3-最多收藏
+     */
+    private Integer sortType;
+
+    /**
+     * 时长下限（秒）
+     */
+    private Integer minDuration;
+
+    /**
+     * 时长上限（秒）
+     */
+    private Integer maxDuration;
+
+    /**
+     * 发布日期开始时间
+     */
+    private LocalDateTime publishStartTime;
+
+    /**
+     * 发布日期结束时间
+     */
+    private LocalDateTime publishEndTime;
+
+    /**
+     * 页码（从1开始）
+     */
+    private Integer pageNum;
+
+    /**
+     * 每页大小
+     */
+    private Integer pageSize;
+}
+
