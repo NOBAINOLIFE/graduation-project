@@ -9,8 +9,9 @@ import java.util.Map;
 
 public class JwtUtil {
 
-    private static final String SECRET_KEY = "experiment-4";
-    private static final Long EXPIRATION = 24 * 60 * 60 * 1000L;
+    private static final String SECRET_KEY = "graduation-project";
+
+    public static final Long EXPIRATION = 24 * 60 * 60 * 1000L;
 
     /**
      * 生成JWT令牌

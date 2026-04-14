@@ -9,7 +9,7 @@ import com.syt.graduationproject.model.vo.ChatSessionVo;
 import com.syt.graduationproject.model.vo.PrivateMessageVo;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
-import com.syt.graduationproject.websocket.ChatWsConstants;
+import com.syt.graduationproject.constant.ChatWsConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +32,7 @@ public class InteractController {
      */
     @GetMapping("/chat/wsPath")
     public Response<String> wsPath() {
-        return Response.success(ChatWsConstants.WS_PATH);
+        return Response.success(ChatWsConstant.WS_PATH);
     }
 
     /**

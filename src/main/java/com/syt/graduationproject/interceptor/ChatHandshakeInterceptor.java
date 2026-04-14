@@ -1,4 +1,4 @@
-package com.syt.graduationproject.websocket;
+package com.syt.graduationproject.interceptor;
 
 import com.syt.graduationproject.util.JwtUtil;
 import io.jsonwebtoken.Claims;
@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static com.syt.graduationproject.constant.UserConstant.USER_ID;
-import static com.syt.graduationproject.websocket.ChatWsConstants.ATTR_USER_ID;
+import static com.syt.graduationproject.constant.ChatWsConstant.ATTR_USER_ID;
 
 /**
  * WebSocket 握手拦截器：从 token 中解析 userId 写入 session attributes

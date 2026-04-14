@@ -1,4 +1,4 @@
-package com.syt.graduationproject.websocket.model;
+package com.syt.graduationproject.model.websocket;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

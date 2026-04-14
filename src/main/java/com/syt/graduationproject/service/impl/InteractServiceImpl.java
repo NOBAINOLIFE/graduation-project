@@ -13,13 +13,13 @@ import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
-import com.syt.graduationproject.websocket.model.PrivateChatMessage;
-import com.syt.graduationproject.websocket.model.PrivateChatSendRequest;
-import com.syt.graduationproject.websocket.model.WsEnvelope;
+import com.syt.graduationproject.model.websocket.PrivateChatMessage;
+import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
+import com.syt.graduationproject.model.websocket.WsEnvelope;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.model.vo.ChatSessionVo;
 import com.syt.graduationproject.model.vo.PrivateMessageVo;
-import com.syt.graduationproject.websocket.ChatRedisKeys;
+import com.syt.graduationproject.util.RedisKeyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -280,7 +280,7 @@ public class InteractServiceImpl implements InteractService {
         chatSessions.computeIfAbsent(userId, k -> new CopyOnWriteArraySet<>()).add(session);
         sessionLastSeen.put(session.getId(), System.currentTimeMillis());
         // 1) 写入 Redis：userId -> sessionId（用于在线判断/多实例扩展的基础）
-        stringRedisTemplate.opsForValue().set(ChatRedisKeys.onlineKey(userId), session.getId(), ONLINE_TTL);
+        stringRedisTemplate.opsForValue().set(RedisKeyUtil.onlineKey(userId), session.getId(), ONLINE_TTL);
         // 2) 上线即拉取离线消息（Redis List）并顺序推送，推完批量标已读并清空
         deliverOfflineMessages(userId);
     }
@@ -299,7 +299,7 @@ public class InteractServiceImpl implements InteractService {
         // Redis 在线 key：只有当用户没有任何会话时才删除（避免多端误删）
         Set<WebSocketSession> still = chatSessions.get(userId);
         if (still == null || still.isEmpty()) {
-            stringRedisTemplate.delete(ChatRedisKeys.onlineKey(userId));
+            stringRedisTemplate.delete(RedisKeyUtil.onlineKey(userId));
         }
     }
 
@@ -357,7 +357,7 @@ public class InteractServiceImpl implements InteractService {
                 .build();
 
         // 2) 在线判断：优先用 Redis 判断是否在线；若在线则实时转发，否则写离线队列
-        boolean isOnline = stringRedisTemplate.hasKey(ChatRedisKeys.onlineKey(toUserId));
+        boolean isOnline = stringRedisTemplate.hasKey(RedisKeyUtil.onlineKey(toUserId));
         boolean delivered = false;
         if (isOnline) {
             delivered = broadcastToUser(toUserId, chatEnvelope);
@@ -365,7 +365,7 @@ public class InteractServiceImpl implements InteractService {
         if (!delivered) {
             // 离线：写入 Redis List（按顺序）——缓存加速
             String offlineJson = JsonUtil.toJson(chatEnvelope);
-            stringRedisTemplate.opsForList().rightPush(ChatRedisKeys.offlineListKey(toUserId), offlineJson);
+            stringRedisTemplate.opsForList().rightPush(RedisKeyUtil.offlineListKey(toUserId), offlineJson);
         }
 
         // 3) 更新 MySQL 状态：在线投递成功 -> DELIVERED；离线则保持“未读”（即非 READ）
@@ -449,7 +449,7 @@ public class InteractServiceImpl implements InteractService {
         }
         // 心跳刷新在线 TTL（Redis）
         if (userId != null) {
-            stringRedisTemplate.expire(ChatRedisKeys.onlineKey(userId), ONLINE_TTL);
+            stringRedisTemplate.expire(RedisKeyUtil.onlineKey(userId), ONLINE_TTL);
         }
     }
 
@@ -460,7 +460,7 @@ public class InteractServiceImpl implements InteractService {
         if (userId == null) {
             return;
         }
-        String listKey = ChatRedisKeys.offlineListKey(userId);
+        String listKey = RedisKeyUtil.offlineListKey(userId);
         Long size = stringRedisTemplate.opsForList().size(listKey);
         if (size == null || size <= 0) {
             return;

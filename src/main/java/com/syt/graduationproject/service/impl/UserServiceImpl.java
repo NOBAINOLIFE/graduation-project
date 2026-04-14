@@ -19,11 +19,11 @@ import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.MinioService;
 import com.syt.graduationproject.service.UserService;
 import com.syt.graduationproject.util.JwtUtil;
-import com.syt.graduationproject.util.RedisJwtWhitelistUtil;
+import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static com.syt.graduationproject.constant.UserConstant.*;
 
@@ -52,11 +53,9 @@ public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
 
-    @Autowired
-    private RedisJwtWhitelistUtil redisJwtWhitelistUtil;
+    private final StringRedisTemplate stringRedisTemplate;
 
-    @Autowired
-    private MinioService minioService;
+    private final MinioService minioService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -107,15 +106,17 @@ public class UserServiceImpl implements UserService {
             throw new ErrorParamException("账号或密码错误");
         }
 
-        // 生成JwtToken
+        // 生成 JwtToken
         Map<String, Object> claimMap = new HashMap<>();
         Long userId = userPo.getId();
         claimMap.put(USER_ID, userId);
         claimMap.put(USERNAME, userPo.getUsername());
         String jwtToken = JwtUtil.generateJwtToken(claimMap);
         log.info("用户登录成功，用户ID：{}，用户名：{}，JWT令牌：{}", userId, userPo.getUsername(), jwtToken);
-        // 加入Redis白名单
-        redisJwtWhitelistUtil.addToken(jwtToken, 24 * 60 * 60 * 1000L);
+
+        // 加入 Redis 白名单
+        stringRedisTemplate.opsForValue()
+                .set(RedisKeyUtil.jwtWhitelistKey(userId), jwtToken, JwtUtil.EXPIRATION, TimeUnit.MILLISECONDS);
         return LoginVo.builder()
                 .userId(userId)
                 .username(userPo.getUsername())
@@ -180,7 +181,6 @@ public class UserServiceImpl implements UserService {
             changed = true;
         }
         if (request.getAvatarUrl() != null && request.getAvatarUrl().startsWith("data:")) {
-            // 前端传 base64 或 MultipartFile，实际应为 MultipartFile，假设 controller 先上传
             throw new ErrorOperationException("请通过头像上传接口上传头像文件");
         } else if (request.getAvatarUrl() != null) {
             userPo.setAvatarUrl(request.getAvatarUrl());
@@ -204,6 +204,11 @@ public class UserServiceImpl implements UserService {
             log.error("上传头像到Minio失败", e);
             throw new ErrorOperationException("上传头像失败");
         }
+    }
+
+    @Override
+    public void logout(Long userId) {
+        stringRedisTemplate.delete(RedisKeyUtil.jwtWhitelistKey(userId));
     }
 
     @Override

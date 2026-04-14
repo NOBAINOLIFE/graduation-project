@@ -5,7 +5,7 @@ import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
-import com.syt.graduationproject.websocket.model.PrivateChatSendRequest;
+import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
 import com.syt.graduationproject.model.vo.ChatSessionVo;

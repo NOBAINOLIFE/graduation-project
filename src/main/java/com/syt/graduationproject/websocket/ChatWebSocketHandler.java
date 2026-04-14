@@ -2,8 +2,8 @@ package com.syt.graduationproject.websocket;
 
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.JsonUtil;
-import com.syt.graduationproject.websocket.model.PrivateChatSendRequest;
-import com.syt.graduationproject.websocket.model.WsEnvelope;
+import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
+import com.syt.graduationproject.model.websocket.WsEnvelope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -15,7 +15,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.Map;
 
-import static com.syt.graduationproject.websocket.ChatWsConstants.ATTR_USER_ID;
+import static com.syt.graduationproject.constant.ChatWsConstant.ATTR_USER_ID;
 
 /**
  * 私聊 WebSocket 处理器

@@ -9,7 +9,6 @@ import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.LoginVo;
 import com.syt.graduationproject.model.vo.UserInfoVo;
 import com.syt.graduationproject.service.UserService;
-import com.syt.graduationproject.util.RedisJwtWhitelistUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,8 +26,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserController {
 
     private final UserService userService;
-    @Autowired
-    private RedisJwtWhitelistUtil redisJwtWhitelistUtil;
 
     /**
      * 用户注册
@@ -122,12 +119,13 @@ public class UserController {
      * 用户登出
      */
     @PostMapping("/logout")
-    public Response<Object> logout(@RequestHeader("token") String token) {
+    public Response<Object> logout() {
+        Long userId = UserHolderUtil.getUser().getUserId();
         try {
-            redisJwtWhitelistUtil.removeToken(token);
+            userService.logout(userId);
             return Response.success();
         } catch (Exception e) {
-            log.error("用户登出失败，token：{}", token, e);
+            log.error("用户登出失败，userId：{}", userId, e);
             return Response.fail("登出失败，系统异常");
         }
     }

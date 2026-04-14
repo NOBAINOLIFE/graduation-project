@@ -1,4 +1,4 @@
-package com.syt.graduationproject.websocket;
+package com.syt.graduationproject.schedule;
 
 import com.syt.graduationproject.service.impl.InteractServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 @EnableScheduling
 @RequiredArgsConstructor
-public class ChatSessionCleaner {
+public class ChatSessionCleanerJob {
 
     private final InteractServiceImpl interactService;
 
