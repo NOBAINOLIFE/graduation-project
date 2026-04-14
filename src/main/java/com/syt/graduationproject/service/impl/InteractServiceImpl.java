@@ -10,12 +10,10 @@ import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
-import com.syt.graduationproject.model.websocket.PrivateChatMessage;
-import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
-import com.syt.graduationproject.model.websocket.WsEnvelope;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.model.vo.ChatSessionVo;
 import com.syt.graduationproject.model.vo.PrivateMessageVo;
@@ -381,7 +379,7 @@ public class InteractServiceImpl implements InteractService {
         }
 
         // 4) 给发送方推送 ack（包含是否实时投递成功）
-        broadcastToUser(fromUserId, WsEnvelope.<Object>builder()
+        broadcastToUser(fromUserId, WsEnvelope.builder()
                 .type("ack")
                 .data(new AckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered))
                 .build());
@@ -406,23 +404,6 @@ public class InteractServiceImpl implements InteractService {
             }
         }
         return any;
-    }
-
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    private static class AckPayload {
-        private String clientMsgId;
-        private Long serverMsgId;
-        private Long toUserId;
-        private Boolean delivered;
-    }
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    private static class ReadPayload {
-        private Long readByUserId;
-        private Long upToMsgId;
     }
 
     @Override

@@ -16,7 +16,7 @@ import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
-import com.syt.graduationproject.service.MinioService;
+import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.UserService;
 import com.syt.graduationproject.util.JwtUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;

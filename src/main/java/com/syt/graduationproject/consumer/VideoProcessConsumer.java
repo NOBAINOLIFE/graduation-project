@@ -6,7 +6,7 @@ import com.syt.graduationproject.enums.VideoTranscodingStatusEnum;
 import com.syt.graduationproject.model.dto.VideoTranscodingDto;
 import com.syt.graduationproject.model.po.VideoSourcePo;
 import com.syt.graduationproject.mapper.VideoSourceMapper;
-import com.syt.graduationproject.service.MinioService;
+import com.syt.graduationproject.service.minio.MinioService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;

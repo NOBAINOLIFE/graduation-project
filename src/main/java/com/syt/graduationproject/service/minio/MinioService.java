@@ -1,4 +1,4 @@
-package com.syt.graduationproject.service;
+package com.syt.graduationproject.service.minio;
 
 import com.syt.graduationproject.exception.CustomException;
 import io.minio.GetPresignedObjectUrlArgs;

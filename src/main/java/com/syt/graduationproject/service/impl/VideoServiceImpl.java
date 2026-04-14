@@ -1,6 +1,5 @@
 package com.syt.graduationproject.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.enums.VideoTranscodingStatusEnum;
@@ -20,9 +19,8 @@ import com.syt.graduationproject.model.vo.VideoUploadVo;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
-import com.syt.graduationproject.service.MinioService;
+import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.VideoService;
-import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

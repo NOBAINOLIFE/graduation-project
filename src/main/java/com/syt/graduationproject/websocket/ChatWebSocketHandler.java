@@ -7,6 +7,7 @@ import com.syt.graduationproject.model.websocket.WsEnvelope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -28,7 +29,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private final InteractService interactService;
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+    public void afterConnectionEstablished(@NotNull WebSocketSession session) throws Exception {
         Long userId = getUserId(session);
         if (userId == null) {
             session.close(CloseStatus.NOT_ACCEPTABLE.withReason("未认证"));
@@ -39,7 +40,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+    protected void handleTextMessage(@NotNull WebSocketSession session, @NotNull TextMessage message) throws Exception {
         Long fromUserId = getUserId(session);
         if (fromUserId == null) {
             session.close(CloseStatus.NOT_ACCEPTABLE.withReason("未认证"));
@@ -102,7 +103,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                         interactService.markChatRead(fromUserId, withId, upTo);
                     }
                 }
-                return;
             }
         } catch (Exception e) {
             log.warn("处理 WebSocket 消息失败，fromUserId: {}, payload: {}", fromUserId, payload, e);
@@ -115,7 +115,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+    public void afterConnectionClosed(@NotNull WebSocketSession session, @NotNull CloseStatus status) {
         Long userId = getUserId(session);
         if (userId != null) {
             interactService.removeChatSession(userId, session);
