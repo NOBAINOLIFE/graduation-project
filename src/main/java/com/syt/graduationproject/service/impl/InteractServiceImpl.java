@@ -7,9 +7,11 @@ import com.syt.graduationproject.enums.PrivateMessageStatusEnum;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
@@ -20,6 +22,7 @@ import com.syt.graduationproject.model.vo.PrivateMessageVo;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,14 +33,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.List;
-import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
@@ -83,6 +81,7 @@ public class InteractServiceImpl implements InteractService {
      * 在线映射在 Redis 的 TTL（心跳会刷新）
      */
     private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
+    private final UserMapper userMapper;
 
     /**
      * 查询两者关注关系
@@ -279,7 +278,7 @@ public class InteractServiceImpl implements InteractService {
         sessionLastSeen.put(session.getId(), System.currentTimeMillis());
         // 1) 写入 Redis：userId -> sessionId（用于在线判断/多实例扩展的基础）
         stringRedisTemplate.opsForValue().set(RedisKeyUtil.onlineKey(userId), session.getId(), ONLINE_TTL);
-        // 2) 上线即拉取离线消息（Redis List）并顺序推送，推完批量标已读并清空
+        // 2) 上线即拉取离线消息（Redis List）并顺序推送，成功投递后再更新状态并移除已投递前缀
         deliverOfflineMessages(userId);
     }
 
@@ -312,7 +311,6 @@ public class InteractServiceImpl implements InteractService {
         }
 
         Long toUserId = request.getToUserId();
-        LocalDateTime now = LocalDateTime.now();
 
         // 1) 落库（生成 serverMsgId）——MySQL 兜底：无论在线/离线都先写入历史
         PrivateMessagePo po = PrivateMessagePo.builder()
@@ -321,14 +319,12 @@ public class InteractServiceImpl implements InteractService {
                 .clientMsgId(request.getClientMsgId())
                 .content(content)
                 .status(PrivateMessageStatusEnum.SAVED.getCode())
-                .createTime(now)
-                .updateTime(now)
                 .build();
         try {
             privateMessageMapper.insert(po);
         } catch (DuplicateKeyException e) {
             // 幂等：相同 from_user_id + client_msg_id 重复发送时，直接查回已有记录并继续推送
-            PrivateMessagePo existed = privateMessageMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PrivateMessagePo>()
+            PrivateMessagePo existed = privateMessageMapper.selectOne(new LambdaQueryWrapper<PrivateMessagePo>()
                     .eq(PrivateMessagePo::getFromUserId, fromUserId)
                     .eq(PrivateMessagePo::getClientMsgId, request.getClientMsgId())
                     .last("limit 1"));
@@ -346,7 +342,7 @@ public class InteractServiceImpl implements InteractService {
                 .fromUserId(fromUserId)
                 .toUserId(toUserId)
                 .content(content)
-                .sendTime(now)
+                .sendTime(LocalDateTime.now())
                 .build();
 
         WsEnvelope<PrivateChatMessage> chatEnvelope = WsEnvelope.<PrivateChatMessage>builder()
@@ -373,14 +369,15 @@ public class InteractServiceImpl implements InteractService {
                     .deliveredTime(LocalDateTime.now())
                     .updateTime(LocalDateTime.now())
                     .build();
-            privateMessageMapper.update(update,
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PrivateMessagePo>()
-                            .eq(PrivateMessagePo::getId, serverMsgId));
+            privateMessageMapper.update(update, new LambdaQueryWrapper<PrivateMessagePo>()
+                            .eq(PrivateMessagePo::getId, serverMsgId)
+                            // 仅允许 SAVED -> DELIVERED，避免覆盖 ACKED/READ
+                            .eq(PrivateMessagePo::getStatus, PrivateMessageStatusEnum.SAVED.getCode()));
         }
 
-        // 4) 给发送方推送 ack（包含是否实时投递成功）
+        // 4) 给发送方推送发送回执（包含是否实时投递成功）
         broadcastToUser(fromUserId, WsEnvelope.builder()
-                .type("ack")
+                .type("chat_send_ack")
                 .data(new AckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered))
                 .build());
     }
@@ -418,9 +415,13 @@ public class InteractServiceImpl implements InteractService {
                 .updateTime(LocalDateTime.now())
                 .build();
         privateMessageMapper.update(update,
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PrivateMessagePo>()
+                new LambdaQueryWrapper<PrivateMessagePo>()
                         .eq(PrivateMessagePo::getId, serverMsgId)
-                        .eq(PrivateMessagePo::getToUserId, userId));
+                        .eq(PrivateMessagePo::getToUserId, userId)
+                        // 仅允许 SAVED/DELIVERED -> ACKED，避免 READ 被回退为 ACKED
+                        .in(PrivateMessagePo::getStatus,
+                                PrivateMessageStatusEnum.SAVED.getCode(),
+                                PrivateMessageStatusEnum.DELIVERED.getCode()));
     }
 
     @Override
@@ -435,7 +436,7 @@ public class InteractServiceImpl implements InteractService {
     }
 
     /**
-     * 用户上线后拉取离线消息：按顺序推送 -> 批量更新 DB 为 READ -> 清空 Redis List
+     * 用户上线后拉取离线消息：按顺序推送 -> 批量更新 DB 为 DELIVERED -> 移除已成功投递的队列前缀
      */
     public void deliverOfflineMessages(Long userId) {
         if (userId == null) {
@@ -452,15 +453,32 @@ public class InteractServiceImpl implements InteractService {
             return;
         }
 
-        List<Long> msgIds = new ArrayList<>();
+        List<Long> deliveredMsgIds = new ArrayList<>();
+        long deliveredCount = 0L;
+        LocalDateTime deliveredTime = LocalDateTime.now();
         for (String json : items) {
             if (json == null || json.trim().isEmpty()) {
                 continue;
             }
-            // 推送给当前用户（按顺序）
-            broadcastToUser(userId, JsonUtil.fromJson(json, WsEnvelope.class));
 
-            // 收集 serverMsgId，用于批量标记已读
+            WsEnvelope<?> envelope;
+            try {
+                envelope = JsonUtil.fromJson(json, WsEnvelope.class);
+            } catch (Exception e) {
+                // 脏数据会阻塞后续消息，直接丢弃该条并继续。
+                log.warn("离线消息反序列化失败，userId: {}", userId, e);
+                deliveredCount++;
+                continue;
+            }
+
+            // 推送给当前用户（按顺序）；一旦失败，保留当前及后续消息，等待下次重试
+            boolean pushed = broadcastToUser(userId, envelope);
+            if (!pushed) {
+                break;
+            }
+            deliveredCount++;
+
+            // 收集 serverMsgId，用于批量标记已投递
             try {
                 // 先把 envelope 转成 Map 再提取 data.serverMsgId（避免泛型问题）
                 @SuppressWarnings("unchecked")
@@ -470,24 +488,29 @@ public class InteractServiceImpl implements InteractService {
                     Map<?, ?> dataMap = (Map<?, ?>) data;
                     Object serverMsgId = dataMap.get("serverMsgId");
                     if (serverMsgId != null) {
-                        msgIds.add(Long.valueOf(String.valueOf(serverMsgId)));
+                        deliveredMsgIds.add(Long.valueOf(String.valueOf(serverMsgId)));
                     }
                 }
             } catch (Exception ignore) {
             }
         }
 
-        if (!msgIds.isEmpty()) {
-            privateMessageMapper.markReadByIds(
+        if (deliveredCount <= 0) {
+            return;
+        }
+
+        if (!deliveredMsgIds.isEmpty()) {
+            privateMessageMapper.markDeliveredByIds(
                     userId,
-                    msgIds.stream().distinct().collect(Collectors.toList()),
-                    PrivateMessageStatusEnum.READ.getCode(),
-                    LocalDateTime.now()
+                    deliveredMsgIds.stream().distinct().collect(Collectors.toList()),
+                    PrivateMessageStatusEnum.DELIVERED.getCode(),
+                    deliveredTime,
+                    PrivateMessageStatusEnum.SAVED.getCode()
             );
         }
 
-        // 最后清空离线队列
-        stringRedisTemplate.delete(listKey);
+        // 只移除已成功投递（或判定为脏数据）的前缀，未成功部分保留以便重试。
+        stringRedisTemplate.opsForList().trim(listKey, deliveredCount, -1);
     }
 
     @Override
@@ -524,6 +547,92 @@ public class InteractServiceImpl implements InteractService {
             broadcastToUser(withUserId, readEvent);
         }
         return rows;
+    }
+
+    @Override
+    public List<UserSimpleInfoVo> queryFansList(Long userId) {
+        // 查询粉丝列表
+        List<FollowRecordPo> fans = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
+                .eq(FollowRecordPo::getFolloweeId, userId)
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+        if (CollectionUtils.isEmpty(fans)) {
+            return Collections.emptyList();
+        }
+        // 判断是否关注粉丝
+        List<Long> fanIds = fans.stream().map(FollowRecordPo::getFollowerId).collect(Collectors.toList());
+        List<FollowRecordPo> myFollows = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
+                .eq(FollowRecordPo::getFollowerId, userId)
+                .in(FollowRecordPo::getFolloweeId, fanIds)
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+        Set<Long> followedFanIds = myFollows.stream().map(FollowRecordPo::getFolloweeId).collect(Collectors.toSet());
+        // 构造返回列表
+        List<UserSimpleInfoVo> result = new ArrayList<>();
+        List<UserPo> fansInfoList = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
+                .in(UserPo::getId, fanIds));
+        for (UserPo fansInfo : fansInfoList) {
+            UserSimpleInfoVo vo = new UserSimpleInfoVo();
+            vo.setUserId(fansInfo.getId());
+            vo.setUsername(fansInfo.getUsername());
+            vo.setBio(fansInfo.getBio());
+            vo.setAvatarUrl(fansInfo.getAvatarUrl());
+            vo.setIsFollow(followedFanIds.contains(fansInfo.getId()));
+            result.add(vo);
+        }
+        return result;
+    }
+
+    @Override
+    public List<UserSimpleInfoVo> queryFollowList(Long userId) {
+        // 查询关注列表
+        List<FollowRecordPo> follows = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
+                .eq(FollowRecordPo::getFollowerId, userId)
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+        if (CollectionUtils.isEmpty(follows)) {
+            return Collections.emptyList();
+        }
+        // 构造返回列表
+        List<UserSimpleInfoVo> result = new ArrayList<>();
+        List<Long> followsIdList = follows.stream()
+                .map(FollowRecordPo::getFolloweeId)
+                .collect(Collectors.toList());
+        List<UserPo> followsInfoList = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
+                .in(UserPo::getId, followsIdList));
+        for (UserPo followsInfo : followsInfoList) {
+            UserSimpleInfoVo vo = new UserSimpleInfoVo();
+            vo.setUserId(followsInfo.getId());
+            vo.setUsername(followsInfo.getUsername());
+            vo.setBio(followsInfo.getBio());
+            vo.setAvatarUrl(followsInfo.getAvatarUrl());
+            vo.setIsFollow(true);
+            result.add(vo);
+        }
+        return result;
+    }
+
+    @Override
+    public void collectVideo(CollectVideoRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        Long videoId = request.getVideoId();
+        Long directoryId = request.getCollectionDirectoryId();
+        Integer operation = request.getOperation();
+        if (operation == 1) {
+            // --- 执行收藏 ---
+            CollectionItemPo itemPo = CollectionItemPo.builder()
+                    .directoryId(directoryId).userId(myId).videoId(videoId).build();
+            try {
+                collectionItemMapper.insert(itemPo);
+            } catch (DuplicateKeyException e) {
+                // 幂等处理：如果已经收藏过，直接忽略，不重复加分
+                log.warn("用户重复收藏，用户ID：{}，视频ID：{}", myId, videoId);
+            }
+        } else {
+            // --- 执行取消收藏 ---
+            QueryWrapper<CollectionItemPo> wrapper = new QueryWrapper<>();
+            wrapper.lambda()
+                    .eq(CollectionItemPo::getUserId, myId)
+                    .eq(CollectionItemPo::getVideoId, videoId);
+            collectionItemMapper.delete(wrapper);
+        }
     }
 
     /**

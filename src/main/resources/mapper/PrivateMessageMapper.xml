@@ -70,5 +70,17 @@
           </foreach>
     </update>
 
+    <!-- 按消息ID批量标记已投递（仅允许 SAVED -> DELIVERED，避免覆盖 ACKED/READ） -->
+    <update id="markDeliveredByIds">
+        update tb_private_message
+        set status = #{deliveredStatus}, delivered_time = #{deliveredTime}, update_time = #{deliveredTime}
+        where to_user_id = #{myId}
+          and status = #{savedStatus}
+          and id in
+          <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+          </foreach>
+    </update>
+
 </mapper>
 

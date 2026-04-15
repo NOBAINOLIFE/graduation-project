@@ -81,13 +81,16 @@ document.getElementById('connectBtn').onclick = function() {
                 // 记录 serverMsgId 并自动发送 ack
                 if (typeof data.serverMsgId !== 'undefined') {
                     lastServerMsgId = data.serverMsgId;
-                    // 自动发送 ack
+                    // 自动发送接收确认（chat_recv_ack）
                     ws.send(JSON.stringify({
-                        type: 'ack',
+                        type: 'chat_recv_ack',
                         data: { serverMsgId: data.serverMsgId }
                     }));
-                    logMsg('已发送ack确认', 'system');
+                    logMsg('已发送 chat_recv_ack', 'system');
                 }
+            } else if (msg.type === 'chat_send_ack' && msg.data) {
+                const ack = msg.data;
+                logMsg(`发送回执: clientMsgId=${ack.clientMsgId}, serverMsgId=${ack.serverMsgId}, delivered=${ack.delivered}`, 'system');
             } else if (msg.type === 'pong') {
                 logMsg('收到心跳响应', 'system');
             } else if (msg.type === 'error') {

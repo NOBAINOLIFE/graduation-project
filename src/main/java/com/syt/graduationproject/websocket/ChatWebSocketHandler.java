@@ -52,27 +52,23 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         try {
-            // 兼容两种格式：
-            // 1) 旧格式：{"clientMsgId":"...","toUserId":2,"content":"hi"}
-            // 2) 新格式：{"type":"chat|ack|ping","data":{...}}
+            // 格式：{"type":"chat|chat_recv_ack|ping|read","data":{...}}
             @SuppressWarnings("unchecked")
             Map<String, Object> raw = (Map<String, Object>) JsonUtil.fromJson(payload, Map.class);
             Object typeObj = raw.get("type");
-            if (typeObj == null) {
-                PrivateChatSendRequest req = JsonUtil.fromJson(payload, PrivateChatSendRequest.class);
-                interactService.sendPrivateChat(fromUserId, req);
-                return;
-            }
-
             String type = String.valueOf(typeObj);
             Object data = raw.get("data");
+
+            // 发送消息格式：{"type":"chat","data":{"clientMsgId":"c1","toUserId":2,"content":"hi"}}
             if ("chat".equalsIgnoreCase(type)) {
                 String dataJson = JsonUtil.toJson(data);
                 PrivateChatSendRequest req = JsonUtil.fromJson(dataJson, PrivateChatSendRequest.class);
                 interactService.sendPrivateChat(fromUserId, req);
                 return;
             }
-            if ("ack".equalsIgnoreCase(type)) {
+            // 收到 chat 后回接收确认：{"type":"chat_recv_ack","data":{"serverMsgId":123}}
+            // 兼容历史客户端：仍接受 type=ack
+            if ("chat_recv_ack".equalsIgnoreCase(type) || "ack".equalsIgnoreCase(type)) {
                 if (data instanceof Map) {
                     Map<?, ?> dataMap = (Map<?, ?>) data;
                     Object serverMsgId = dataMap.get("serverMsgId");
@@ -82,6 +78,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 }
                 return;
             }
+            // 每隔 20~30s 发 ping：{"type":"ping","data":{}}
             if ("ping".equalsIgnoreCase(type)) {
                 interactService.heartbeat(fromUserId, session);
                 WsEnvelope<Object> pong = WsEnvelope.builder()
@@ -91,8 +88,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage(JsonUtil.toJson(pong)));
                 return;
             }
+            // 已读消息格式：{"type":"read","data":{"withUserId":2,"upToMsgId":123}}
             if ("read".equalsIgnoreCase(type)) {
-                // {"type":"read","data":{"withUserId":2,"upToMsgId":123}}
                 if (data instanceof Map) {
                     Map<?, ?> dataMap = (Map<?, ?>) data;
                     Object withUserId = dataMap.get("withUserId");

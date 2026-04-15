@@ -122,13 +122,9 @@ public class VideoServiceImpl implements VideoService {
         // 1. 准备路径（建议按日期分文件夹）
         String datePath = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd/"));
         String title = request.getTitle();
-        String videoName = request.getVideoName();
-        String coverName = request.getCoverName();
-        String videoSuffix = videoName.substring(videoName.lastIndexOf("."));
-        String coverSuffix = coverName.substring(coverName.lastIndexOf("."));
 
-        String videoObject = "videos/" + datePath + UUID.randomUUID() + videoSuffix;
-        String coverObject = "covers/" + datePath + UUID.randomUUID() + coverSuffix;
+        String videoObject = "video/" + UUID.randomUUID();
+        String coverObject = "cover/" + UUID.randomUUID();
 
         // 2. 预创数据库记录
         VideoPo video = VideoPo.builder()

@@ -1,15 +1,17 @@
 package com.syt.graduationproject.controller;
 
+import com.syt.graduationproject.constant.ChatWsConstant;
 import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.ChatSessionVo;
 import com.syt.graduationproject.model.vo.PrivateMessageVo;
+import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
-import com.syt.graduationproject.constant.ChatWsConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -48,8 +50,8 @@ public class InteractController {
      * 拉取历史消息（倒序返回）
      *
      * @param withUserId 对方用户ID
-     * @param beforeId 游标（传上一页最小消息id，用于翻更老；不传则取最新）
-     * @param pageSize 每页条数（默认20，最大100）
+     * @param beforeId   游标（传上一页最小消息id，用于翻更老；不传则取最新）
+     * @param pageSize   每页条数（默认20，最大100）
      */
     @GetMapping("/chat/history")
     public Response<List<PrivateMessageVo>> history(@RequestParam("withUserId") Long withUserId,
@@ -72,7 +74,7 @@ public class InteractController {
      * 标记已读（与某用户）
      *
      * @param withUserId 对方用户ID
-     * @param upToMsgId 读到的消息ID（为空则全部标记已读）
+     * @param upToMsgId  读到的消息ID（为空则全部标记已读）
      */
     @PostMapping("/chat/read")
     public Response<Integer> markRead(@RequestParam("withUserId") Long withUserId,
@@ -148,4 +150,59 @@ public class InteractController {
             return Response.fail("点赞失败，系统异常");
         }
     }
+
+    /**
+     * 查询粉丝列表
+     */
+    @PostMapping("/fansList")
+    public Response<List<UserSimpleInfoVo>> queryFansList() {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        try {
+            return Response.success(interactService.queryFansList(userId));
+        } catch (CustomException e) {
+            log.warn("查询粉丝列表失败，userId：{}，原因：{}", userId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询粉丝列表失败，userId：{}", userId, e);
+            return Response.fail("查询粉丝列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询关注列表
+     */
+    @PostMapping("/followList")
+    public Response<List<UserSimpleInfoVo>> queryFollowList() {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        try {
+            return Response.success(interactService.queryFollowList(userId));
+        } catch (CustomException e) {
+            log.warn("查询关注列表失败，userId：{}，原因：{}", userId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询关注列表失败，userId：{}", userId, e);
+            return Response.fail("查询关注列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 收藏视频
+     */
+    @PostMapping("/collectVideo")
+    public Response<Object> collectVideo(@RequestBody CollectVideoRequest request) {
+        try {
+            interactService.collectVideo(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("用户收藏视频失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("用户收藏视频失败，likeRequest：{}", request, e);
+            return Response.fail("收藏失败，系统异常");
+        }
+    }
+
+    /**
+     * 添加收藏夹
+     */
 }

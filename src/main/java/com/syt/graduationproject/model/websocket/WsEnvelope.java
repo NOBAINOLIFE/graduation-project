@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 public class WsEnvelope<T> {
 
     /**
-     * 消息类型：chat / ack / error
+     * 消息类型：chat / chat_send_ack / chat_recv_ack / read / ping / pong / error
      */
     private String type;
 

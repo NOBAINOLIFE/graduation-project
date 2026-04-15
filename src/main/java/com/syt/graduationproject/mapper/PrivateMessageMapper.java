@@ -7,7 +7,6 @@ import com.syt.graduationproject.model.vo.PrivateMessageVo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,4 +54,13 @@ public interface PrivateMessageMapper extends BaseMapper<PrivateMessagePo> {
                       @Param("ids") Collection<Long> ids,
                       @Param("readStatus") Integer readStatus,
                       @Param("readTime") LocalDateTime readTime);
+
+    /**
+     * 按消息ID批量标记已投递（用于离线消息上线推送成功后批量更新）
+     */
+    int markDeliveredByIds(@Param("myId") Long myId,
+                           @Param("ids") Collection<Long> ids,
+                           @Param("deliveredStatus") Integer deliveredStatus,
+                           @Param("deliveredTime") LocalDateTime deliveredTime,
+                           @Param("savedStatus") Integer savedStatus);
 }

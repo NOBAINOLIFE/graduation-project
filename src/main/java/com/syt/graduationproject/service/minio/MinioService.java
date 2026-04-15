@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -41,8 +42,8 @@ public class MinioService {
      * 上传文件到指定文件夹
      */
     public String uploadFile(MultipartFile file, String folder) throws Exception {
-        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-        String objectName = folder + "/" + fileName;
+        String hashName = DigestUtils.md5DigestAsHex(file.getBytes());
+        String objectName = folder + "/" + hashName;
         minioClient.putObject(
                 PutObjectArgs.builder()
                         .bucket(bucketName)
@@ -52,11 +53,6 @@ public class MinioService {
                         .build()
         );
         return getFileUrl(objectName);
-    }
-
-    // 保持原有兼容性，默认上传到根目录
-    public String uploadFile(MultipartFile file) throws Exception {
-        return uploadFile(file, "");
     }
 
     /**

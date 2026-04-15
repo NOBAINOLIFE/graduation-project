@@ -9,9 +9,11 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VideoUploadRequest {
+public class CollectVideoRequest {
 
-    private String title;
+    private Long videoId;
 
-    private String description;
+    private Long collectionDirectoryId;
+
+    private Integer operation;
 }

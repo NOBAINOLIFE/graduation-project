@@ -2,9 +2,11 @@ package com.syt.graduationproject.service;
 
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
+import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
@@ -66,7 +68,7 @@ public interface InteractService {
     void sendPrivateChat(Long fromUserId, PrivateChatSendRequest request);
 
     /**
-     * WebSocket：客户端消息确认（收到 chat 后回 ack）
+     * WebSocket：接收方消息确认（收到 chat 后回 chat_recv_ack）
      */
     void ackPrivateMessage(Long userId, Long serverMsgId);
 
@@ -96,4 +98,10 @@ public interface InteractService {
      * @return 本次更新条数
      */
     int markChatRead(Long myId, Long withUserId, Long upToMsgId);
+
+    List<UserSimpleInfoVo> queryFansList(Long userId);
+
+    List<UserSimpleInfoVo> queryFollowList(Long userId);
+
+    void collectVideo(CollectVideoRequest request);
 }
