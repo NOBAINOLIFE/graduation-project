@@ -17,6 +17,8 @@ public class VideoEsDoc {
 
     private String title;
 
+    private String description;
+
     private Long userId;
 
     private String username;

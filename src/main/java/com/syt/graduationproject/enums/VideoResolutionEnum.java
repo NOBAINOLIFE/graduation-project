@@ -15,7 +15,9 @@ public enum VideoResolutionEnum {
 
     SUPER(3, "超清"),
 
-    ORIGINAL(4, "原画");
+    ORIGINAL(4, "原画"),
+
+    MASTER(5, "自适应");
 
     private final int code;
 

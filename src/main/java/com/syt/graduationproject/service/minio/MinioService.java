@@ -1,6 +1,8 @@
 package com.syt.graduationproject.service.minio;
 
 import com.syt.graduationproject.exception.CustomException;
+import io.minio.CopyObjectArgs;
+import io.minio.CopySource;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
@@ -56,99 +58,21 @@ public class MinioService {
     }
 
     /**
-     * 通过输入流上传文件（用于服务端转码等场景）
-     *
-     * @param objectName MinIO 中的对象相对路径
-     * @param inputStream 文件输入流
-     * @param size 文件大小
-     * @param contentType 内容类型
-     * @return 实际保存的对象相对路径
+     * 生成 GET 预签名 URL（用于播放鉴权）
      */
-    public String uploadStream(String objectName, InputStream inputStream, long size, String contentType) throws Exception {
-        String finalObjectName = objectName;
-        if (finalObjectName == null || finalObjectName.isEmpty()) {
-            finalObjectName = UUID.randomUUID().toString();
-        }
-        minioClient.putObject(
-                PutObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(finalObjectName)
-                        .stream(inputStream, size, -1)
-                        .contentType(contentType)
-                        .build()
-        );
-        return finalObjectName;
-    }
-
-    /**
-     * 生成带时效的查看链接（例如：预览 15 分钟）
-     */
-    public String generateUrl(String objectName) {
+    public String generateGetUrl(String objectName, int expiryMinutes) {
         try {
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
-                            .method(Method.PUT)
+                            .method(Method.GET)
                             .bucket(bucketName)
                             .object(objectName)
-                            .expiry(15, TimeUnit.MINUTES)
+                            .expiry(expiryMinutes, TimeUnit.MINUTES)
                             .build()
             );
         } catch (Exception e) {
-            log.error("生成预览链接失败", e);
-            throw new CustomException("生成预览链接失败");
-        }
-    }
-
-    /**
-     * 检查文件是否存在
-     */
-    public boolean checkFileExists(String objectName) {
-        try {
-            minioClient.statObject(
-                    StatObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .build()
-            );
-            return true;
-        } catch (Exception e) {
-            String errorMsg = e.getMessage();
-            if (errorMsg != null && (errorMsg.contains("404") || errorMsg.contains("Not Found")
-                    || errorMsg.contains("NoSuchKey"))) {
-                log.warn("文件不存在，objectName: {}", objectName);
-                return false;
-            }
-            log.error("检查文件存在性失败，objectName: {}, error: {}", objectName, errorMsg, e);
-            throw new CustomException("检查文件状态失败");
-        }
-    }
-
-    /**
-     * 下载 MinIO 对象到本地文件
-     *
-     * @param objectName MinIO 中对象相对路径
-     * @param targetFile 本地目标文件路径
-     */
-    public void downloadToFile(String objectName, Path targetFile) throws Exception {
-        if (objectName == null || objectName.isEmpty()) {
-            throw new IllegalArgumentException("objectName 不能为空");
-        }
-        if (targetFile == null) {
-            throw new IllegalArgumentException("targetFile 不能为空");
-        }
-
-        Files.createDirectories(targetFile.getParent());
-        try (InputStream in = minioClient.getObject(
-                GetObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(objectName)
-                        .build()
-        ); OutputStream out = Files.newOutputStream(targetFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = in.read(buffer)) != -1) {
-                out.write(buffer, 0, len);
-            }
+            log.error("生成下载链接失败", e);
+            throw new CustomException("生成下载链接失败");
         }
     }
 
@@ -158,5 +82,4 @@ public class MinioService {
     public String getFileUrl(String objectName) {
         return endpoint + "/" + bucketName + "/" + objectName;
     }
-
 }

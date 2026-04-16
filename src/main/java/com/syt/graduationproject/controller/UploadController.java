@@ -32,4 +32,8 @@ public class UploadController {
             return Response.fail("上传图片失败，系统异常");
         }
     }
+
+    /**
+     * 上传
+     */
 }

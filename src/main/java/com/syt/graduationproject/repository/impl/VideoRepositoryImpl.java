@@ -43,7 +43,7 @@ public class VideoRepositoryImpl implements VideoRepository {
         QueryWrapper<VideoPo> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda()
                 .eq(VideoPo::getUserId, userId)
-                .eq(VideoPo::getStatus, VideoStatusEnum.NORMAL.getCode());
+                .eq(VideoPo::getStatus, VideoStatusEnum.PUBLISHED.getCode());
         return videoMapper.selectCount(queryWrapper);
     }
 
