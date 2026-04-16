@@ -28,5 +28,26 @@ public class RedisKeyUtil {
     public static String jwtWhitelistKey(Long userId) {
         return "jwt:whitelist:" + userId;
     }
+
+    /**
+     * 分片上传会话：video:upload:session:{videoId}:{uploadToken}
+     */
+    public static String videoUploadSessionKey(Long videoId, String uploadToken) {
+        return "video:upload:session:" + videoId + ":" + uploadToken;
+    }
+
+    /**
+     * 分片映射：video:upload:parts:{videoId}:{uploadToken} -> hash(chunkIndex -> objectName)
+     */
+    public static String videoUploadPartsKey(Long videoId, String uploadToken) {
+        return "video:upload:parts:" + videoId + ":" + uploadToken;
+    }
+
+    /**
+     * 转码互斥锁：video:transcode:lock:{videoId}
+     */
+    public static String videoTranscodeLockKey(Long videoId) {
+        return "video:transcode:lock:" + videoId;
+    }
 }
 

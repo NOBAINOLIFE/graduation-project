@@ -35,6 +35,11 @@ public class SearchRepositoryImpl implements SearchRepository {
                 IndexCoordinates.of(indexName)
         );
     }
+
+    @Override
+    public void upsertVideoDoc(VideoEsDoc videoEsDoc) {
+        elasticsearchRestTemplate.save(videoEsDoc, IndexCoordinates.of(VIDEO_INDEX));
+    }
 }
 
 

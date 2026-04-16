@@ -1,10 +1,17 @@
 package com.syt.graduationproject.service.impl;
 
+import com.syt.graduationproject.config.KafkaConfig;
+import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
+import com.syt.graduationproject.model.es.VideoEsDoc;
+import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
+import com.syt.graduationproject.repository.SearchRepository;
+import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.minio.MinioService;
@@ -13,6 +20,7 @@ import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,6 +36,12 @@ public class VideoServiceImpl implements VideoService {
     private final MinioService minioService;
 
     private final VideoRepository videoRepository;
+
+    private final UserRepository userRepository;
+
+    private final SearchRepository searchRepository;
+
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     /**
      * 查询用户视频数
@@ -46,6 +60,9 @@ public class VideoServiceImpl implements VideoService {
         VideoPo videoPo = videoRepository.queryVideoById(videoId);
         if (Objects.isNull(videoPo)) {
             throw new CustomException("视频不存在");
+        }
+        if (VideoStatusEnum.PUBLISHED.getCode() != videoPo.getStatus()) {
+            throw new CustomException("视频暂未发布");
         }
         // 查询视频元信息
         VideoPlayDetailVo videoPlayDetailVo = VideoPlayDetailVo.builder()
@@ -75,11 +92,13 @@ public class VideoServiceImpl implements VideoService {
 
         // 查询视频数据统计信息
         VideoStatsPo videoStatsPo = videoRepository.queryVideoStatsById(videoId);
-        videoPlayDetailVo.setPlayCount(videoStatsPo.getPlayCount());
-        videoPlayDetailVo.setLikeCount(videoStatsPo.getLikeCount());
-        videoPlayDetailVo.setCoinCount(videoStatsPo.getCoinCount());
-        videoPlayDetailVo.setCollectCount(videoStatsPo.getCollectCount());
-        videoPlayDetailVo.setShareCount(videoStatsPo.getShareCount());
+        if (videoStatsPo != null) {
+            videoPlayDetailVo.setPlayCount(videoStatsPo.getPlayCount());
+            videoPlayDetailVo.setLikeCount(videoStatsPo.getLikeCount());
+            videoPlayDetailVo.setCoinCount(videoStatsPo.getCoinCount());
+            videoPlayDetailVo.setCollectCount(videoStatsPo.getCollectCount());
+            videoPlayDetailVo.setShareCount(videoStatsPo.getShareCount());
+        }
 
         // 查询用户与视频的交互情况
         UserVideoInteractionBo userVideoInteractionBo = interactService.queryUserVideoInteraction(myId, videoId);
@@ -88,5 +107,70 @@ public class VideoServiceImpl implements VideoService {
         videoPlayDetailVo.setIsCollect(userVideoInteractionBo.getIsCollect());
 
         return videoPlayDetailVo;
+    }
+
+    @Override
+    public void submitVideo(VideoSubmitRequest request) {
+        if (request == null || request.getVideoId() == null || StringUtils.isBlank(request.getTitle())
+                || StringUtils.isBlank(request.getCoverUrl()) || request.getDuration() == null || request.getDuration() <= 0) {
+            throw new CustomException("投稿参数不完整");
+        }
+        Long userId = UserHolderUtil.getUser().getUserId();
+        VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(request.getVideoId(), userId);
+        if (videoPo == null) {
+            throw new CustomException("视频不存在或无权限投稿");
+        }
+
+        int updated = videoRepository.submitVideo(
+                request.getVideoId(),
+                userId,
+                request.getTitle(),
+                request.getDescription(),
+                request.getCoverUrl(),
+                request.getDuration()
+        );
+        if (updated <= 0) {
+            throw new CustomException("当前视频状态不允许投稿");
+        }
+
+        videoRepository.insertVideoStatsIfAbsent(request.getVideoId());
+        kafkaTemplate.send(KafkaConfig.VIDEO_PROCESS_TOPIC,
+                VideoProcessMessage.builder().videoId(request.getVideoId()).userId(userId).build());
+    }
+
+    @Override
+    public void publishVideo(Long videoId) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(videoId, userId);
+        if (videoPo == null) {
+            throw new CustomException("视频不存在或无权限发布");
+        }
+        if (VideoStatusEnum.TRANSCODE_SUCCESS.getCode() != videoPo.getStatus()) {
+            throw new CustomException("视频未转码完成，不能发布");
+        }
+
+        int updated = videoRepository.updateVideoStatus(
+                videoId,
+                VideoStatusEnum.TRANSCODE_SUCCESS.getCode(),
+                VideoStatusEnum.PUBLISHED.getCode()
+        );
+        if (updated <= 0) {
+            throw new CustomException("发布失败，请稍后重试");
+        }
+
+        VideoStatsPo statsPo = videoRepository.queryVideoStatsById(videoId);
+        UserPo userPo = userRepository.queryUserById(userId);
+        searchRepository.upsertVideoDoc(VideoEsDoc.builder()
+                .videoId(videoPo.getId())
+                .title(videoPo.getTitle())
+                .description(videoPo.getDescription())
+                .userId(videoPo.getUserId())
+                .username(userPo == null ? "" : userPo.getUsername())
+                .coverUrl(videoPo.getCoverUrl())
+                .playCount(statsPo == null ? 0L : statsPo.getPlayCount())
+                .collectionCount(statsPo == null ? 0L : statsPo.getCollectCount())
+                .duration(videoPo.getDuration())
+                .createTime(videoPo.getCreateTime())
+                .build());
     }
 }

@@ -3,11 +3,17 @@ package com.syt.graduationproject.repository;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
 import com.syt.graduationproject.model.po.UserVideoHistoryPo;
 import com.syt.graduationproject.model.po.VideoPo;
+import com.syt.graduationproject.model.po.VideoSourcePo;
 import com.syt.graduationproject.model.po.VideoStatsPo;
 
 import java.util.List;
 
 public interface VideoRepository {
+
+    /**
+     * 创建上传中的视频记录
+     */
+    Long createUploadingVideo(Long userId);
 
     /**
      * 查询用户视频数
@@ -33,4 +39,39 @@ public interface VideoRepository {
      * 查询视频播放源
      */
     List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution);
+
+    /**
+     * 查询视频播放源原始记录
+     */
+    List<VideoSourcePo> queryVideoSourcePos(Long videoId, Integer resolution);
+
+    /**
+     * 根据视频ID和作者ID查询视频
+     */
+    VideoPo queryVideoByIdAndUserId(Long videoId, Long userId);
+
+    /**
+     * 更新视频状态（可选CAS）
+     */
+    int updateVideoStatus(Long videoId, Integer expectedStatus, Integer targetStatus);
+
+    /**
+     * 更新投稿信息并进入待转码
+     */
+    int submitVideo(Long videoId, Long userId, String title, String description, String coverUrl, Integer duration);
+
+    /**
+     * 插入视频统计记录
+     */
+    int insertVideoStatsIfAbsent(Long videoId);
+
+    /**
+     * 保存视频源记录
+     */
+    int saveVideoSource(VideoSourcePo videoSourcePo);
+
+    /**
+     * 删除视频源记录
+     */
+    int deleteVideoSource(Long videoId, Integer resolution);
 }

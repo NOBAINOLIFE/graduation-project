@@ -1,13 +1,12 @@
 package com.syt.graduationproject.service.minio;
 
 import com.syt.graduationproject.exception.CustomException;
-import io.minio.CopyObjectArgs;
-import io.minio.CopySource;
+import io.minio.ComposeObjectArgs;
+import io.minio.ComposeSource;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
-import io.minio.StatObjectArgs;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,11 +16,13 @@ import org.springframework.util.DigestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.UUID;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,7 +46,7 @@ public class MinioService {
      */
     public String uploadFile(MultipartFile file, String folder) throws Exception {
         String hashName = DigestUtils.md5DigestAsHex(file.getBytes());
-        String objectName = folder + "/" + hashName;
+        String objectName = folder + hashName;
         minioClient.putObject(
                 PutObjectArgs.builder()
                         .bucket(bucketName)
@@ -55,6 +56,136 @@ public class MinioService {
                         .build()
         );
         return getFileUrl(objectName);
+    }
+
+    /**
+     * 上传分片文件
+     */
+    public void uploadPartFile(MultipartFile file, String objectName) {
+        try {
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .contentType(file.getContentType())
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("上传分片失败，objectName:{}", objectName, e);
+            throw new CustomException("上传分片失败");
+        }
+    }
+
+    /**
+     * 合并分片对象
+     */
+    public void composeObject(List<String> partObjectNames, String targetObjectName) {
+        try {
+            List<ComposeSource> sources = new ArrayList<>();
+            for (String part : partObjectNames) {
+                sources.add(ComposeSource.builder()
+                        .bucket(bucketName)
+                        .object(part)
+                        .build());
+            }
+            minioClient.composeObject(
+                    ComposeObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(targetObjectName)
+                            .sources(sources)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("合并分片失败，targetObjectName:{}", targetObjectName, e);
+            throw new CustomException("合并分片失败");
+        }
+    }
+
+    /**
+     * 下载对象到本地临时文件
+     */
+    public Path downloadObjectToTempFile(String objectName, String suffix) {
+        try {
+            Path tempFile = Files.createTempFile("video-src-", suffix);
+            try (InputStream inputStream = minioClient.getObject(
+                    GetObjectArgs.builder().bucket(bucketName).object(objectName).build())) {
+                Files.copy(inputStream, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            return tempFile;
+        } catch (Exception e) {
+            log.error("下载对象失败，objectName:{}", objectName, e);
+            throw new CustomException("下载源视频失败");
+        }
+    }
+
+    /**
+     * 上传本地文件
+     */
+    public void uploadLocalFile(Path localPath, String objectName, String contentType) {
+        try {
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(Files.newInputStream(localPath), Files.size(localPath), -1)
+                            .contentType(contentType)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("上传本地文件失败，objectName:{}", objectName, e);
+            throw new CustomException("上传转码文件失败");
+        }
+    }
+
+    /**
+     * 上传目录中的所有文件（相对路径保持不变）
+     */
+    public void uploadDirectory(Path directory, String objectPrefix) {
+        try {
+            Files.walkFileTree(directory, new FileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    String relative = directory.relativize(file).toString().replace('\\', '/');
+                    String objectName = objectPrefix + "/" + relative;
+                    String contentType = guessContentType(file);
+                    uploadLocalFile(file, objectName, contentType);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, java.io.IOException exc) {
+                    return FileVisitResult.TERMINATE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, java.io.IOException exc) {
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (Exception e) {
+            log.error("上传目录失败，directory:{}", directory, e);
+            throw new CustomException("上传转码目录失败");
+        }
+    }
+
+    private String guessContentType(Path file) {
+        String name = file.getFileName().toString().toLowerCase();
+        if (name.endsWith(".m3u8")) {
+            return "application/vnd.apple.mpegurl";
+        }
+        if (name.endsWith(".ts")) {
+            return "video/mp2t";
+        }
+        if (name.endsWith(".mp4")) {
+            return "video/mp4";
+        }
+        return "application/octet-stream";
     }
 
     /**

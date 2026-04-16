@@ -15,5 +15,10 @@ public interface SearchRepository {
      * @param <T> 泛型类型
      */
     <T> SearchHits<T> commonSearch(Query query, Class<T> clazz, String indexName);
+
+    /**
+     * 写入或更新视频索引文档
+     */
+    void upsertVideoDoc(VideoEsDoc videoEsDoc);
 }
 

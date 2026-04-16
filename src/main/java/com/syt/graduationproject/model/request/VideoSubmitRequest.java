@@ -1,37 +1,23 @@
-package com.syt.graduationproject.model.es;
+package com.syt.graduationproject.model.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-
-import java.time.LocalDateTime;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VideoEsDoc {
+public class VideoSubmitRequest {
 
-    @Id
     private Long videoId;
 
     private String title;
 
     private String description;
 
-    private Long userId;
-
-    private String username;
-
     private String coverUrl;
-
-    private Long playCount;
-
-    private LocalDateTime createTime;
-
-    private Long collectionCount;
 
     private Integer duration;
 }
