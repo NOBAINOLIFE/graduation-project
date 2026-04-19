@@ -6,7 +6,8 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.po.VideoPo;
 import com.syt.graduationproject.model.po.VideoSourcePo;
 import com.syt.graduationproject.repository.VideoRepository;
-import com.syt.graduationproject.service.VideoTranscodeService;
+import com.syt.graduationproject.service.ManagerService;
+import com.syt.graduationproject.service.TranscodeService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import lombok.RequiredArgsConstructor;
@@ -26,13 +27,15 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class VideoTranscodeServiceImpl implements VideoTranscodeService {
+public class TranscodeServiceImpl implements TranscodeService {
 
     private final VideoRepository videoRepository;
 
     private final MinioService minioService;
 
     private final StringRedisTemplate stringRedisTemplate;
+
+    private final ManagerService managerService;
 
     @Override
     public void processVideo(Long videoId, Long userId) {
@@ -81,7 +84,10 @@ public class VideoTranscodeServiceImpl implements VideoTranscodeService {
             savePlayableSource(videoId, VideoResolutionEnum.SUPER.getCode(), objectPrefix + "/1080p.m3u8");
             savePlayableSource(videoId, VideoResolutionEnum.MASTER.getCode(), objectPrefix + "/master.m3u8");
 
-            videoRepository.updateVideoStatus(videoId, VideoStatusEnum.TRANSCODING.getCode(), VideoStatusEnum.TRANSCODE_SUCCESS.getCode());
+            int updated = videoRepository.updateVideoStatus(videoId, VideoStatusEnum.TRANSCODING.getCode(), VideoStatusEnum.AUDITING.getCode());
+            if (updated > 0) {
+                managerService.createAuditingRecord(videoId, userId);
+            }
         } catch (Exception e) {
             log.error("视频转码失败，videoId:{}", videoId, e);
             videoRepository.updateVideoStatus(videoId, VideoStatusEnum.TRANSCODING.getCode(), VideoStatusEnum.TRANSCODE_FAILED.getCode());

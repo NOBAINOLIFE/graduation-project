@@ -40,6 +40,14 @@ public class SearchRepositoryImpl implements SearchRepository {
     public void upsertVideoDoc(VideoEsDoc videoEsDoc) {
         elasticsearchRestTemplate.save(videoEsDoc, IndexCoordinates.of(VIDEO_INDEX));
     }
+
+    @Override
+    public void deleteVideoDoc(Long videoId) {
+        if (videoId == null) {
+            return;
+        }
+        elasticsearchRestTemplate.delete(String.valueOf(videoId), IndexCoordinates.of(VIDEO_INDEX));
+    }
 }
 
 

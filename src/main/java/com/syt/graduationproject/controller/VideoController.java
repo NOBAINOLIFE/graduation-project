@@ -24,7 +24,7 @@ public class VideoController {
      * 播放页视频详情
      */
     @GetMapping("/videoInfo/{videoId}")
-    public Response<VideoPlayDetailVo> queryVideoInfo(@PathVariable("videoId") Long videoId) {
+    public Response<VideoPlayDetailVo> queryVideoInfo(@PathVariable Long videoId) {
         try {
             return Response.success(videoService.queryVideoInfo(videoId));
         } catch (CustomException e) {
@@ -57,7 +57,7 @@ public class VideoController {
      * 发布视频
      */
     @PostMapping("/publish/{videoId}")
-    public Response<Object> publishVideo(@PathVariable("videoId") Long videoId) {
+    public Response<Object> publishVideo(@PathVariable Long videoId) {
         try {
             videoService.publishVideo(videoId);
             return Response.success();

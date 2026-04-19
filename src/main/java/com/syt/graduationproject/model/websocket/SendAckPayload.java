@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AckPayload {
+public class SendAckPayload {
 
     private String clientMsgId;
 

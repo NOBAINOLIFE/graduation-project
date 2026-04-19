@@ -77,7 +77,7 @@ document.getElementById('connectBtn').onclick = function() {
             const msg = JSON.parse(e.data);
             if (msg.type === 'chat' && msg.data) {
                 const data = msg.data;
-                logMsg(`[${data.fromUserId}] ${data.content}`, data.fromUserId == withUserId ? 'other' : 'self');
+                logMsg(`[${data.fromUserId}] ${data.content}`, data.fromUserId === withUserId ? 'other' : 'self');
                 // 记录 serverMsgId 并自动发送 ack
                 if (typeof data.serverMsgId !== 'undefined') {
                     lastServerMsgId = data.serverMsgId;
@@ -203,7 +203,7 @@ document.getElementById('historyBtn').onclick = async function() {
                 return;
             }
             for (const msg of data.data) {
-                logMsg(`[历史][${msg.fromUserId}] ${msg.content} (id:${msg.id})`, msg.fromUserId == withUserId ? 'other' : 'self');
+                logMsg(`[历史][${msg.fromUserId}] ${msg.content} (id:${msg.id})`, msg.fromUserId === withUserId ? 'other' : 'self');
             }
             // 更新游标
             historyBeforeId = data.data[data.data.length - 1].id;

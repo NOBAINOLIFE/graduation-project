@@ -5,7 +5,6 @@ import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
-import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
@@ -14,6 +13,7 @@ import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
+import com.syt.graduationproject.service.ManagerService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.VideoService;
 import com.syt.graduationproject.util.UserHolderUtil;
@@ -42,6 +42,8 @@ public class VideoServiceImpl implements VideoService {
     private final SearchRepository searchRepository;
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    private final ManagerService managerService;
 
     /**
      * 查询用户视频数
@@ -145,32 +147,18 @@ public class VideoServiceImpl implements VideoService {
         if (videoPo == null) {
             throw new CustomException("视频不存在或无权限发布");
         }
-        if (VideoStatusEnum.TRANSCODE_SUCCESS.getCode() != videoPo.getStatus()) {
-            throw new CustomException("视频未转码完成，不能发布");
+        if (VideoStatusEnum.TRANSCODE_SUCCESS.getCode() == videoPo.getStatus()
+                || VideoStatusEnum.AUDIT_REJECTED.getCode() == videoPo.getStatus()) {
+            int updated = videoRepository.updateVideoStatus(videoId, videoPo.getStatus(), VideoStatusEnum.AUDITING.getCode());
+            if (updated <= 0) {
+                throw new CustomException("提交审核失败，请稍后重试");
+            }
+            managerService.createAuditingRecord(videoId, userId);
+            return;
         }
-
-        int updated = videoRepository.updateVideoStatus(
-                videoId,
-                VideoStatusEnum.TRANSCODE_SUCCESS.getCode(),
-                VideoStatusEnum.PUBLISHED.getCode()
-        );
-        if (updated <= 0) {
-            throw new CustomException("发布失败，请稍后重试");
+        if (VideoStatusEnum.AUDITING.getCode() == videoPo.getStatus()) {
+            return;
         }
-
-        VideoStatsPo statsPo = videoRepository.queryVideoStatsById(videoId);
-        UserPo userPo = userRepository.queryUserById(userId);
-        searchRepository.upsertVideoDoc(VideoEsDoc.builder()
-                .videoId(videoPo.getId())
-                .title(videoPo.getTitle())
-                .description(videoPo.getDescription())
-                .userId(videoPo.getUserId())
-                .username(userPo == null ? "" : userPo.getUsername())
-                .coverUrl(videoPo.getCoverUrl())
-                .playCount(statsPo == null ? 0L : statsPo.getPlayCount())
-                .collectionCount(statsPo == null ? 0L : statsPo.getCollectCount())
-                .duration(videoPo.getDuration())
-                .createTime(videoPo.getCreateTime())
-                .build());
+        throw new CustomException("当前视频状态不允许提交审核");
     }
 }

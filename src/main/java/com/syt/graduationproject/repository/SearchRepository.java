@@ -20,5 +20,10 @@ public interface SearchRepository {
      * 写入或更新视频索引文档
      */
     void upsertVideoDoc(VideoEsDoc videoEsDoc);
+
+    /**
+     * 删除视频索引文档
+     */
+    void deleteVideoDoc(Long videoId);
 }
 

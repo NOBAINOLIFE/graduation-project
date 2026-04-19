@@ -19,9 +19,17 @@ public enum VideoStatusEnum {
 
     TRANSCODE_FAILED(5, "转码失败"),
 
-    PUBLISHED(6, "已发布"),
+    AUDITING(6, "审核中"),
 
-    DELETED(7, "已删除");
+    AUDIT_PASSED(7, "审核通过"),
+
+    AUDIT_REJECTED(8, "审核未通过"),
+
+    PUBLISHED(9, "已发布"),
+
+    DELETED(10, "已删除"),
+
+    BANNED(11, "已封禁");
 
     private final int code;
 

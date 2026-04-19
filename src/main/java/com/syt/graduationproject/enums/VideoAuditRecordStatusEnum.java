@@ -5,15 +5,16 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum UserStatusEnum {
+public enum VideoAuditRecordStatusEnum {
 
-    NORMAL(0, "正常"),
+    AUDITING(0, "审核中"),
 
-    BANNED(1, "已封禁"),
+    PASSED(1, "审核通过"),
 
-    DELETED(2, "已删除");
+    REJECTED(2, "审核驳回");
 
-    private final int code;
+    private final Integer code;
 
     private final String message;
 }
+

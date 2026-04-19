@@ -48,6 +48,13 @@ public class UserRepositoryImpl implements UserRepository {
         return userMapper.selectOne(queryWrapper);
     }
 
+    @Override
+    public UserPo queryUserAnyStatusById(Long userId) {
+        QueryWrapper<UserPo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.lambda().eq(UserPo::getId, userId);
+        return userMapper.selectOne(queryWrapper);
+    }
+
     /**
      * 根据ID查询用户统计信息
      */

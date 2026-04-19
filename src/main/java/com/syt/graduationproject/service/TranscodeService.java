@@ -1,6 +1,6 @@
 package com.syt.graduationproject.service;
 
-public interface VideoTranscodeService {
+public interface TranscodeService {
 
     void processVideo(Long videoId, Long userId);
 }

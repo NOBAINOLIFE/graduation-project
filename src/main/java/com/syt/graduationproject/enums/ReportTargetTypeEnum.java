@@ -5,15 +5,14 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum UserStatusEnum {
+public enum ReportTargetTypeEnum {
 
-    NORMAL(0, "正常"),
+    USER(1, "用户"),
 
-    BANNED(1, "已封禁"),
+    VIDEO(2, "视频");
 
-    DELETED(2, "已删除");
-
-    private final int code;
+    private final Integer code;
 
     private final String message;
 }
+

@@ -1,11 +1,14 @@
 package com.syt.graduationproject.service.impl;
 
 import com.syt.graduationproject.enums.UserStatusEnum;
+import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.exception.ErrorOperationException;
 import com.syt.graduationproject.exception.ErrorParamException;
+import com.syt.graduationproject.mapper.UserRoleMapper;
 import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.po.UserPo;
+import com.syt.graduationproject.model.po.UserRolePo;
 import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
 import com.syt.graduationproject.model.request.UserInfoUpdateRequest;
@@ -23,6 +26,7 @@ import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +57,8 @@ public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
 
+    private final UserRoleMapper userRoleMapper;
+
     private final StringRedisTemplate stringRedisTemplate;
 
     private final MinioService minioService;
@@ -80,6 +86,12 @@ public class UserServiceImpl implements UserService {
                 .bio(DEFAULT_BIO)
                 .build();
         userMapper.insert(newUser);
+
+        UserRolePo userRolePo = UserRolePo.builder()
+                .userId(newUser.getId())
+                .roleId(RoleEnum.USER.getRoleId())
+                .build();
+        userRoleMapper.insert(userRolePo);
 
         // 初始化用户数据统计信息
         interactRepository.initUserStats(newUser.getId());
@@ -109,8 +121,19 @@ public class UserServiceImpl implements UserService {
         // 生成 JwtToken
         Map<String, Object> claimMap = new HashMap<>();
         Long userId = userPo.getId();
+        Long roleId = RoleEnum.USER.getRoleId();
+        UserRolePo userRolePo = userRoleMapper.selectOne(new QueryWrapper<UserRolePo>()
+                .lambda()
+                .eq(UserRolePo::getUserId, userId));
+        if (userRolePo != null && userRolePo.getRoleId() != null) {
+            roleId = userRolePo.getRoleId();
+        }
+        RoleEnum roleEnum = RoleEnum.fromRoleId(roleId);
+        String roleCode = roleEnum == null ? RoleEnum.USER.getRoleCode() : roleEnum.getRoleCode();
         claimMap.put(USER_ID, userId);
         claimMap.put(USERNAME, userPo.getUsername());
+        claimMap.put(ROLE_ID, roleId);
+        claimMap.put(ROLE_CODE, roleCode);
         String jwtToken = JwtUtil.generateJwtToken(claimMap);
         log.info("用户登录成功，用户ID：{}，用户名：{}，JWT令牌：{}", userId, userPo.getUsername(), jwtToken);
 
@@ -120,6 +143,7 @@ public class UserServiceImpl implements UserService {
         return LoginVo.builder()
                 .userId(userId)
                 .username(userPo.getUsername())
+                .roleCode(roleCode)
                 .token(jwtToken)
                 .build();
     }

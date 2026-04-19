@@ -6,12 +6,11 @@ import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
-import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
+import com.syt.graduationproject.model.request.ReportSubmitRequest;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
-import com.syt.graduationproject.model.vo.ChatSessionVo;
-import com.syt.graduationproject.model.vo.PrivateMessageVo;
 
 import java.util.List;
 
@@ -104,4 +103,11 @@ public interface InteractService {
     List<UserSimpleInfoVo> queryFollowList(Long userId);
 
     void collectVideo(CollectVideoRequest request);
+
+    void submitReport(ReportSubmitRequest request);
+
+    /**
+     * 查询当前用户的举报信息
+     */
+    List<ReportVo> listMyReports();
 }

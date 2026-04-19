@@ -17,6 +17,11 @@ public interface UserRepository {
     UserPo queryUserById(Long userId);
 
     /**
+     * 根据ID查询用户（不限制状态）
+     */
+    UserPo queryUserAnyStatusById(Long userId);
+
+    /**
      * 根据ID查询用户统计信息
      */
     UserStatsPo queryUserStatsById(Long userId);

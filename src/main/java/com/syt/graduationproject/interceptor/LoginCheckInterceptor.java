@@ -1,5 +1,7 @@
 package com.syt.graduationproject.interceptor;
 
+import com.syt.graduationproject.annotation.RequirePermission;
+import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.model.dto.UserDto;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.util.*;
@@ -7,9 +9,9 @@ import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -18,6 +20,9 @@ import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
+import static com.syt.graduationproject.constant.UserConstant.ADMIN_PERMISSION;
+import static com.syt.graduationproject.constant.UserConstant.ROLE_CODE;
+import static com.syt.graduationproject.constant.UserConstant.ROLE_ID;
 import static com.syt.graduationproject.constant.UserConstant.USERNAME;
 import static com.syt.graduationproject.constant.UserConstant.USER_ID;
 
@@ -61,6 +66,18 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
                 editResponseMessage(response, "未登录或已失效");
                 return false;
             }
+
+            if (RoleEnum.ADMIN.getRoleCode().equalsIgnoreCase(userDto.getRoleCode())
+                    && !isManagerAllowedPath(uri)) {
+                editResponseMessage(response, "管理员仅可访问后台管理接口");
+                return false;
+            }
+
+            if (!hasPermission(handler, userDto)) {
+                editResponseMessage(response, "无权限访问");
+                return false;
+            }
+
             UserHolderUtil.saveUser(userDto);
         } catch (Exception e) {
             log.error("解析JWT令牌失败", e);
@@ -98,7 +115,28 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
         return UserDto.builder()
                 .userId(claims.get(USER_ID, Long.class))
                 .username(claims.get(USERNAME, String.class))
+                .roleId(claims.get(ROLE_ID, Long.class))
+                .roleCode(claims.get(ROLE_CODE, String.class))
                 .build();
+    }
+
+    private boolean isManagerAllowedPath(String uri) {
+        return uri.startsWith("/graduation-project/manager") || uri.equals("/graduation-project/user/logout");
+    }
+
+    private boolean hasPermission(Object handler, UserDto userDto) {
+        if (!(handler instanceof HandlerMethod)) {
+            return true;
+        }
+        HandlerMethod handlerMethod = (HandlerMethod) handler;
+        RequirePermission requirePermission = handlerMethod.getMethodAnnotation(RequirePermission.class);
+        if (requirePermission == null) {
+            return true;
+        }
+        if (ADMIN_PERMISSION.equalsIgnoreCase(requirePermission.value())) {
+            return RoleEnum.ADMIN.getRoleCode().equalsIgnoreCase(userDto.getRoleCode());
+        }
+        return true;
     }
 
     /**

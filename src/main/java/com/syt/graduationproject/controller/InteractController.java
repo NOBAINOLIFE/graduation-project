@@ -6,10 +6,9 @@ import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.request.ReportSubmitRequest;
 import com.syt.graduationproject.model.response.Response;
-import com.syt.graduationproject.model.vo.ChatSessionVo;
-import com.syt.graduationproject.model.vo.PrivateMessageVo;
-import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
@@ -203,6 +202,35 @@ public class InteractController {
     }
 
     /**
-     * 添加收藏夹
+     * 举报用户或视频
      */
+    @PostMapping("/report")
+    public Response<Object> submitReport(@RequestBody ReportSubmitRequest request) {
+        try {
+            interactService.submitReport(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("提交举报失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("提交举报失败，request：{}", request, e);
+            return Response.fail("提交举报失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询当前用户的举报信息
+     */
+    @GetMapping("/report/my")
+    public Response<List<ReportVo>> listMyReports() {
+        try {
+            return Response.success(interactService.listMyReports());
+        } catch (CustomException e) {
+            log.warn("查询举报信息失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询举报信息失败", e);
+            return Response.fail("查询举报信息失败，系统异常");
+        }
+    }
 }

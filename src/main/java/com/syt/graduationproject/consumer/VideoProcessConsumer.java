@@ -2,7 +2,7 @@ package com.syt.graduationproject.consumer;
 
 import com.syt.graduationproject.config.KafkaConfig;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
-import com.syt.graduationproject.service.VideoTranscodeService;
+import com.syt.graduationproject.service.TranscodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -16,7 +16,7 @@ import javax.annotation.Resource;
 @RequiredArgsConstructor
 public class VideoProcessConsumer {
 
-    private final VideoTranscodeService videoTranscodeService;
+    private final TranscodeService transcodeService;
 
     @Resource(name = "transcodeExecutor")
     private ThreadPoolTaskExecutor transcodeExecutor;
@@ -29,7 +29,7 @@ public class VideoProcessConsumer {
         }
         transcodeExecutor.submit(() -> {
             try {
-                videoTranscodeService.processVideo(message.getVideoId(), message.getUserId());
+                transcodeService.processVideo(message.getVideoId(), message.getUserId());
             } catch (Exception e) {
                 log.error("处理视频转码消息失败，message: {}", message, e);
             }

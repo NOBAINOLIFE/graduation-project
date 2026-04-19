@@ -5,15 +5,16 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum UserStatusEnum {
+public enum ReportStatusEnum {
 
-    NORMAL(0, "正常"),
+    WAITING_AUDIT(0, "待审核"),
 
-    BANNED(1, "已封禁"),
+    APPROVED(1, "已通过"),
 
-    DELETED(2, "已删除");
+    REJECTED(2, "已驳回");
 
-    private final int code;
+    private final Integer code;
 
     private final String message;
 }
+

@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.enums.PrivateMessageStatusEnum;
+import com.syt.graduationproject.enums.ReportStatusEnum;
+import com.syt.graduationproject.enums.ReportTargetTypeEnum;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
@@ -11,10 +13,13 @@ import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.request.ReportSubmitRequest;
+import com.syt.graduationproject.model.vo.ReportVo;
 import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
+import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.util.UserHolderUtil;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.model.vo.ChatSessionVo;
@@ -64,6 +69,10 @@ public class InteractServiceImpl implements InteractService {
     private final CollectionItemMapper collectionItemMapper;
 
     private final PrivateMessageMapper privateMessageMapper;
+
+    private final ReportMapper reportMapper;
+
+    private final VideoMapper videoMapper;
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -378,7 +387,7 @@ public class InteractServiceImpl implements InteractService {
         // 4) 给发送方推送发送回执（包含是否实时投递成功）
         broadcastToUser(fromUserId, WsEnvelope.builder()
                 .type("chat_send_ack")
-                .data(new AckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered))
+                .data(new SendAckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered))
                 .build());
     }
 
@@ -635,6 +644,46 @@ public class InteractServiceImpl implements InteractService {
         }
     }
 
+    @Override
+    public void submitReport(ReportSubmitRequest request) {
+        Long reporterId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getTargetType() == null || request.getTargetId() == null) {
+            throw new CustomException("举报参数不完整");
+        }
+        if (request.getReason() == null || request.getReason().trim().isEmpty()) {
+            throw new CustomException("举报原因不能为空");
+        }
+
+        Integer targetType = request.getTargetType();
+        Long targetId = request.getTargetId();
+        if (ReportTargetTypeEnum.USER.getCode().equals(targetType)) {
+            if (Objects.equals(reporterId, targetId)) {
+                throw new CustomException("不能举报自己");
+            }
+            UserPo targetUser = userMapper.selectById(targetId);
+            if (targetUser == null) {
+                throw new CustomException("被举报用户不存在");
+            }
+        } else if (ReportTargetTypeEnum.VIDEO.getCode().equals(targetType)) {
+            VideoPo targetVideo = videoMapper.selectById(targetId);
+            if (targetVideo == null) {
+                throw new CustomException("被举报视频不存在");
+            }
+        } else {
+            throw new CustomException("举报类型非法");
+        }
+
+        ReportPo reportPo = ReportPo.builder()
+                .reporterId(reporterId)
+                .targetType(targetType)
+                .targetId(targetId)
+                .reason(request.getReason())
+                .detail(request.getDetail())
+                .status(ReportStatusEnum.WAITING_AUDIT.getCode())
+                .build();
+        reportMapper.insert(reportPo);
+    }
+
     /**
      * 供定时任务调用：关闭超时会话并清理映射
      */
@@ -661,5 +710,30 @@ public class InteractServiceImpl implements InteractService {
                 }
             }
         }
+    }
+
+    /**
+     * 查询当前用户的举报信息
+     */
+    public List<ReportVo> listMyReports() {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        LambdaQueryWrapper<ReportPo> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ReportPo::getReporterId, myId)
+                .orderByDesc(ReportPo::getCreateTime);
+        List<ReportPo> reportList = reportMapper.selectList(wrapper);
+        if (reportList == null || reportList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return reportList.stream().map(po -> ReportVo.builder()
+                .reportId(po.getId())
+                .targetType(po.getTargetType())
+                .targetId(po.getTargetId())
+                .reason(po.getReason())
+                .detail(po.getDetail())
+                .status(po.getStatus())
+                .reviewNote(po.getReviewNote())
+                .createTime(po.getCreateTime())
+                .updateTime(po.getUpdateTime())
+                .build()).collect(Collectors.toList());
     }
 }
