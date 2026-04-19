@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS tb_report
 (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     reporter_id BIGINT       NOT NULL,
-    target_type TINYINT      NOT NULL COMMENT '1-user 2-video',
+    target_type TINYINT      NOT NULL COMMENT '1-user 2-video 3-comment',
     target_id   BIGINT       NOT NULL,
     reason      VARCHAR(256) NOT NULL,
     detail      VARCHAR(1024)         DEFAULT NULL,
@@ -55,6 +55,49 @@ CREATE TABLE IF NOT EXISTS tb_report
     KEY idx_status (status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
+
+-- 3.1) Blacklist table
+CREATE TABLE IF NOT EXISTS tb_user_block
+(
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id         BIGINT    NOT NULL,
+    blocked_user_id BIGINT    NOT NULL,
+    is_deleted      TINYINT   NOT NULL DEFAULT 0,
+    create_time     TIMESTAMP          DEFAULT CURRENT_TIMESTAMP,
+    update_time     TIMESTAMP          DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_block (user_id, blocked_user_id),
+    KEY idx_blocked_user_id (blocked_user_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+
+-- 3.2) Coin wallet table
+CREATE TABLE IF NOT EXISTS tb_user_wallet
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT NOT NULL,
+    coin_balance BIGINT NOT NULL DEFAULT 0,
+    create_time  TIMESTAMP        DEFAULT CURRENT_TIMESTAMP,
+    update_time  TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_wallet_user_id (user_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+
+-- 3.3) Daily reward log table
+CREATE TABLE IF NOT EXISTS tb_user_reward_log
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT NOT NULL,
+    reward_date DATE   NOT NULL,
+    reward_coin INT    NOT NULL DEFAULT 1,
+    create_time TIMESTAMP        DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_reward_date (user_id, reward_date)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+
+-- 3.4) Collection directory capability extension
+ALTER TABLE tb_collection_directory
+    ADD COLUMN IF NOT EXISTS is_default TINYINT NOT NULL DEFAULT 0 COMMENT '0-no 1-yes' AFTER is_public;
 
 -- 4) Video status code migration reminder
 -- New status map:

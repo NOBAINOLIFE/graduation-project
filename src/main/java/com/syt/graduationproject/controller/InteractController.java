@@ -3,10 +3,16 @@ package com.syt.graduationproject.controller;
 import com.syt.graduationproject.constant.ChatWsConstant;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.CollectVideoRequest;
+import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
+import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
+import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
+import com.syt.graduationproject.model.request.CoinVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.request.BlockUserRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
+import com.syt.graduationproject.model.request.TripleActionRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.service.InteractService;
@@ -96,6 +102,23 @@ public class InteractController {
         } catch (Exception e) {
             log.error("用户关注失败，followRequest：{}", request, e);
             return Response.fail("关注失败，系统异常");
+        }
+    }
+
+    /**
+     * 拉黑/取消拉黑用户
+     */
+    @PostMapping("/block")
+    public Response<Object> block(@RequestBody BlockUserRequest request) {
+        try {
+            interactService.blockUser(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("用户拉黑操作失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("用户拉黑操作失败，request：{}", request, e);
+            return Response.fail("拉黑操作失败，系统异常");
         }
     }
 
@@ -198,6 +221,137 @@ public class InteractController {
         } catch (Exception e) {
             log.error("用户收藏视频失败，likeRequest：{}", request, e);
             return Response.fail("收藏失败，系统异常");
+        }
+    }
+
+    /**
+     * 创建收藏夹
+     */
+    @PostMapping("/collection/directory/create")
+    public Response<Long> createCollectionDirectory(@RequestBody CollectionDirectoryCreateRequest request) {
+        try {
+            return Response.success(interactService.createCollectionDirectory(request));
+        } catch (CustomException e) {
+            log.warn("创建收藏夹失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("创建收藏夹失败，request：{}", request, e);
+            return Response.fail("创建收藏夹失败，系统异常");
+        }
+    }
+
+    /**
+     * 编辑收藏夹
+     */
+    @PostMapping("/collection/directory/update")
+    public Response<Object> updateCollectionDirectory(@RequestBody CollectionDirectoryUpdateRequest request) {
+        try {
+            interactService.updateCollectionDirectory(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("编辑收藏夹失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("编辑收藏夹失败，request：{}", request, e);
+            return Response.fail("编辑收藏夹失败，系统异常");
+        }
+    }
+
+    /**
+     * 收藏夹列表（targetUserId 不传时查本人）
+     */
+    @GetMapping("/collection/directory/list")
+    public Response<List<CollectionDirectoryVo>> listCollectionDirectories(@RequestParam(value = "targetUserId", required = false) Long targetUserId) {
+        try {
+            return Response.success(interactService.listCollectionDirectories(targetUserId));
+        } catch (CustomException e) {
+            log.warn("查询收藏夹列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询收藏夹列表失败，targetUserId：{}", targetUserId, e);
+            return Response.fail("查询收藏夹列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 收藏夹批量操作：取消收藏/复制/移动
+     */
+    @PostMapping("/collection/item/batch")
+    public Response<Integer> batchOperateCollectionItems(@RequestBody CollectionBatchOperateRequest request) {
+        try {
+            return Response.success(interactService.batchOperateCollectionItems(request));
+        } catch (CustomException e) {
+            log.warn("收藏夹批量操作失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("收藏夹批量操作失败，request：{}", request, e);
+            return Response.fail("收藏夹批量操作失败，系统异常");
+        }
+    }
+
+    /**
+     * 一键清除收藏夹失效内容
+     */
+    @PostMapping("/collection/item/clearInvalid")
+    public Response<Integer> clearInvalidCollectionItems(@RequestParam("directoryId") Long directoryId) {
+        try {
+            return Response.success(interactService.clearInvalidCollectionItems(directoryId));
+        } catch (CustomException e) {
+            log.warn("清除失效收藏失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("清除失效收藏失败，directoryId：{}", directoryId, e);
+            return Response.fail("清除失效收藏失败，系统异常");
+        }
+    }
+
+    /**
+     * 给视频投币
+     */
+    @PostMapping("/coin")
+    public Response<Object> coinVideo(@RequestBody CoinVideoRequest request) {
+        try {
+            interactService.coinVideo(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("视频投币失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("视频投币失败，request：{}", request, e);
+            return Response.fail("视频投币失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询我的硬币钱包
+     */
+    @GetMapping("/coin/wallet")
+    public Response<CoinWalletVo> queryMyWallet() {
+        try {
+            return Response.success(interactService.queryMyWallet());
+        } catch (CustomException e) {
+            log.warn("查询硬币钱包失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询硬币钱包失败", e);
+            return Response.fail("查询硬币钱包失败，系统异常");
+        }
+    }
+
+    /**
+     * 一键三连：点赞 + 投币1个 + 加入默认收藏夹
+     */
+    @PostMapping("/tripleAction")
+    public Response<Object> tripleAction(@RequestBody TripleActionRequest request) {
+        try {
+            interactService.tripleAction(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("一键三连失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("一键三连失败，request：{}", request, e);
+            return Response.fail("一键三连失败，系统异常");
         }
     }
 

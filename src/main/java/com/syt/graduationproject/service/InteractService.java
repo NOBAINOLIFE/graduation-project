@@ -3,10 +3,16 @@ package com.syt.graduationproject.service;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.request.CollectVideoRequest;
+import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
+import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
+import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
+import com.syt.graduationproject.model.request.CoinVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
+import com.syt.graduationproject.model.request.BlockUserRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
+import com.syt.graduationproject.model.request.TripleActionRequest;
 import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +32,11 @@ public interface InteractService {
      */
     @Transactional(rollbackFor = Exception.class)
     void follow(FollowRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    void blockUser(BlockUserRequest request);
+
+    boolean hasMutualBlock(Long userA, Long userB);
 
     /**
      * 评论/回复评论
@@ -103,6 +114,31 @@ public interface InteractService {
     List<UserSimpleInfoVo> queryFollowList(Long userId);
 
     void collectVideo(CollectVideoRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    Long createCollectionDirectory(CollectionDirectoryCreateRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    void updateCollectionDirectory(CollectionDirectoryUpdateRequest request);
+
+    List<CollectionDirectoryVo> listCollectionDirectories(Long targetUserId);
+
+    @Transactional(rollbackFor = Exception.class)
+    Integer batchOperateCollectionItems(CollectionBatchOperateRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    Integer clearInvalidCollectionItems(Long directoryId);
+
+    @Transactional(rollbackFor = Exception.class)
+    void coinVideo(CoinVideoRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    boolean claimDailyCoin(Long userId);
+
+    CoinWalletVo queryMyWallet();
+
+    @Transactional(rollbackFor = Exception.class)
+    void tripleAction(TripleActionRequest request);
 
     void submitReport(ReportSubmitRequest request);
 

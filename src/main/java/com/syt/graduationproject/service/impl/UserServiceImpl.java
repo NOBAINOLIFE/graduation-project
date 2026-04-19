@@ -140,6 +140,7 @@ public class UserServiceImpl implements UserService {
         // 加入 Redis 白名单
         stringRedisTemplate.opsForValue()
                 .set(RedisKeyUtil.jwtWhitelistKey(userId), jwtToken, JwtUtil.EXPIRATION, TimeUnit.MILLISECONDS);
+        interactService.claimDailyCoin(userId);
         return LoginVo.builder()
                 .userId(userId)
                 .username(userPo.getUsername())
@@ -153,6 +154,10 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public UserInfoVo queryUserInfo(Long userId) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (!Objects.equals(myId, userId) && interactService.hasMutualBlock(myId, userId)) {
+            throw new ErrorOperationException("由于隐私设置，无法查看该用户主页");
+        }
         // 查询用户是否存在
         UserPo userPo = userRepository.queryUserById(userId);
         if (Objects.isNull(userPo)) {
@@ -175,19 +180,16 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         // 查询关注信息
-        Long myId = UserHolderUtil.getUser().getUserId();
         FollowBo followBo = interactService.queryFollow(myId, userId);
         userInfoVo.setIsFollow(followBo.getIsFollow());
         userInfoVo.setIsFans(followBo.getIsFans());
 
         // 查询各种数量
-        userInfoVo.setVideoNum(videoRepository.queryUserVideoNum(myId));
-        userInfoVo.setFansNum(interactRepository.queryUserFansNum(myId));
-        userInfoVo.setFollowNum(interactRepository.queryUserFollowNum(myId));
-        userInfoVo.setLikeNum(interactRepository.queryUserLikeNum(myId));
-
-        // TODO 添加黑名单
-        userInfoVo.setIsBlack(false);
+        userInfoVo.setVideoNum(videoRepository.queryUserVideoNum(userId));
+        userInfoVo.setFansNum(interactRepository.queryUserFansNum(userId));
+        userInfoVo.setFollowNum(interactRepository.queryUserFollowNum(userId));
+        userInfoVo.setLikeNum(interactRepository.queryUserLikeNum(userId));
+        userInfoVo.setIsBlack(interactService.hasMutualBlock(myId, userId));
 
         log.info("查询用户信息成功，用户ID：{}，用户信息：{}", userId, userInfoVo);
         return userInfoVo;

@@ -20,4 +20,13 @@ public interface VideoStatsMapper extends BaseMapper<VideoStatsPo> {
      */
     @Update("UPDATE tb_video_stats SET like_count = like_count + #{addNum} WHERE video_id = #{videoId}")
     int updateLikeCount(@Param("videoId") Long videoId, @Param("addNum") int addNum);
+
+    @Update("UPDATE tb_video_stats SET coin_count = coin_count + #{addNum} WHERE video_id = #{videoId}")
+    int updateCoinCount(@Param("videoId") Long videoId, @Param("addNum") int addNum);
+
+    @Update("UPDATE tb_video_stats SET collect_count = GREATEST(collect_count + #{addNum}, 0) WHERE video_id = #{videoId}")
+    int updateCollectCount(@Param("videoId") Long videoId, @Param("addNum") int addNum);
+
+    @Update("UPDATE tb_video_stats SET comment_count = GREATEST(comment_count + #{addNum}, 0) WHERE video_id = #{videoId}")
+    int updateCommentCount(@Param("videoId") Long videoId, @Param("addNum") int addNum);
 }

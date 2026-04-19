@@ -20,4 +20,7 @@ public interface CommentStatsMapper extends BaseMapper<CommentStatsPo> {
      */
     @Update("UPDATE tb_comment_stats SET like_count = like_count + #{addNum} WHERE comment_id = #{commentId}")
     int updateLikeCount(@Param("commentId") Long commentId, @Param("addNum") int addNum);
+
+    @Update("UPDATE tb_comment_stats SET reply_count = GREATEST(reply_count + #{addNum}, 0) WHERE comment_id = #{commentId}")
+    int updateReplyCount(@Param("commentId") Long commentId, @Param("addNum") int addNum);
 }

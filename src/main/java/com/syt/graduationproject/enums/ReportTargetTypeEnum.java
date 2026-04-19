@@ -9,7 +9,9 @@ public enum ReportTargetTypeEnum {
 
     USER(1, "用户"),
 
-    VIDEO(2, "视频");
+    VIDEO(2, "视频"),
+
+    COMMENT(3, "评论");
 
     private final Integer code;
 

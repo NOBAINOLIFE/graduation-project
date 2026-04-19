@@ -58,6 +58,12 @@ public class CollectionDirectoryPo {
     private Integer isPublic;
 
     /**
+     * 是否默认收藏夹：0-否，1-是
+     */
+    @TableField(value = "is_default")
+    private Integer isDefault;
+
+    /**
      * 状态 0-未删除 1-已删除
      */
     @TableField(value = "is_deleted")

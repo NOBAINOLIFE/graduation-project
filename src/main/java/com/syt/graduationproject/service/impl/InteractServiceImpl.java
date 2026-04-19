@@ -6,14 +6,23 @@ import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.enums.PrivateMessageStatusEnum;
 import com.syt.graduationproject.enums.ReportStatusEnum;
 import com.syt.graduationproject.enums.ReportTargetTypeEnum;
+import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.request.BlockUserRequest;
 import com.syt.graduationproject.model.request.CollectVideoRequest;
+import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
+import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
+import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
+import com.syt.graduationproject.model.request.CoinVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
+import com.syt.graduationproject.model.request.TripleActionRequest;
+import com.syt.graduationproject.model.vo.CoinWalletVo;
+import com.syt.graduationproject.model.vo.CollectionDirectoryVo;
 import com.syt.graduationproject.model.vo.ReportVo;
 import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
 import com.syt.graduationproject.model.websocket.*;
@@ -37,6 +46,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,7 +76,15 @@ public class InteractServiceImpl implements InteractService {
 
     private final CoinRecordMapper coinRecordMapper;
 
+    private final CollectionDirectoryMapper collectionDirectoryMapper;
+
     private final CollectionItemMapper collectionItemMapper;
+
+    private final UserBlockMapper userBlockMapper;
+
+    private final UserWalletMapper userWalletMapper;
+
+    private final UserRewardLogMapper userRewardLogMapper;
 
     private final PrivateMessageMapper privateMessageMapper;
 
@@ -92,6 +110,14 @@ public class InteractServiceImpl implements InteractService {
     private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
     private final UserMapper userMapper;
 
+    private static final int OPERATION_ON = 1;
+
+    private static final int OPERATION_OFF = 0;
+
+    private static final int DAILY_LOGIN_REWARD = 1;
+
+    private static final String DEFAULT_COLLECTION_NAME = "默认收藏夹";
+
     /**
      * 查询两者关注关系
      */
@@ -101,11 +127,11 @@ public class InteractServiceImpl implements InteractService {
 
         // 1. 查询当前用户(followerId)是否关注了目标用户(followeeId)
         FollowRecordPo followRecordPo1 = interactRepository.queryFollow(followerId, followeeId);
-        followBo.setIsFollow(followRecordPo1.getIsDeleted().equals(NOT_DELETED));
+        followBo.setIsFollow(followRecordPo1 != null && followRecordPo1.getIsDeleted().equals(NOT_DELETED));
 
         // 2. 查询目标用户(followeeId)是否关注了当前用户(followerId)
         FollowRecordPo followRecordPo2 = interactRepository.queryFollow(followeeId, followerId);
-        followBo.setIsFans(followRecordPo2.getIsDeleted().equals(NOT_DELETED));
+        followBo.setIsFans(followRecordPo2 != null && followRecordPo2.getIsDeleted().equals(NOT_DELETED));
 
         return followBo;
     }
@@ -119,6 +145,18 @@ public class InteractServiceImpl implements InteractService {
         Long myId = UserHolderUtil.getUser().getUserId();
         Long followeeId = request.getFolloweeId();
         Integer operation = request.getOperation(); // 1: 关注, 0: 取关
+        if (followeeId == null || operation == null) {
+            throw new CustomException("关注参数不完整");
+        }
+        if (Objects.equals(myId, followeeId)) {
+            throw new CustomException("不能关注自己");
+        }
+        if (operation != OPERATION_ON && operation != OPERATION_OFF) {
+            throw new CustomException("关注操作类型非法");
+        }
+        if (hasMutualBlock(myId, followeeId)) {
+            throw new CustomException("由于隐私设置，无法关注该用户");
+        }
 
         // 查询记录
         LambdaQueryWrapper<FollowRecordPo> wrapper = new LambdaQueryWrapper<>();
@@ -153,6 +191,61 @@ public class InteractServiceImpl implements InteractService {
                 interactRepository.updateUserFansNum(followeeId, -1L);
             }
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void blockUser(BlockUserRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getTargetUserId() == null || request.getOperation() == null) {
+            throw new CustomException("拉黑参数不完整");
+        }
+        Long targetUserId = request.getTargetUserId();
+        if (Objects.equals(myId, targetUserId)) {
+            throw new CustomException("不能拉黑自己");
+        }
+        UserPo targetUser = userMapper.selectById(targetUserId);
+        if (targetUser == null) {
+            throw new CustomException("用户不存在");
+        }
+        if (request.getOperation() != OPERATION_ON && request.getOperation() != OPERATION_OFF) {
+            throw new CustomException("拉黑操作类型非法");
+        }
+
+        LambdaQueryWrapper<UserBlockPo> wrapper = new LambdaQueryWrapper<UserBlockPo>()
+                .eq(UserBlockPo::getUserId, myId)
+                .eq(UserBlockPo::getBlockedUserId, targetUserId);
+        UserBlockPo old = userBlockMapper.selectOne(wrapper);
+
+        if (request.getOperation() == OPERATION_ON) {
+            if (old == null) {
+                userBlockMapper.insert(UserBlockPo.builder()
+                        .userId(myId)
+                        .blockedUserId(targetUserId)
+                        .isDeleted(NOT_DELETED)
+                        .build());
+            } else if (!NOT_DELETED.equals(old.getIsDeleted())) {
+                old.setIsDeleted(NOT_DELETED);
+                userBlockMapper.updateById(old);
+            }
+            // 拉黑后自动互相取关，避免后续可见性和关系异常。
+            cancelFollowIfPresent(myId, targetUserId);
+            cancelFollowIfPresent(targetUserId, myId);
+            return;
+        }
+
+        if (old != null && NOT_DELETED.equals(old.getIsDeleted())) {
+            old.setIsDeleted(1);
+            userBlockMapper.updateById(old);
+        }
+    }
+
+    @Override
+    public boolean hasMutualBlock(Long userA, Long userB) {
+        if (userA == null || userB == null) {
+            return false;
+        }
+        return userBlockMapper.countAnyDirectionBlock(userA, userB) > 0;
     }
 
     /**
@@ -320,6 +413,9 @@ public class InteractServiceImpl implements InteractService {
         }
 
         Long toUserId = request.getToUserId();
+        if (hasMutualBlock(fromUserId, toUserId)) {
+            throw new CustomException("由于隐私设置，无法发送私信");
+        }
 
         // 1) 落库（生成 serverMsgId）——MySQL 兜底：无论在线/离线都先写入历史
         PrivateMessagePo po = PrivateMessagePo.builder()
@@ -524,13 +620,22 @@ public class InteractServiceImpl implements InteractService {
 
     @Override
     public List<PrivateMessageVo> queryChatHistory(Long myId, Long withUserId, Long beforeId, Integer pageSize) {
+        if (hasMutualBlock(myId, withUserId)) {
+            throw new CustomException("由于隐私设置，无法查看私信");
+        }
         int size = pageSize == null ? 20 : Math.min(Math.max(pageSize, 1), 100);
         return privateMessageMapper.queryHistory(myId, withUserId, beforeId, size);
     }
 
     @Override
     public List<ChatSessionVo> queryChatSessions(Long myId) {
-        return privateMessageMapper.querySessions(myId, PrivateMessageStatusEnum.READ.getCode());
+        List<ChatSessionVo> sessions = privateMessageMapper.querySessions(myId, PrivateMessageStatusEnum.READ.getCode());
+        if (sessions == null || sessions.isEmpty()) {
+            return sessions;
+        }
+        return sessions.stream()
+                .filter(item -> !hasMutualBlock(myId, item.getWithUserId()))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -541,6 +646,9 @@ public class InteractServiceImpl implements InteractService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int markChatRead(Long myId, Long withUserId, Long upToMsgId) {
+        if (hasMutualBlock(myId, withUserId)) {
+            throw new CustomException("由于隐私设置，无法操作私信");
+        }
         int rows = privateMessageMapper.markRead(
                 myId,
                 withUserId,
@@ -579,6 +687,9 @@ public class InteractServiceImpl implements InteractService {
         List<UserPo> fansInfoList = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
                 .in(UserPo::getId, fanIds));
         for (UserPo fansInfo : fansInfoList) {
+            if (hasMutualBlock(userId, fansInfo.getId())) {
+                continue;
+            }
             UserSimpleInfoVo vo = new UserSimpleInfoVo();
             vo.setUserId(fansInfo.getId());
             vo.setUsername(fansInfo.getUsername());
@@ -607,6 +718,9 @@ public class InteractServiceImpl implements InteractService {
         List<UserPo> followsInfoList = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
                 .in(UserPo::getId, followsIdList));
         for (UserPo followsInfo : followsInfoList) {
+            if (hasMutualBlock(userId, followsInfo.getId())) {
+                continue;
+            }
             UserSimpleInfoVo vo = new UserSimpleInfoVo();
             vo.setUserId(followsInfo.getId());
             vo.setUsername(followsInfo.getUsername());
@@ -619,28 +733,51 @@ public class InteractServiceImpl implements InteractService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void collectVideo(CollectVideoRequest request) {
         Long myId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getVideoId() == null || request.getCollectionDirectoryId() == null || request.getOperation() == null) {
+            throw new CustomException("收藏参数不完整");
+        }
         Long videoId = request.getVideoId();
         Long directoryId = request.getCollectionDirectoryId();
         Integer operation = request.getOperation();
+        CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
+        if (directoryPo == null) {
+            throw new CustomException("收藏夹不存在或无权限");
+        }
+        VideoPo videoPo = videoMapper.selectById(videoId);
+        if (videoPo == null || videoPo.getStatus() != VideoStatusEnum.PUBLISHED.getCode()) {
+            throw new CustomException("视频不存在或不可收藏");
+        }
+
         if (operation == 1) {
             // --- 执行收藏 ---
             CollectionItemPo itemPo = CollectionItemPo.builder()
                     .directoryId(directoryId).userId(myId).videoId(videoId).build();
             try {
                 collectionItemMapper.insert(itemPo);
+                videoStatsMapper.updateCollectCount(videoId, 1);
             } catch (DuplicateKeyException e) {
                 // 幂等处理：如果已经收藏过，直接忽略，不重复加分
                 log.warn("用户重复收藏，用户ID：{}，视频ID：{}", myId, videoId);
             }
-        } else {
+        } else if (operation == 0) {
             // --- 执行取消收藏 ---
             QueryWrapper<CollectionItemPo> wrapper = new QueryWrapper<>();
             wrapper.lambda()
                     .eq(CollectionItemPo::getUserId, myId)
-                    .eq(CollectionItemPo::getVideoId, videoId);
-            collectionItemMapper.delete(wrapper);
+                    .eq(CollectionItemPo::getDirectoryId, directoryId)
+                    .eq(CollectionItemPo::getVideoId, videoId)
+                    .eq(CollectionItemPo::getIsDeleted, NOT_DELETED);
+            CollectionItemPo itemPo = collectionItemMapper.selectOne(wrapper);
+            if (itemPo != null) {
+                itemPo.setIsDeleted(1);
+                collectionItemMapper.updateById(itemPo);
+                videoStatsMapper.updateCollectCount(videoId, -1);
+            }
+        } else {
+            throw new CustomException("收藏操作类型非法");
         }
     }
 
@@ -669,6 +806,11 @@ public class InteractServiceImpl implements InteractService {
             if (targetVideo == null) {
                 throw new CustomException("被举报视频不存在");
             }
+        } else if (ReportTargetTypeEnum.COMMENT.getCode().equals(targetType)) {
+            CommentPo targetComment = commentMapper.selectById(targetId);
+            if (targetComment == null || !NOT_DELETED.equals(targetComment.getIsDeleted())) {
+                throw new CustomException("被举报评论不存在");
+            }
         } else {
             throw new CustomException("举报类型非法");
         }
@@ -682,6 +824,366 @@ public class InteractServiceImpl implements InteractService {
                 .status(ReportStatusEnum.WAITING_AUDIT.getCode())
                 .build();
         reportMapper.insert(reportPo);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createCollectionDirectory(CollectionDirectoryCreateRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new CustomException("收藏夹名称不能为空");
+        }
+        CollectionDirectoryPo po = CollectionDirectoryPo.builder()
+                .userId(myId)
+                .name(request.getName().trim())
+                .description(request.getDescription())
+                .coverUrl(request.getCoverUrl())
+                .isPublic(request.getIsPublic() != null && request.getIsPublic() == OPERATION_ON ? 1 : 0)
+                .isDefault(0)
+                .isDeleted(NOT_DELETED)
+                .build();
+        collectionDirectoryMapper.insert(po);
+        return po.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateCollectionDirectory(CollectionDirectoryUpdateRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getDirectoryId() == null) {
+            throw new CustomException("收藏夹参数不完整");
+        }
+        CollectionDirectoryPo po = queryOwnedDirectory(myId, request.getDirectoryId());
+        if (po == null) {
+            throw new CustomException("收藏夹不存在或无权限");
+        }
+        if (request.getName() != null && !request.getName().trim().isEmpty()) {
+            po.setName(request.getName().trim());
+        }
+        if (request.getDescription() != null) {
+            po.setDescription(request.getDescription());
+        }
+        if (request.getCoverUrl() != null) {
+            po.setCoverUrl(request.getCoverUrl());
+        }
+        if (request.getIsPublic() != null) {
+            po.setIsPublic(request.getIsPublic() == OPERATION_ON ? 1 : 0);
+        }
+        collectionDirectoryMapper.updateById(po);
+    }
+
+    @Override
+    public List<CollectionDirectoryVo> listCollectionDirectories(Long targetUserId) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        Long ownerId = targetUserId == null ? myId : targetUserId;
+        if (!Objects.equals(myId, ownerId) && hasMutualBlock(myId, ownerId)) {
+            throw new CustomException("由于隐私设置，无法查看收藏夹");
+        }
+        LambdaQueryWrapper<CollectionDirectoryPo> wrapper = new LambdaQueryWrapper<CollectionDirectoryPo>()
+                .eq(CollectionDirectoryPo::getUserId, ownerId)
+                .eq(CollectionDirectoryPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(CollectionDirectoryPo::getIsDefault)
+                .orderByDesc(CollectionDirectoryPo::getId);
+        if (!Objects.equals(myId, ownerId)) {
+            wrapper.eq(CollectionDirectoryPo::getIsPublic, 1);
+        }
+        List<CollectionDirectoryPo> list = collectionDirectoryMapper.selectList(wrapper);
+        if (list == null || list.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<CollectionDirectoryVo> result = new ArrayList<>();
+        for (CollectionDirectoryPo po : list) {
+            Long itemCount = collectionItemMapper.countByDirectory(po.getId());
+            result.add(CollectionDirectoryVo.builder()
+                    .directoryId(po.getId())
+                    .name(po.getName())
+                    .description(po.getDescription())
+                    .coverUrl(po.getCoverUrl())
+                    .isPublic(po.getIsPublic())
+                    .isDefault(Objects.equals(po.getIsDefault(), 1))
+                    .itemCount(itemCount == null ? 0L : itemCount)
+                    .build());
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Integer batchOperateCollectionItems(CollectionBatchOperateRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getSourceDirectoryId() == null || request.getOperation() == null
+                || CollectionUtils.isEmpty(request.getVideoIds())) {
+            throw new CustomException("批量操作参数不完整");
+        }
+        CollectionDirectoryPo sourceDirectory = queryOwnedDirectory(myId, request.getSourceDirectoryId());
+        if (sourceDirectory == null) {
+            throw new CustomException("来源收藏夹不存在或无权限");
+        }
+
+        int affected = 0;
+        if (request.getOperation() == 1) {
+            for (Long videoId : request.getVideoIds()) {
+                affected += removeCollectedVideo(myId, request.getSourceDirectoryId(), videoId);
+            }
+            return affected;
+        }
+
+        if (request.getTargetDirectoryId() == null) {
+            throw new CustomException("目标收藏夹不能为空");
+        }
+        CollectionDirectoryPo targetDirectory = queryOwnedDirectory(myId, request.getTargetDirectoryId());
+        if (targetDirectory == null) {
+            throw new CustomException("目标收藏夹不存在或无权限");
+        }
+
+        for (Long videoId : request.getVideoIds()) {
+            if (request.getOperation() == 2) {
+                affected += addCollectedVideo(myId, request.getTargetDirectoryId(), videoId);
+            } else if (request.getOperation() == 3) {
+                int removed = removeCollectedVideo(myId, request.getSourceDirectoryId(), videoId);
+                int added = addCollectedVideo(myId, request.getTargetDirectoryId(), videoId);
+                if (removed > 0 || added > 0) {
+                    affected++;
+                }
+            } else {
+                throw new CustomException("批量操作类型非法");
+            }
+        }
+        return affected;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Integer clearInvalidCollectionItems(Long directoryId) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (directoryId == null) {
+            throw new CustomException("收藏夹ID不能为空");
+        }
+        CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
+        if (directoryPo == null) {
+            throw new CustomException("收藏夹不存在或无权限");
+        }
+
+        LambdaQueryWrapper<CollectionItemPo> wrapper = new LambdaQueryWrapper<CollectionItemPo>()
+                .eq(CollectionItemPo::getUserId, myId)
+                .eq(CollectionItemPo::getDirectoryId, directoryId)
+                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED);
+        List<CollectionItemPo> items = collectionItemMapper.selectList(wrapper);
+        if (items == null || items.isEmpty()) {
+            return 0;
+        }
+        int affected = 0;
+        for (CollectionItemPo item : items) {
+            VideoPo videoPo = videoMapper.selectById(item.getVideoId());
+            boolean invalid = videoPo == null || videoPo.getStatus() == VideoStatusEnum.DELETED.getCode()
+                    || videoPo.getStatus() == VideoStatusEnum.BANNED.getCode();
+            if (invalid) {
+                item.setIsDeleted(1);
+                collectionItemMapper.updateById(item);
+                videoStatsMapper.updateCollectCount(item.getVideoId(), -1);
+                affected++;
+            }
+        }
+        return affected;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void coinVideo(CoinVideoRequest request) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getVideoId() == null || request.getAmount() == null) {
+            throw new CustomException("投币参数不完整");
+        }
+        if (request.getAmount() != 1 && request.getAmount() != 2) {
+            throw new CustomException("投币数量只能为1或2");
+        }
+        VideoPo videoPo = videoMapper.selectById(request.getVideoId());
+        if (videoPo == null || videoPo.getStatus() != VideoStatusEnum.PUBLISHED.getCode()) {
+            throw new CustomException("视频不存在或不可投币");
+        }
+
+        ensureWalletRow(myId);
+        CoinRecordPo oldRecord = coinRecordMapper.selectOne(new LambdaQueryWrapper<CoinRecordPo>()
+                .eq(CoinRecordPo::getUserId, myId)
+                .eq(CoinRecordPo::getVideoId, request.getVideoId()));
+        int oldAmount = oldRecord == null ? 0 : oldRecord.getAmount();
+        int targetAmount = oldAmount + request.getAmount();
+        if (targetAmount > 2) {
+            throw new CustomException("单个视频最多投币2个");
+        }
+
+        int deducted = userWalletMapper.deductCoinIfEnough(myId, request.getAmount().longValue());
+        if (deducted <= 0) {
+            throw new CustomException("硬币余额不足");
+        }
+
+        if (oldRecord == null) {
+            coinRecordMapper.insert(CoinRecordPo.builder()
+                    .userId(myId)
+                    .videoId(request.getVideoId())
+                    .amount(request.getAmount())
+                    .build());
+        } else {
+            oldRecord.setAmount(targetAmount);
+            coinRecordMapper.updateById(oldRecord);
+        }
+        videoStatsMapper.updateCoinCount(request.getVideoId(), request.getAmount());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean claimDailyCoin(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        ensureWalletRow(userId);
+        LocalDate today = LocalDate.now();
+        UserRewardLogPo exists = userRewardLogMapper.selectOne(new LambdaQueryWrapper<UserRewardLogPo>()
+                .eq(UserRewardLogPo::getUserId, userId)
+                .eq(UserRewardLogPo::getRewardDate, today)
+                .last("limit 1"));
+        if (exists != null) {
+            return false;
+        }
+        userRewardLogMapper.insert(UserRewardLogPo.builder()
+                .userId(userId)
+                .rewardDate(today)
+                .rewardCoin(DAILY_LOGIN_REWARD)
+                .build());
+        userWalletMapper.updateCoinBalance(userId, (long) DAILY_LOGIN_REWARD);
+        return true;
+    }
+
+    @Override
+    public CoinWalletVo queryMyWallet() {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        ensureWalletRow(myId);
+        UserWalletPo walletPo = userWalletMapper.selectOne(new LambdaQueryWrapper<UserWalletPo>()
+                .eq(UserWalletPo::getUserId, myId)
+                .last("limit 1"));
+        return CoinWalletVo.builder()
+                .userId(myId)
+                .balance(walletPo == null ? 0L : walletPo.getCoinBalance())
+                .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void tripleAction(TripleActionRequest request) {
+        if (request == null || request.getVideoId() == null) {
+            throw new CustomException("一键三连参数不完整");
+        }
+        likeVideo(LikeRequest.builder().targetId(request.getVideoId()).operation(1).build());
+        coinVideo(CoinVideoRequest.builder().videoId(request.getVideoId()).amount(1).build());
+        Long myId = UserHolderUtil.getUser().getUserId();
+        CollectionDirectoryPo defaultDirectory = getOrCreateDefaultDirectory(myId);
+        collectVideo(CollectVideoRequest.builder()
+                .videoId(request.getVideoId())
+                .collectionDirectoryId(defaultDirectory.getId())
+                .operation(1)
+                .build());
+    }
+
+    private void cancelFollowIfPresent(Long followerId, Long followeeId) {
+        FollowRecordPo followRecordPo = followRecordMapper.selectOne(new LambdaQueryWrapper<FollowRecordPo>()
+                .eq(FollowRecordPo::getFollowerId, followerId)
+                .eq(FollowRecordPo::getFolloweeId, followeeId)
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED)
+                .last("limit 1"));
+        if (followRecordPo == null) {
+            return;
+        }
+        followRecordPo.setIsDeleted(1);
+        followRecordMapper.updateById(followRecordPo);
+        interactRepository.updateUserFollowNum(followerId, -1L);
+        interactRepository.updateUserFansNum(followeeId, -1L);
+    }
+
+    private CollectionDirectoryPo queryOwnedDirectory(Long userId, Long directoryId) {
+        return collectionDirectoryMapper.selectOne(new LambdaQueryWrapper<CollectionDirectoryPo>()
+                .eq(CollectionDirectoryPo::getId, directoryId)
+                .eq(CollectionDirectoryPo::getUserId, userId)
+                .eq(CollectionDirectoryPo::getIsDeleted, NOT_DELETED)
+                .last("limit 1"));
+    }
+
+    private CollectionDirectoryPo getOrCreateDefaultDirectory(Long userId) {
+        CollectionDirectoryPo defaultDirectory = collectionDirectoryMapper.selectDefaultDirectory(userId);
+        if (defaultDirectory != null) {
+            return defaultDirectory;
+        }
+        CollectionDirectoryPo po = CollectionDirectoryPo.builder()
+                .userId(userId)
+                .name(DEFAULT_COLLECTION_NAME)
+                .description("系统默认收藏夹")
+                .isPublic(0)
+                .isDefault(1)
+                .isDeleted(NOT_DELETED)
+                .build();
+        collectionDirectoryMapper.insert(po);
+        return po;
+    }
+
+    private int addCollectedVideo(Long userId, Long directoryId, Long videoId) {
+        QueryWrapper<CollectionItemPo> wrapper = new QueryWrapper<>();
+        wrapper.lambda()
+                .eq(CollectionItemPo::getUserId, userId)
+                .eq(CollectionItemPo::getDirectoryId, directoryId)
+                .eq(CollectionItemPo::getVideoId, videoId);
+        CollectionItemPo existed = collectionItemMapper.selectOne(wrapper);
+        if (existed == null) {
+            try {
+                collectionItemMapper.insert(CollectionItemPo.builder()
+                        .userId(userId)
+                        .directoryId(directoryId)
+                        .videoId(videoId)
+                        .isDeleted(NOT_DELETED)
+                        .build());
+                videoStatsMapper.updateCollectCount(videoId, 1);
+                return 1;
+            } catch (DuplicateKeyException ignore) {
+                return 0;
+            }
+        }
+        if (NOT_DELETED.equals(existed.getIsDeleted())) {
+            return 0;
+        }
+        existed.setIsDeleted(NOT_DELETED);
+        collectionItemMapper.updateById(existed);
+        videoStatsMapper.updateCollectCount(videoId, 1);
+        return 1;
+    }
+
+    private int removeCollectedVideo(Long userId, Long directoryId, Long videoId) {
+        CollectionItemPo itemPo = collectionItemMapper.selectOne(new LambdaQueryWrapper<CollectionItemPo>()
+                .eq(CollectionItemPo::getUserId, userId)
+                .eq(CollectionItemPo::getDirectoryId, directoryId)
+                .eq(CollectionItemPo::getVideoId, videoId)
+                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED)
+                .last("limit 1"));
+        if (itemPo == null) {
+            return 0;
+        }
+        itemPo.setIsDeleted(1);
+        collectionItemMapper.updateById(itemPo);
+        videoStatsMapper.updateCollectCount(videoId, -1);
+        return 1;
+    }
+
+    private void ensureWalletRow(Long userId) {
+        UserWalletPo walletPo = userWalletMapper.selectOne(new LambdaQueryWrapper<UserWalletPo>()
+                .eq(UserWalletPo::getUserId, userId)
+                .last("limit 1"));
+        if (walletPo != null) {
+            return;
+        }
+        try {
+            userWalletMapper.insert(UserWalletPo.builder()
+                    .userId(userId)
+                    .coinBalance(0L)
+                    .build());
+        } catch (DuplicateKeyException ignore) {
+        }
     }
 
     /**

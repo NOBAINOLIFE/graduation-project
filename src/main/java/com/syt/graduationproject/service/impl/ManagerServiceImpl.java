@@ -11,9 +11,12 @@ import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.mapper.ReportMapper;
+import com.syt.graduationproject.mapper.CommentMapper;
+import com.syt.graduationproject.mapper.CommentStatsMapper;
 import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.mapper.VideoAuditRecordMapper;
 import com.syt.graduationproject.mapper.VideoMapper;
+import com.syt.graduationproject.mapper.VideoStatsMapper;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
@@ -56,6 +59,12 @@ public class ManagerServiceImpl implements ManagerService {
 	private final VideoMapper videoMapper;
 
 	private final VideoAuditRecordMapper videoAuditRecordMapper;
+
+	private final CommentMapper commentMapper;
+
+	private final CommentStatsMapper commentStatsMapper;
+
+	private final VideoStatsMapper videoStatsMapper;
 
 	private final UserRepository userRepository;
 
@@ -170,7 +179,29 @@ public class ManagerServiceImpl implements ManagerService {
 			banVideo(reportPo.getTargetId());
 			return;
 		}
+		if (ReportTargetTypeEnum.COMMENT.getCode().equals(reportPo.getTargetType())) {
+			removeCommentByReport(reportPo.getTargetId());
+			return;
+		}
 		throw new CustomException("举报目标类型非法");
+	}
+
+	private void removeCommentByReport(Long commentId) {
+		CommentPo commentPo = commentMapper.selectById(commentId);
+		if (commentPo == null || commentPo.getIsDeleted() != 0) {
+			return;
+		}
+		if (commentPo.getRootId() == 0) {
+			int removed = commentMapper.logicDeleteRootTree(commentPo.getId());
+			if (removed > 0) {
+				videoStatsMapper.updateCommentCount(commentPo.getVideoId(), -1);
+			}
+			return;
+		}
+		int removed = commentMapper.logicDeleteById(commentPo.getId());
+		if (removed > 0) {
+			commentStatsMapper.updateReplyCount(commentPo.getRootId(), -1);
+		}
 	}
 
 	@Override

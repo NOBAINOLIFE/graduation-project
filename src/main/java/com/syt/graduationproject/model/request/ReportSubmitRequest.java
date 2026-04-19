@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class ReportSubmitRequest {
 
     /**
-     * 举报目标类型：1-用户 2-视频
+     * 举报目标类型：1-用户 2-视频 3-评论
      */
     private Integer targetType;
 
