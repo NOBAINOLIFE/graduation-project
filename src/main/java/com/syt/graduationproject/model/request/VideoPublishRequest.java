@@ -11,17 +11,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VideoSubmitRequest {
+public class VideoPublishRequest {
 
     private Long videoId;
-
-    private String title;
-
-    private String description;
-
-    private String coverUrl;
-
-    private Integer duration;
 
     private Long partitionId;
 

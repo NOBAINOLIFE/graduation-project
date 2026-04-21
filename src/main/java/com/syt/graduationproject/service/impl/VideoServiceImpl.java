@@ -1,16 +1,18 @@
 package com.syt.graduationproject.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.syt.graduationproject.config.KafkaConfig;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.mapper.VideoPartitionMapper;
+import com.syt.graduationproject.mapper.VideoTagMapper;
+import com.syt.graduationproject.mapper.VideoTagRelMapper;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
-import com.syt.graduationproject.repository.SearchRepository;
-import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.ManagerService;
@@ -20,16 +22,25 @@ import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class VideoServiceImpl implements VideoService {
+
+    private static final int MAX_TAG_COUNT = 10;
 
     private final InteractService interactService;
 
@@ -37,13 +48,15 @@ public class VideoServiceImpl implements VideoService {
 
     private final VideoRepository videoRepository;
 
-    private final UserRepository userRepository;
-
-    private final SearchRepository searchRepository;
-
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     private final ManagerService managerService;
+
+    private final VideoPartitionMapper videoPartitionMapper;
+
+    private final VideoTagMapper videoTagMapper;
+
+    private final VideoTagRelMapper videoTagRelMapper;
 
     /**
      * 查询用户视频数
@@ -112,11 +125,20 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void submitVideo(VideoSubmitRequest request) {
         if (request == null || request.getVideoId() == null || StringUtils.isBlank(request.getTitle())
-                || StringUtils.isBlank(request.getCoverUrl()) || request.getDuration() == null || request.getDuration() <= 0) {
+                || StringUtils.isBlank(request.getCoverUrl()) || request.getDuration() == null || request.getDuration() <= 0
+                || request.getPartitionId() == null) {
             throw new CustomException("投稿参数不完整");
         }
+
+        VideoPartitionPo partitionPo = videoPartitionMapper.selectById(request.getPartitionId());
+        if (partitionPo == null) {
+            throw new CustomException("视频分区不存在");
+        }
+        List<String> normalizedTagList = normalizeTagList(request.getTagList());
+
         Long userId = UserHolderUtil.getUser().getUserId();
         VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(request.getVideoId(), userId);
         if (videoPo == null) {
@@ -129,11 +151,14 @@ public class VideoServiceImpl implements VideoService {
                 request.getTitle(),
                 request.getDescription(),
                 request.getCoverUrl(),
-                request.getDuration()
+                request.getDuration(),
+                request.getPartitionId()
         );
         if (updated <= 0) {
             throw new CustomException("当前视频状态不允许投稿");
         }
+
+        bindVideoTags(request.getVideoId(), normalizedTagList);
 
         videoRepository.insertVideoStatsIfAbsent(request.getVideoId());
         kafkaTemplate.send(KafkaConfig.VIDEO_PROCESS_TOPIC,
@@ -142,11 +167,15 @@ public class VideoServiceImpl implements VideoService {
 
     @Override
     public void publishVideo(Long videoId) {
+        if (videoId == null) {
+            throw new CustomException("发布参数不完整");
+        }
         Long userId = UserHolderUtil.getUser().getUserId();
         VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(videoId, userId);
         if (videoPo == null) {
             throw new CustomException("视频不存在或无权限发布");
         }
+
         if (VideoStatusEnum.TRANSCODE_SUCCESS.getCode() == videoPo.getStatus()
                 || VideoStatusEnum.AUDIT_REJECTED.getCode() == videoPo.getStatus()) {
             int updated = videoRepository.updateVideoStatus(videoId, videoPo.getStatus(), VideoStatusEnum.AUDITING.getCode());
@@ -160,5 +189,89 @@ public class VideoServiceImpl implements VideoService {
             return;
         }
         throw new CustomException("当前视频状态不允许提交审核");
+    }
+
+    private void bindVideoTags(Long videoId, List<String> normalizedTagList) {
+        List<VideoTagPo> targetTagPos = loadOrCreateTags(normalizedTagList);
+        Set<Long> targetTagIdSet = targetTagPos.stream().map(VideoTagPo::getId).collect(Collectors.toSet());
+
+        LambdaQueryWrapper<VideoTagRelPo> relQueryWrapper = new LambdaQueryWrapper<>();
+        relQueryWrapper.eq(VideoTagRelPo::getVideoId, videoId);
+        List<VideoTagRelPo> existedRelList = videoTagRelMapper.selectList(relQueryWrapper);
+        Set<Long> existedTagIdSet = existedRelList.stream().map(VideoTagRelPo::getTagId).collect(Collectors.toSet());
+
+        videoTagRelMapper.delete(relQueryWrapper);
+        LocalDateTime now = LocalDateTime.now();
+        for (Long tagId : targetTagIdSet) {
+            videoTagRelMapper.insert(VideoTagRelPo.builder()
+                    .videoId(videoId)
+                    .tagId(tagId)
+                    .createTime(now)
+                    .updateTime(now)
+                    .build());
+        }
+
+        List<Long> hotIncrementTagIds = targetTagIdSet.stream()
+                .filter(tagId -> !existedTagIdSet.contains(tagId))
+                .collect(Collectors.toList());
+        if (!hotIncrementTagIds.isEmpty()) {
+            videoTagMapper.increaseHotBatch(hotIncrementTagIds);
+        }
+    }
+
+    private List<String> normalizeTagList(List<String> tagList) {
+        if (tagList == null || tagList.isEmpty()) {
+            throw new CustomException("视频标签不能为空");
+        }
+        List<String> normalizedTagList = tagList.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        if (normalizedTagList.isEmpty()) {
+            throw new CustomException("视频标签不能为空");
+        }
+        if (normalizedTagList.size() > MAX_TAG_COUNT) {
+            throw new CustomException("视频标签最多可填写10个");
+        }
+        return normalizedTagList;
+    }
+
+    private List<VideoTagPo> loadOrCreateTags(List<String> tagNameList) {
+        LambdaQueryWrapper<VideoTagPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.in(VideoTagPo::getTagName, tagNameList);
+        List<VideoTagPo> existedTagList = videoTagMapper.selectList(queryWrapper);
+        Map<String, VideoTagPo> existedTagMap = existedTagList.stream()
+                .collect(Collectors.toMap(VideoTagPo::getTagName, item -> item));
+
+        List<String> missingTagList = new ArrayList<>();
+        for (String tagName : tagNameList) {
+            if (!existedTagMap.containsKey(tagName)) {
+                missingTagList.add(tagName);
+            }
+        }
+        if (!missingTagList.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            for (String tagName : missingTagList) {
+                try {
+                    videoTagMapper.insert(VideoTagPo.builder()
+                            .tagName(tagName)
+                            .hot(0L)
+                            .createTime(now)
+                            .updateTime(now)
+                            .build());
+                } catch (DuplicateKeyException ignore) {
+                    // Concurrent creation is handled by the unique index and a re-query below.
+                }
+            }
+            LambdaQueryWrapper<VideoTagPo> reQueryWrapper = new LambdaQueryWrapper<>();
+            reQueryWrapper.in(VideoTagPo::getTagName, tagNameList);
+            existedTagList = videoTagMapper.selectList(reQueryWrapper);
+        }
+        if (existedTagList == null || existedTagList.size() != tagNameList.size()) {
+            throw new CustomException("创建视频标签失败，请稍后重试");
+        }
+        return existedTagList;
     }
 }

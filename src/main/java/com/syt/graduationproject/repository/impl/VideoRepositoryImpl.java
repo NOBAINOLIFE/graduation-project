@@ -141,7 +141,7 @@ public class VideoRepositoryImpl implements VideoRepository {
     }
 
     @Override
-    public int submitVideo(Long videoId, Long userId, String title, String description, String coverUrl, Integer duration) {
+    public int submitVideo(Long videoId, Long userId, String title, String description, String coverUrl, Integer duration, Long partitionId) {
         LambdaUpdateWrapper<VideoPo> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(VideoPo::getId, videoId)
                 .eq(VideoPo::getUserId, userId)
@@ -150,6 +150,7 @@ public class VideoRepositoryImpl implements VideoRepository {
                 .set(VideoPo::getDescription, description)
                 .set(VideoPo::getCoverUrl, coverUrl)
                 .set(VideoPo::getDuration, duration)
+                .set(VideoPo::getPartitionId, partitionId)
                 .set(VideoPo::getStatus, VideoStatusEnum.WAITING_TRANSCODE.getCode())
                 .set(VideoPo::getUpdateTime, LocalDateTime.now());
         return videoMapper.update(null, updateWrapper);

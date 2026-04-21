@@ -58,7 +58,7 @@ public interface VideoRepository {
     /**
      * 更新投稿信息并进入待转码
      */
-    int submitVideo(Long videoId, Long userId, String title, String description, String coverUrl, Integer duration);
+    int submitVideo(Long videoId, Long userId, String title, String description, String coverUrl, Integer duration, Long partitionId);
 
     /**
      * 插入视频统计记录

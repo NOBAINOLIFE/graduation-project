@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -26,6 +27,12 @@ public class VideoEsDoc {
     private String username;
 
     private String coverUrl;
+
+    private Long partitionId;
+
+    private String partitionName;
+
+    private List<String> tagList;
 
     private Long playCount;
 

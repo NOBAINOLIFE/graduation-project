@@ -57,6 +57,12 @@ public class VideoPo {
     private Integer duration;
 
     /**
+     * 视频分区ID
+     */
+    @TableField(value = "partition_id")
+    private Long partitionId;
+
+    /**
      * 状态 0-待上传 1-上传完成 2-转码中 3-审核中 4-已发布 5-封禁 6-删除
      */
     @TableField(value = "status")

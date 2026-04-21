@@ -16,7 +16,10 @@ import com.syt.graduationproject.mapper.CommentStatsMapper;
 import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.mapper.VideoAuditRecordMapper;
 import com.syt.graduationproject.mapper.VideoMapper;
+import com.syt.graduationproject.mapper.VideoPartitionMapper;
 import com.syt.graduationproject.mapper.VideoStatsMapper;
+import com.syt.graduationproject.mapper.VideoTagMapper;
+import com.syt.graduationproject.mapper.VideoTagRelMapper;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
@@ -37,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -65,6 +69,12 @@ public class ManagerServiceImpl implements ManagerService {
 	private final CommentStatsMapper commentStatsMapper;
 
 	private final VideoStatsMapper videoStatsMapper;
+
+	private final VideoPartitionMapper videoPartitionMapper;
+
+	private final VideoTagMapper videoTagMapper;
+
+	private final VideoTagRelMapper videoTagRelMapper;
 
 	private final UserRepository userRepository;
 
@@ -349,17 +359,37 @@ public class ManagerServiceImpl implements ManagerService {
 		VideoPo videoPo = videoRepository.queryVideoById(videoId);
 		VideoStatsPo statsPo = videoRepository.queryVideoStatsById(videoId);
 		UserPo userPo = userRepository.queryUserAnyStatusById(videoPo.getUserId());
-		searchRepository.upsertVideoDoc(VideoEsDoc.builder()
-				.videoId(videoPo.getId())
-				.title(videoPo.getTitle())
-				.description(videoPo.getDescription())
-				.userId(videoPo.getUserId())
-				.username(userPo == null ? "" : userPo.getUsername())
-				.coverUrl(videoPo.getCoverUrl())
-				.playCount(statsPo == null ? 0L : statsPo.getPlayCount())
-				.collectionCount(statsPo == null ? 0L : statsPo.getCollectCount())
-				.duration(videoPo.getDuration())
-				.createTime(videoPo.getCreateTime())
-				.build());
+		VideoPartitionPo partitionPo = videoPo.getPartitionId() == null
+				? null
+				: videoPartitionMapper.selectById(videoPo.getPartitionId());
+
+		List<VideoTagRelPo> tagRelList = videoTagRelMapper.selectList(new LambdaQueryWrapper<VideoTagRelPo>()
+				.eq(VideoTagRelPo::getVideoId, videoId));
+		List<Long> tagIdList = tagRelList.stream().map(VideoTagRelPo::getTagId).collect(Collectors.toList());
+		List<String> tagNameList = Collections.emptyList();
+		if (!tagIdList.isEmpty()) {
+			tagNameList = videoTagMapper.selectBatchIds(tagIdList)
+					.stream()
+					.map(VideoTagPo::getTagName)
+					.filter(Objects::nonNull)
+					.distinct()
+					.collect(Collectors.toList());
+		}
+
+		VideoEsDoc videoEsDoc = new VideoEsDoc();
+		videoEsDoc.setVideoId(videoPo.getId());
+		videoEsDoc.setTitle(videoPo.getTitle());
+		videoEsDoc.setDescription(videoPo.getDescription());
+		videoEsDoc.setUserId(videoPo.getUserId());
+		videoEsDoc.setUsername(userPo == null ? "" : userPo.getUsername());
+		videoEsDoc.setCoverUrl(videoPo.getCoverUrl());
+		videoEsDoc.setPartitionId(videoPo.getPartitionId());
+		videoEsDoc.setPartitionName(partitionPo == null ? "" : partitionPo.getPartitionName());
+		videoEsDoc.setTagList(tagNameList);
+		videoEsDoc.setPlayCount(statsPo == null ? 0L : statsPo.getPlayCount());
+		videoEsDoc.setCollectionCount(statsPo == null ? 0L : statsPo.getCollectCount());
+		videoEsDoc.setDuration(videoPo.getDuration());
+		videoEsDoc.setCreateTime(videoPo.getCreateTime());
+		searchRepository.upsertVideoDoc(videoEsDoc);
 	}
 }

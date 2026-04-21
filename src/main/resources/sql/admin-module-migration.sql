@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS tb_report
 CREATE TABLE IF NOT EXISTS tb_user_block
 (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id         BIGINT    NOT NULL,
-    blocked_user_id BIGINT    NOT NULL,
-    is_deleted      TINYINT   NOT NULL DEFAULT 0,
-    create_time     TIMESTAMP          DEFAULT CURRENT_TIMESTAMP,
-    update_time     TIMESTAMP          DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    user_id         BIGINT  NOT NULL,
+    blocked_user_id BIGINT  NOT NULL,
+    is_deleted      TINYINT NOT NULL DEFAULT 0,
+    create_time     TIMESTAMP        DEFAULT CURRENT_TIMESTAMP,
+    update_time     TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_user_block (user_id, blocked_user_id),
     KEY idx_blocked_user_id (blocked_user_id)
 ) ENGINE = InnoDB
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS tb_user_wallet
     id           BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id      BIGINT NOT NULL,
     coin_balance BIGINT NOT NULL DEFAULT 0,
-    create_time  TIMESTAMP        DEFAULT CURRENT_TIMESTAMP,
-    update_time  TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    create_time  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_wallet_user_id (user_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
@@ -89,15 +89,15 @@ CREATE TABLE IF NOT EXISTS tb_user_reward_log
     user_id     BIGINT NOT NULL,
     reward_date DATE   NOT NULL,
     reward_coin INT    NOT NULL DEFAULT 1,
-    create_time TIMESTAMP        DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    create_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_user_reward_date (user_id, reward_date)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
 
 -- 3.4) Collection directory capability extension
 ALTER TABLE tb_collection_directory
-    ADD COLUMN IF NOT EXISTS is_default TINYINT NOT NULL DEFAULT 0 COMMENT '0-no 1-yes' AFTER is_public;
+    ADD COLUMN is_default TINYINT NOT NULL DEFAULT 0 COMMENT '0-no 1-yes' AFTER is_public;
 
 -- 4) Video status code migration reminder
 -- New status map:
@@ -120,4 +120,42 @@ CREATE TABLE IF NOT EXISTS tb_video_audit_record
     KEY idx_status (status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
+
+-- 6) Video partition + tag capability
+CREATE TABLE IF NOT EXISTS tb_video_partition
+(
+    id             BIGINT PRIMARY KEY AUTO_INCREMENT,
+    partition_name VARCHAR(64) NOT NULL,
+    create_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_partition_name (partition_name)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tb_video_tag
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    tag_name    VARCHAR(64) NOT NULL,
+    hot         BIGINT      NOT NULL DEFAULT 0 COMMENT '标签热度，引用次数累计值',
+    create_time TIMESTAMP            DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP            DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_tag_name (tag_name)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tb_video_tag_rel
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    video_id    BIGINT NOT NULL,
+    tag_id      BIGINT NOT NULL,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_video_tag (video_id, tag_id),
+    KEY idx_tag_id (tag_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+
+ALTER TABLE tb_video
+    ADD COLUMN partition_id BIGINT DEFAULT NULL COMMENT '视频分区ID' AFTER duration,
+    ADD KEY idx_partition_id (partition_id);
 

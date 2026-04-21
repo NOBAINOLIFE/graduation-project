@@ -28,6 +28,21 @@
       "coverUrl": {
         "type": "keyword"
       },
+      "partitionId": {
+        "type": "keyword"
+      },
+      "partitionName": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "tagList": {
+        "type": "keyword"
+      },
       "playCount": {
         "type": "long"
       },
