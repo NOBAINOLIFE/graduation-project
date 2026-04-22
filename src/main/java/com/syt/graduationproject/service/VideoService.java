@@ -2,6 +2,7 @@ package com.syt.graduationproject.service;
 
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import java.util.List;
@@ -37,4 +38,6 @@ public interface VideoService {
      * 查询所有视频分区
      */
     List<VideoPartitionVo> listAllPartitions();
+
+    List<SearchVideoVo> getVideoPlayList(Long lastVideoId);
 }

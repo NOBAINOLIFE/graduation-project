@@ -11,7 +11,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SearchPageVo<T> {
+public class PageVo<T> {
 
     private Long total;
 

@@ -13,6 +13,19 @@ import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.vo.SearchVideoVo;
+import com.syt.graduationproject.repository.SearchRepository;
+import com.syt.graduationproject.converter.SearchConverter;
+import com.syt.graduationproject.model.es.VideoEsDoc;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
+import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.VIDEO_INDEX;
+import static com.syt.graduationproject.constant.VideoConstant.HOME_PAGE_VIDEO_LIST_SIZE;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.repository.VideoRepository;
@@ -32,11 +45,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -68,6 +77,9 @@ public class VideoServiceImpl implements VideoService {
     private final VideoTagMapper videoTagMapper;
 
     private final VideoTagRelMapper videoTagRelMapper;
+
+    private final SearchRepository searchRepository;
+    private final SearchConverter searchConverter;
 
     /**
      * 查询用户视频数
@@ -338,5 +350,11 @@ public class VideoServiceImpl implements VideoService {
                         .partitionName(po.getPartitionName())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<SearchVideoVo> getVideoPlayList(Long lastVideoId) {
+        List<VideoEsDoc> docs = searchRepository.listVideoPlayList(lastVideoId, HOME_PAGE_VIDEO_LIST_SIZE);
+        return docs.stream().map(searchConverter::toSearchVideoVo).collect(Collectors.toList());
     }
 }

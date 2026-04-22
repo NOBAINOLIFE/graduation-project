@@ -28,7 +28,7 @@ import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.ReportVo;
-import com.syt.graduationproject.model.vo.SearchPageVo;
+import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
@@ -83,7 +83,7 @@ public class ManagerServiceImpl implements ManagerService {
 	private final SearchRepository searchRepository;
 
 	@Override
-	public SearchPageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
+	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
 		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
 		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
 		Integer status = request == null || request.getStatus() == null
@@ -109,7 +109,7 @@ public class ManagerServiceImpl implements ManagerService {
 						.build())
 				.collect(Collectors.toList());
 
-		return SearchPageVo.<VideoAuditVo>builder()
+		return PageVo.<VideoAuditVo>builder()
 				.total(result.getTotal())
 				.pageNum(pageNum)
 				.pageSize(pageSize)
@@ -118,7 +118,7 @@ public class ManagerServiceImpl implements ManagerService {
 	}
 
 	@Override
-	public SearchPageVo<ReportVo> queryReportList(ManagerReportListRequest request) {
+	public PageVo<ReportVo> queryReportList(ManagerReportListRequest request) {
 		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
 		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
 		Integer targetType = request == null ? null : request.getTargetType();
@@ -149,7 +149,7 @@ public class ManagerServiceImpl implements ManagerService {
 						.build())
 				.collect(Collectors.toList());
 
-		return SearchPageVo.<ReportVo>builder()
+		return PageVo.<ReportVo>builder()
 				.total(result.getTotal())
 				.pageNum(pageNum)
 				.pageSize(pageSize)

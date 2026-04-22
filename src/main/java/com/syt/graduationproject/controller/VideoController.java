@@ -4,6 +4,7 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.response.Response;
+import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.service.VideoService;
@@ -104,6 +105,22 @@ public class VideoController {
         } catch (Exception e) {
             log.error("查询视频分区列表失败", e);
             return Response.fail("查询视频分区列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询视频播放列表
+     */
+    @GetMapping("/videoPlayList")
+    public Response<List<SearchVideoVo>> listVideoPlayList(@RequestParam("lastVideoId") Long lastVideoId) {
+        try {
+            return Response.success(videoService.getVideoPlayList(lastVideoId));
+        } catch (CustomException e) {
+            log.warn("查询视频播放列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询视频播放列表失败", e);
+            return Response.fail("查询视频播放列表失败，系统异常");
         }
     }
 }

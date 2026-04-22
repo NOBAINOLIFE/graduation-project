@@ -4,7 +4,7 @@ import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.request.SearchUserRequest;
 import com.syt.graduationproject.model.request.SearchVideoRequest;
-import com.syt.graduationproject.model.vo.SearchPageVo;
+import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.model.vo.SearchUserVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.repository.SearchRepository;
@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -53,7 +52,7 @@ public class SearchServiceImpl implements SearchService {
     private final SearchConverter searchConverter;
 
     @Override
-    public SearchPageVo<SearchVideoVo> searchVideos(SearchVideoRequest request) {
+    public PageVo<SearchVideoVo> searchVideos(SearchVideoRequest request) {
         NativeSearchQuery query = buildVideoQuery(request);
         SearchHits<VideoEsDoc> searchHits = searchRepository.commonSearch(query, VideoEsDoc.class, VIDEO_INDEX);
         List<SearchVideoVo> records = searchHits.getSearchHits()
@@ -62,7 +61,7 @@ public class SearchServiceImpl implements SearchService {
                 .map(searchConverter::toSearchVideoVo)
                 .collect(Collectors.toList());
 
-        return SearchPageVo.<SearchVideoVo>builder()
+        return PageVo.<SearchVideoVo>builder()
                 .total(searchHits.getTotalHits())
                 .pageNum(normalizePageNum(request.getPageNum()))
                 .pageSize(normalizePageSize(request.getPageSize()))
@@ -71,7 +70,7 @@ public class SearchServiceImpl implements SearchService {
     }
 
     @Override
-    public SearchPageVo<SearchUserVo> searchUsers(SearchUserRequest request) {
+    public PageVo<SearchUserVo> searchUsers(SearchUserRequest request) {
         NativeSearchQuery query = buildUserQuery(request);
         SearchHits<UserEsDoc> searchHits = searchRepository.commonSearch(query, UserEsDoc.class, USER_INDEX);
         List<SearchUserVo> records = searchHits.getSearchHits()
@@ -80,7 +79,7 @@ public class SearchServiceImpl implements SearchService {
                 .map(searchConverter::toSearchUserVo)
                 .collect(Collectors.toList());
 
-        return SearchPageVo.<SearchUserVo>builder()
+        return PageVo.<SearchUserVo>builder()
                 .total(searchHits.getTotalHits())
                 .pageNum(normalizePageNum(request.getPageNum()))
                 .pageSize(normalizePageSize(request.getPageSize()))

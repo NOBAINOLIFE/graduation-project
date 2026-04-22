@@ -1,5 +1,7 @@
 package com.syt.graduationproject.repository;
 
+import java.util.List;
+
 import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import org.springframework.data.elasticsearch.core.SearchHits;
@@ -25,5 +27,13 @@ public interface SearchRepository {
      * 删除视频索引文档
      */
     void deleteVideoDoc(Long videoId);
+
+    /**
+     * 查询首页视频播放列表（去重、分页）
+     * @param lastVideoId 上次查询到的最大videoId
+     * @param size 查询数量
+     * @return 视频ES文档列表
+     */
+    List<VideoEsDoc> listVideoPlayList(Long lastVideoId, int size);
 }
 

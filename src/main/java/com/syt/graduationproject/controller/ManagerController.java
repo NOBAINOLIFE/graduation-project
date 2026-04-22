@@ -9,7 +9,7 @@ import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.ReportVo;
-import com.syt.graduationproject.model.vo.SearchPageVo;
+import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.service.ManagerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ public class ManagerController {
 
     @PostMapping("/video/audit/list")
     @RequirePermission(ADMIN_PERMISSION)
-    public Response<SearchPageVo<VideoAuditVo>> queryAuditVideoList(@RequestBody(required = false) ManagerAuditVideoListRequest request) {
+    public Response<PageVo<VideoAuditVo>> queryAuditVideoList(@RequestBody(required = false) ManagerAuditVideoListRequest request) {
         try {
             return Response.success(managerService.queryAuditVideoList(request));
         } catch (CustomException e) {
@@ -41,7 +41,7 @@ public class ManagerController {
 
     @PostMapping("/report/list")
     @RequirePermission(ADMIN_PERMISSION)
-    public Response<SearchPageVo<ReportVo>> queryReportList(@RequestBody(required = false) ManagerReportListRequest request) {
+    public Response<PageVo<ReportVo>> queryReportList(@RequestBody(required = false) ManagerReportListRequest request) {
         try {
             return Response.success(managerService.queryReportList(request));
         } catch (CustomException e) {

@@ -4,7 +4,7 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.SearchUserRequest;
 import com.syt.graduationproject.model.request.SearchVideoRequest;
 import com.syt.graduationproject.model.response.Response;
-import com.syt.graduationproject.model.vo.SearchPageVo;
+import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.model.vo.SearchUserVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.service.SearchService;
@@ -27,7 +27,7 @@ public class SearchController {
      * 视频检索
      */
     @PostMapping("/video")
-    public Response<SearchPageVo<SearchVideoVo>> searchVideos(@RequestBody SearchVideoRequest request) {
+    public Response<PageVo<SearchVideoVo>> searchVideos(@RequestBody SearchVideoRequest request) {
         try {
             return Response.success(searchService.searchVideos(request));
         } catch (CustomException e) {
@@ -43,7 +43,7 @@ public class SearchController {
      * 用户检索
      */
     @PostMapping("/user")
-    public Response<SearchPageVo<SearchUserVo>> searchUsers(@RequestBody SearchUserRequest request) {
+    public Response<PageVo<SearchUserVo>> searchUsers(@RequestBody SearchUserRequest request) {
         try {
             return Response.success(searchService.searchUsers(request));
         } catch (CustomException e) {
