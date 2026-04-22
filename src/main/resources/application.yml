@@ -3,7 +3,14 @@ server:
 
 spring:
   application:
-    name: experiment-4
+    name: graduation-project
+
+  servlet:
+    multipart:
+      # 允许单个分片的最大值，设置为 10MB 足够容纳 5MB 的数据 + 报文头
+      max-file-size: 10MB
+      # 整个请求的最大值，分片上传通常一个请求只传一个片，所以也设为 10MB
+      max-request-size: 10MB
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

@@ -41,11 +41,6 @@ public interface VideoRepository {
     List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution);
 
     /**
-     * 查询视频播放源原始记录
-     */
-    List<VideoSourcePo> queryVideoSourcePos(Long videoId, Integer resolution);
-
-    /**
      * 根据视频ID和作者ID查询视频
      */
     VideoPo queryVideoByIdAndUserId(Long videoId, Long userId);

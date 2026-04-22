@@ -44,10 +44,6 @@ public class VideoRepositoryImpl implements VideoRepository {
     public Long createUploadingVideo(Long userId) {
         VideoPo videoPo = VideoPo.builder()
                 .userId(userId)
-                .title("")
-                .description("")
-                .coverUrl("")
-                .duration(0)
                 .status(VideoStatusEnum.UPLOADING.getCode())
                 .build();
         videoMapper.insert(videoPo);
@@ -103,21 +99,11 @@ public class VideoRepositoryImpl implements VideoRepository {
     public List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution) {
         LambdaQueryWrapper<VideoSourcePo> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(VideoSourcePo::getVideoId, videoId)
-                .eq(VideoSourcePo::getStatus, 1);
+                .eq(VideoSourcePo::getIsDeleted, NOT_DELETED);
         if (resolution != null) {
             queryWrapper.eq(VideoSourcePo::getResolution, resolution);
         }
         return videoConverter.toVideoSourceBo(videoSourceMapper.selectList(queryWrapper));
-    }
-
-    @Override
-    public List<VideoSourcePo> queryVideoSourcePos(Long videoId, Integer resolution) {
-        LambdaQueryWrapper<VideoSourcePo> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(VideoSourcePo::getVideoId, videoId);
-        if (resolution != null) {
-            queryWrapper.eq(VideoSourcePo::getResolution, resolution);
-        }
-        return videoSourceMapper.selectList(queryWrapper);
     }
 
     @Override

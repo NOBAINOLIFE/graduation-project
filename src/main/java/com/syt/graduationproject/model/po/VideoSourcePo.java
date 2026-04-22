@@ -76,10 +76,10 @@ public class VideoSourcePo {
     private Integer height;
 
     /**
-     * 转码状态: 0-转码中, 1-成功, 2-失败
+     * 状态 0-未删除 1-已删除
      */
-    @TableField(value = "status")
-    private Integer status;
+    @TableField(value = "is_deleted")
+    private Integer isDeleted;
 
     /**
      * 创建时间

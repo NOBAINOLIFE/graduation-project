@@ -5,10 +5,13 @@ import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
+import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 视频控制器
@@ -85,6 +88,22 @@ public class VideoController {
         } catch (Exception e) {
             log.error("上报视频播放进度失败，request:{}", request, e);
             return Response.fail("上报视频播放进度失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询视频分区列表
+     */
+    @GetMapping("/partitions")
+    public Response<List<VideoPartitionVo>> listPartitions() {
+        try {
+            return Response.success(videoService.listAllPartitions());
+        } catch (CustomException e) {
+            log.warn("查询视频分区列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询视频分区列表失败", e);
+            return Response.fail("查询视频分区列表失败，系统异常");
         }
     }
 }

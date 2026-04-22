@@ -32,4 +32,10 @@ build/
 .vscode/
 
 ### logs ###
-/logs/
+logs/
+
+### frontend ###
+node_modules/
+dist/
+.DS_Store
+*.log

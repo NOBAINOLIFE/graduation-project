@@ -14,6 +14,7 @@ import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
+import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.ManagerService;
@@ -326,5 +327,16 @@ public class VideoServiceImpl implements VideoService {
             throw new CustomException("创建视频标签失败，请稍后重试");
         }
         return existedTagList;
+    }
+
+    @Override
+    public List<VideoPartitionVo> listAllPartitions() {
+        List<VideoPartitionPo> partitionPoList = videoPartitionMapper.selectList(null);
+        return partitionPoList.stream()
+                .map(po -> VideoPartitionVo.builder()
+                        .id(po.getId())
+                        .partitionName(po.getPartitionName())
+                        .build())
+                .collect(Collectors.toList());
     }
 }

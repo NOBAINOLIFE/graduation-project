@@ -27,9 +27,11 @@ public class McvConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // 对所有路径生效
-                .allowedOrigins("http://localhost:63342") // 允许你的前端地址
+                // 兼容本地开发常见端口（如 Vite 5173、JetBrains 63342）
+                .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 允许的请求方式
                 .allowedHeaders("*") // 允许的 Header
-                .allowCredentials(true); // 是否允许发送 Cookie
+                .allowCredentials(true) // 是否允许发送 Cookie
+                .maxAge(3600);
     }
 }

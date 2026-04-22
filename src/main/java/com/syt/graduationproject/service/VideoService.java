@@ -3,6 +3,8 @@ package com.syt.graduationproject.service;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
+import com.syt.graduationproject.model.vo.VideoPartitionVo;
+import java.util.List;
 
 public interface VideoService {
 
@@ -30,4 +32,9 @@ public interface VideoService {
      * 上报视频播放进度
      */
     void reportPlayProgress(VideoPlayProgressRequest request);
+
+    /**
+     * 查询所有视频分区
+     */
+    List<VideoPartitionVo> listAllPartitions();
 }

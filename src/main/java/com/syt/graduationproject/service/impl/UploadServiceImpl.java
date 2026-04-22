@@ -156,7 +156,6 @@ public class UploadServiceImpl implements UploadService {
                 .fileSize(null)
                 .width(null)
                 .height(null)
-                .status(0)
                 .build();
         videoRepository.saveVideoSource(sourcePo);
 
