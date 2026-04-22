@@ -193,4 +193,14 @@ public class VideoRepositoryImpl implements VideoRepository {
                 .eq(VideoSourcePo::getResolution, resolution);
         return videoSourceMapper.delete(queryWrapper);
     }
+
+    @Override
+    public int upsertUserVideoHistory(Long userId, Long videoId, Integer lastPlayTime, Integer duration, Integer isFinished) {
+        return userVideoHistoryMapper.upsertHistory(userId, videoId, lastPlayTime, duration, isFinished);
+    }
+
+    @Override
+    public int incrVideoPlayCount(Long videoId, Long delta) {
+        return videoStatsMapper.updatePlayCount(videoId, delta);
+    }
 }

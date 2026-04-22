@@ -74,4 +74,14 @@ public interface VideoRepository {
      * 删除视频源记录
      */
     int deleteVideoSource(Long videoId, Integer resolution);
+
+    /**
+     * 保存或更新用户观看进度
+     */
+    int upsertUserVideoHistory(Long userId, Long videoId, Integer lastPlayTime, Integer duration, Integer isFinished);
+
+    /**
+     * 增加视频播放量
+     */
+    int incrVideoPlayCount(Long videoId, Long delta);
 }

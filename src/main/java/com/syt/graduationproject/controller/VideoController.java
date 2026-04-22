@@ -1,6 +1,7 @@
 package com.syt.graduationproject.controller;
 
 import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
@@ -67,6 +68,23 @@ public class VideoController {
         } catch (Exception e) {
             log.error("发布视频失败，videoId:{}", videoId, e);
             return Response.fail("发布视频失败，系统异常");
+        }
+    }
+
+    /**
+     * 上报视频播放进度
+     */
+    @PostMapping("/play/progress")
+    public Response<Object> reportPlayProgress(@RequestBody VideoPlayProgressRequest request) {
+        try {
+            videoService.reportPlayProgress(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("上报视频播放进度失败，原因:{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("上报视频播放进度失败，request:{}", request, e);
+            return Response.fail("上报视频播放进度失败，系统异常");
         }
     }
 }

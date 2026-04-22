@@ -49,5 +49,19 @@ public class RedisKeyUtil {
     public static String videoTranscodeLockKey(Long videoId) {
         return "video:transcode:lock:" + videoId;
     }
+
+    /**
+     * 播放计数去重 key：video:pv:dedup:{videoId}:{userId}
+     */
+    public static String videoPlayPvDedupKey(Long videoId, Long userId) {
+        return "video:pv:dedup:" + videoId + ":" + userId;
+    }
+
+    /**
+     * 播放量增量 hash：video:pv:delta -> field(videoId)=delta
+     */
+    public static String videoPlayPvDeltaKey() {
+        return "video:pv:delta";
+    }
 }
 

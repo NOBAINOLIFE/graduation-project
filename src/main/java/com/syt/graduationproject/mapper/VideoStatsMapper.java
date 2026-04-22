@@ -29,4 +29,7 @@ public interface VideoStatsMapper extends BaseMapper<VideoStatsPo> {
 
     @Update("UPDATE tb_video_stats SET comment_count = GREATEST(comment_count + #{addNum}, 0) WHERE video_id = #{videoId}")
     int updateCommentCount(@Param("videoId") Long videoId, @Param("addNum") int addNum);
+
+    @Update("UPDATE tb_video_stats SET play_count = GREATEST(play_count + #{delta}, 0) WHERE video_id = #{videoId} AND is_deleted = 0")
+    int updatePlayCount(@Param("videoId") Long videoId, @Param("delta") Long delta);
 }

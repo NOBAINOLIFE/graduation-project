@@ -11,6 +11,7 @@ import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.repository.VideoRepository;
@@ -18,12 +19,14 @@ import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.ManagerService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.VideoService;
+import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,6 +46,10 @@ public class VideoServiceImpl implements VideoService {
 
     private static final int MAX_TAG_COUNT = 10;
 
+    private static final long PV_DEDUP_WINDOW_SECONDS = 30L;
+
+    private static final long PV_DELTA_KEY_TTL_HOURS = 24L;
+
     private final InteractService interactService;
 
     private final MinioService minioService;
@@ -49,6 +57,8 @@ public class VideoServiceImpl implements VideoService {
     private final VideoRepository videoRepository;
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    private final StringRedisTemplate stringRedisTemplate;
 
     private final ManagerService managerService;
 
@@ -189,6 +199,49 @@ public class VideoServiceImpl implements VideoService {
             return;
         }
         throw new CustomException("当前视频状态不允许提交审核");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reportPlayProgress(VideoPlayProgressRequest request) {
+        if (request == null || request.getVideoId() == null || request.getLastPlayTime() == null) {
+            throw new CustomException("播放进度参数不完整");
+        }
+        Long userId = UserHolderUtil.getUser().getUserId();
+        VideoPo videoPo = videoRepository.queryVideoById(request.getVideoId());
+        if (videoPo == null) {
+            throw new CustomException("视频不存在");
+        }
+        if (VideoStatusEnum.PUBLISHED.getCode() != videoPo.getStatus()) {
+            throw new CustomException("视频暂不可播放");
+        }
+
+        int duration = videoPo.getDuration() == null ? 0 : Math.max(videoPo.getDuration(), 0);
+        int lastPlayTime = normalizeLastPlayTime(request.getLastPlayTime(), duration);
+        int isFinished = duration > 0 && lastPlayTime >= duration ? 1 : 0;
+
+        videoRepository.upsertUserVideoHistory(userId, request.getVideoId(), lastPlayTime, duration, isFinished);
+
+        if (shouldIncreasePv(request.getVideoId(), userId)) {
+            String pvDeltaKey = RedisKeyUtil.videoPlayPvDeltaKey();
+            stringRedisTemplate.opsForHash().increment(pvDeltaKey, String.valueOf(request.getVideoId()), 1L);
+            stringRedisTemplate.expire(pvDeltaKey, PV_DELTA_KEY_TTL_HOURS, TimeUnit.HOURS);
+        }
+    }
+
+    private int normalizeLastPlayTime(Integer rawLastPlayTime, int duration) {
+        int safeLastPlayTime = rawLastPlayTime == null ? 0 : Math.max(rawLastPlayTime, 0);
+        if (duration > 0) {
+            return Math.min(safeLastPlayTime, duration);
+        }
+        return safeLastPlayTime;
+    }
+
+    private boolean shouldIncreasePv(Long videoId, Long userId) {
+        String dedupKey = RedisKeyUtil.videoPlayPvDedupKey(videoId, userId);
+        Boolean firstReport = stringRedisTemplate.opsForValue()
+                .setIfAbsent(dedupKey, "1", PV_DEDUP_WINDOW_SECONDS, TimeUnit.SECONDS);
+        return Boolean.TRUE.equals(firstReport);
     }
 
     private void bindVideoTags(Long videoId, List<String> normalizedTagList) {
