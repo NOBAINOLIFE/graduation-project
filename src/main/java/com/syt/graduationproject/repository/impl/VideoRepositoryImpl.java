@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.syt.graduationproject.converter.VideoConverter;
+import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.mapper.UserVideoHistoryMapper;
 import com.syt.graduationproject.mapper.VideoMapper;
@@ -96,14 +97,19 @@ public class VideoRepositoryImpl implements VideoRepository {
     }
 
     @Override
-    public List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution) {
+    public List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution, boolean withoutOriginal) {
         LambdaQueryWrapper<VideoSourcePo> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(VideoSourcePo::getVideoId, videoId)
                 .eq(VideoSourcePo::getIsDeleted, NOT_DELETED);
         if (resolution != null) {
-            queryWrapper.eq(VideoSourcePo::getResolution, resolution);
+            queryWrapper.eq(VideoSourcePo::getResolutionCode, resolution);
         }
-        return videoConverter.toVideoSourceBo(videoSourceMapper.selectList(queryWrapper));
+        if (withoutOriginal) {
+            queryWrapper.ne(VideoSourcePo::getResolutionCode, VideoResolutionEnum.ORIGINAL.getCode());
+        }
+        queryWrapper.orderByDesc(VideoSourcePo::getResolutionCode)
+                .orderByAsc(VideoSourcePo::getId);
+        return videoConverter.toVideoSourceBoList(videoSourceMapper.selectList(queryWrapper));
     }
 
     @Override
@@ -176,7 +182,7 @@ public class VideoRepositoryImpl implements VideoRepository {
     public int deleteVideoSource(Long videoId, Integer resolution) {
         LambdaQueryWrapper<VideoSourcePo> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(VideoSourcePo::getVideoId, videoId)
-                .eq(VideoSourcePo::getResolution, resolution);
+                .eq(VideoSourcePo::getResolutionCode, resolution);
         return videoSourceMapper.delete(queryWrapper);
     }
 

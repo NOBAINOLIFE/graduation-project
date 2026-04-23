@@ -1,8 +1,7 @@
 <template>
-  <VideoSubmitPage />
+  <RouterView />
 </template>
 
 <script setup>
-import VideoSubmitPage from './components/VideoSubmitPage.vue';
+import { RouterView } from 'vue-router';
 </script>
-

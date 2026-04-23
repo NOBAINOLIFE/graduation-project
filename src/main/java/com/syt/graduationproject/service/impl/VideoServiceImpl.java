@@ -114,7 +114,7 @@ public class VideoServiceImpl implements VideoService {
                 .build();
 
         // 查询视频播放源
-        List<VideoSourceBo> videoSourceList = videoRepository.queryVideoSource(videoId, null);
+        List<VideoSourceBo> videoSourceList = videoRepository.queryVideoSource(videoId, null, true);
         for (VideoSourceBo sourceBo : videoSourceList) {
             if (StringUtils.isNotBlank(sourceBo.getPlayUrl())) {
                 sourceBo.setPlayUrl(minioService.generateGetUrl(sourceBo.getPlayUrl(), 30));

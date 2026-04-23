@@ -71,7 +71,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             videoRepository.updateVideoStatus(videoId, videoPo.getStatus(), VideoStatusEnum.TRANSCODING.getCode());
             log.info("视频状态更新为转码中，videoId:{}", videoId);
 
-            List<VideoSourceBo> sourceBos = videoRepository.queryVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode());
+            List<VideoSourceBo> sourceBos = videoRepository.queryVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode(), false);
             if (sourceBos == null || sourceBos.isEmpty()) {
                 throw new CustomException("原视频资源不存在");
             }
@@ -82,20 +82,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             outputDir = Files.createTempDirectory("video-hls-" + videoId + "-");
             log.info("下载原视频资源完成，开始转码，sourcePath:{}", sourcePath);
 
-            Path hls720 = outputDir.resolve("720p.m3u8");
-            Path hls1080 = outputDir.resolve("1080p.m3u8");
-
-            long start720 = System.currentTimeMillis();
-            log.info("开始转码为720p，videoId:{}", videoId);
-            transcodeToHls(sourcePath, hls720, 720);
-            long end720 = System.currentTimeMillis();
-            log.info("720p转码完成，耗时: {}s", (end720 - start720) / 1000);
-
-            long start1080 = System.currentTimeMillis();
-            log.info("开始转码为1080p，videoId:{}", videoId);
-            transcodeToHls(sourcePath, hls1080, 1080);
-            long end1080 = System.currentTimeMillis();
-            log.info("1080p转码完成，耗时: {}s", (end1080 - start1080) / 1000);
+            transcodingVideo(videoId, sourcePath, outputDir);
 
             Path master = outputDir.resolve("master.m3u8");
             writeMasterPlaylist(master);
@@ -124,6 +111,21 @@ public class TranscodeServiceImpl implements TranscodeService {
         }
     }
 
+    private void transcodingVideo(Long videoId, Path sourcePath, Path outputDir) throws IOException, InterruptedException {
+        for (VideoResolutionEnum videoResolutionEnum : VideoResolutionEnum.values()) {
+            if (videoResolutionEnum.equals(VideoResolutionEnum.ORIGINAL) || videoResolutionEnum.equals(VideoResolutionEnum.MASTER)) {
+                continue;
+            }
+            log.info("开始转码为{}，videoId:{}", videoResolutionEnum.getResolution(), videoId);
+            Path outputM3u8 = outputDir.resolve(videoResolutionEnum.getResolution() + ".m3u8");
+            long startTime = System.currentTimeMillis();
+            int height = Integer.parseInt(videoResolutionEnum.getResolution());
+            transcodeToHls(sourcePath, outputM3u8, height);
+            long endTime = System.currentTimeMillis();
+            log.info("{}转码完成，耗时: {}s", videoResolutionEnum.getResolution(), (endTime - startTime) / 1000);
+        }
+    }
+
     private void savePlayableSource(Long videoId, String objectPrefix) {
         for (VideoResolutionEnum videoResolutionEnum : VideoResolutionEnum.values()) {
             if (videoResolutionEnum.equals(VideoResolutionEnum.ORIGINAL)) {
@@ -134,7 +136,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             videoRepository.deleteVideoSource(videoId, resolutionCode);
             VideoSourcePo sourcePo = VideoSourcePo.builder()
                     .videoId(videoId)
-                    .resolution(resolutionCode)
+                    .resolutionCode(resolutionCode)
                     .playUrl(playUrl)
                     .format("m3u8")
                     .codec("h264")

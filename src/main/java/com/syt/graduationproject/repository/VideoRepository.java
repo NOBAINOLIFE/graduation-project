@@ -38,7 +38,7 @@ public interface VideoRepository {
     /**
      * 查询视频播放源
      */
-    List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution);
+    List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution, boolean withoutOriginal);
 
     /**
      * 根据视频ID和作者ID查询视频

@@ -3,11 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.syt.graduationproject.enums.ReportStatusEnum;
-import com.syt.graduationproject.enums.ReportTargetTypeEnum;
-import com.syt.graduationproject.enums.UserStatusEnum;
-import com.syt.graduationproject.enums.VideoAuditRecordStatusEnum;
-import com.syt.graduationproject.enums.VideoStatusEnum;
+import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.mapper.ReportMapper;
@@ -26,23 +22,32 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
+import com.syt.graduationproject.model.bo.VideoSourceBo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.ReportVo;
 import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.VideoTagVo;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.ManagerService;
+import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -82,32 +87,97 @@ public class ManagerServiceImpl implements ManagerService {
 
 	private final SearchRepository searchRepository;
 
+	private final MinioService minioService;
+
 	@Override
 	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
 		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
 		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
 		Integer status = request == null || request.getStatus() == null
-				? VideoStatusEnum.AUDITING.getCode()
+				? VideoAuditRecordStatusEnum.AUDITING.getCode()
 				: request.getStatus();
+		boolean queryAllStatus = status != null && status < 0;
 
-		Page<VideoPo> page = new Page<>(pageNum, pageSize);
-		Page<VideoPo> result = videoMapper.selectPage(page,
-				new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<VideoPo>()
-						.eq(VideoPo::getStatus, status)
-						.orderByDesc(VideoPo::getUpdateTime));
+		Page<VideoAuditRecordPo> page = new Page<>(pageNum, pageSize);
+		Page<VideoAuditRecordPo> result = videoAuditRecordMapper.selectPage(page,
+				new LambdaQueryWrapper<VideoAuditRecordPo>()
+						.eq(!queryAllStatus, VideoAuditRecordPo::getStatus, status)
+						.orderByDesc(VideoAuditRecordPo::getUpdateTime));
 
-		List<VideoAuditVo> records = result.getRecords().stream()
-				.map(videoPo -> VideoAuditVo.builder()
-						.videoId(videoPo.getId())
-						.userId(videoPo.getUserId())
-						.title(videoPo.getTitle())
-						.coverUrl(videoPo.getCoverUrl())
-						.duration(videoPo.getDuration())
-						.status(videoPo.getStatus())
-						.createTime(videoPo.getCreateTime())
-						.updateTime(videoPo.getUpdateTime())
-						.build())
+		List<VideoAuditRecordPo> auditRecordList = result.getRecords();
+		if (auditRecordList == null || auditRecordList.isEmpty()) {
+			return PageVo.<VideoAuditVo>builder()
+					.total(result.getTotal())
+					.pageNum(pageNum)
+					.pageSize(pageSize)
+					.records(Collections.emptyList())
+					.build();
+		}
+
+		List<Long> videoIdList = auditRecordList.stream()
+				.map(VideoAuditRecordPo::getVideoId)
+				.filter(Objects::nonNull)
+				.distinct()
 				.collect(Collectors.toList());
+
+		Map<Long, VideoPo> videoMap = videoMapper.selectBatchIds(videoIdList).stream()
+				.collect(Collectors.toMap(VideoPo::getId, videoPo -> videoPo));
+
+		Set<Long> userIdSet = videoMap.values().stream()
+				.map(VideoPo::getUserId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, UserPo> userMap = userIdSet.isEmpty()
+				? Collections.emptyMap()
+				: userMapper.selectBatchIds(userIdSet).stream()
+						.collect(Collectors.toMap(UserPo::getId, userPo -> userPo));
+
+		Set<Long> reviewerIdSet = auditRecordList.stream()
+				.map(VideoAuditRecordPo::getReviewerId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, UserPo> reviewerMap = reviewerIdSet.isEmpty()
+				? Collections.emptyMap()
+				: userMapper.selectBatchIds(reviewerIdSet).stream()
+						.collect(Collectors.toMap(UserPo::getId, userPo -> userPo));
+
+		Set<Long> partitionIdSet = videoMap.values().stream()
+				.map(VideoPo::getPartitionId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, VideoPartitionPo> partitionMap = partitionIdSet.isEmpty()
+				? Collections.emptyMap()
+				: videoPartitionMapper.selectBatchIds(partitionIdSet).stream()
+						.collect(Collectors.toMap(VideoPartitionPo::getId, partitionPo -> partitionPo));
+
+		Map<Long, List<VideoTagVo>> videoTagMap = queryVideoTagMap(videoIdList);
+		Map<Long, List<VideoSourceBo>> videoSourceMap = queryVideoSourceMap(videoIdList);
+
+		List<VideoAuditVo> records = auditRecordList.stream().map(auditRecordPo -> {
+			VideoPo videoPo = videoMap.get(auditRecordPo.getVideoId());
+			UserPo userPo = videoPo == null ? null : userMap.get(videoPo.getUserId());
+			UserPo reviewerPo = reviewerMap.get(auditRecordPo.getReviewerId());
+			VideoPartitionPo partitionPo = videoPo == null ? null : partitionMap.get(videoPo.getPartitionId());
+			return VideoAuditVo.builder()
+					.videoId(auditRecordPo.getVideoId())
+					.videoSourceList(videoSourceMap.getOrDefault(auditRecordPo.getVideoId(), Collections.emptyList()))
+					.title(videoPo == null ? null : videoPo.getTitle())
+					.coverUrl(videoPo == null ? null : videoPo.getCoverUrl())
+					.description(videoPo == null ? null : videoPo.getDescription())
+					.partitionName(partitionPo == null ? null : partitionPo.getPartitionName())
+					.tagList(videoTagMap.getOrDefault(auditRecordPo.getVideoId(), Collections.emptyList()))
+					.userId(videoPo == null ? auditRecordPo.getApplicantId() : videoPo.getUserId())
+					.username(userPo == null ? null : userPo.getUsername())
+					.avatar(userPo == null ? null : userPo.getAvatarUrl())
+					.status(auditRecordPo.getStatus())
+					.reviewerId(auditRecordPo.getReviewerId())
+					.reviewerName(reviewerPo == null ? null : reviewerPo.getUsername())
+					.reviewerAvatar(reviewerPo == null ? null : reviewerPo.getAvatarUrl())
+					.reviewNote(auditRecordPo.getReviewNote())
+					.createTime(auditRecordPo.getCreateTime())
+					.updateTime(auditRecordPo.getUpdateTime())
+					.build();
+		}).collect(Collectors.toList());
 
 		return PageVo.<VideoAuditVo>builder()
 				.total(result.getTotal())
@@ -115,6 +185,61 @@ public class ManagerServiceImpl implements ManagerService {
 				.pageSize(pageSize)
 				.records(records)
 				.build();
+	}
+
+	private Map<Long, List<VideoTagVo>> queryVideoTagMap(List<Long> videoIdList) {
+		if (videoIdList == null || videoIdList.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		LambdaQueryWrapper<VideoTagRelPo> relQuery = new LambdaQueryWrapper<VideoTagRelPo>()
+				.in(VideoTagRelPo::getVideoId, videoIdList)
+				.orderByAsc(VideoTagRelPo::getId);
+		List<VideoTagRelPo> relList = videoTagRelMapper.selectList(relQuery);
+		if (relList == null || relList.isEmpty()) {
+			return Collections.emptyMap();
+		}
+
+		Set<Long> tagIdSet = relList.stream()
+				.map(VideoTagRelPo::getTagId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, VideoTagPo> tagMap = tagIdSet.isEmpty()
+				? Collections.emptyMap()
+				: videoTagMapper.selectBatchIds(tagIdSet).stream()
+						.collect(Collectors.toMap(VideoTagPo::getId, tagPo -> tagPo));
+
+		Map<Long, List<VideoTagVo>> result = new LinkedHashMap<>();
+		for (VideoTagRelPo relPo : relList) {
+			VideoTagPo tagPo = tagMap.get(relPo.getTagId());
+			if (tagPo == null) {
+				continue;
+			}
+			result.computeIfAbsent(relPo.getVideoId(), key -> new ArrayList<>())
+					.add(VideoTagVo.builder()
+							.tagId(tagPo.getId())
+							.tagName(tagPo.getTagName())
+							.build());
+		}
+		return result;
+	}
+
+	private Map<Long, List<VideoSourceBo>> queryVideoSourceMap(List<Long> videoIdList) {
+		if (videoIdList == null || videoIdList.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		Map<Long, List<VideoSourceBo>> result = new HashMap<>();
+		for (Long videoId : videoIdList) {
+			List<VideoSourceBo> sourceList = videoRepository.queryVideoSource(videoId, null, true);
+			if (sourceList != null) {
+				for (VideoSourceBo sourceBo : sourceList) {
+					if (sourceBo != null && StringUtils.isNotBlank(sourceBo.getPlayUrl())) {
+						sourceBo.setPlayUrl(minioService.generateGetUrl(sourceBo.getPlayUrl(), 30));
+					}
+				}
+			}
+			result.put(videoId, sourceList == null ? Collections.emptyList() : sourceList);
+		}
+		return result;
 	}
 
 	@Override
@@ -128,7 +253,7 @@ public class ManagerServiceImpl implements ManagerService {
 
 		Page<ReportPo> page = new Page<>(pageNum, pageSize);
 		Page<ReportPo> result = reportMapper.selectPage(page,
-				new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ReportPo>()
+				new LambdaQueryWrapper<ReportPo>()
 						.eq(ReportPo::getStatus, status)
 						.eq(targetType != null, ReportPo::getTargetType, targetType)
 						.orderByDesc(ReportPo::getCreateTime));

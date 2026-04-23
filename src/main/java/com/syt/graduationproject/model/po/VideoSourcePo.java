@@ -36,8 +36,8 @@ public class VideoSourcePo {
     /**
      * 清晰度标签: 360P, 480P, 720P, 1080P, 原画
      */
-    @TableField(value = "resolution")
-    private Integer resolution;
+    @TableField(value = "resolution_code")
+    private Integer resolutionCode;
 
     /**
      * MinIO中的相对路径

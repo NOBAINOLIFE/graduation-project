@@ -149,7 +149,7 @@ public class UploadServiceImpl implements UploadService {
         videoRepository.deleteVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode());
         VideoSourcePo sourcePo = VideoSourcePo.builder()
                 .videoId(videoId)
-                .resolution(VideoResolutionEnum.ORIGINAL.getCode())
+                .resolutionCode(VideoResolutionEnum.ORIGINAL.getCode())
                 .playUrl(mergedObjectName)
                 .format("mp4")
                 .codec("")

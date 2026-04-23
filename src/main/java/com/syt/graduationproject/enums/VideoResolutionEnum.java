@@ -7,15 +7,15 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum VideoResolutionEnum {
 
-//    LOW(0, "流畅", "270p"),
+    ORIGINAL(0, "原视频", "original"),
 
-//    MEDIUM(1, "标清", "360p"),
+//    LOW(1, "流畅", "360"),
 
-    HIGH(2, "高清", "720p"),
+    MEDIUM(2, "标清", "480"),
 
-    SUPER(3, "超清", "1080p"),
+    HIGH(3, "高清", "720"),
 
-    ORIGINAL(4, "原画", "original"),
+    SUPER(4, "超清", "1080"),
 
     MASTER(5, "自适应", "master");
 
@@ -24,4 +24,13 @@ public enum VideoResolutionEnum {
     private final String name;
 
     private final String resolution;
+
+    public static VideoResolutionEnum fromCode(int code) {
+        for (VideoResolutionEnum value : VideoResolutionEnum.values()) {
+            if (value.code == code) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException("Invalid VideoResolutionEnum code: " + code);
+    }
 }
