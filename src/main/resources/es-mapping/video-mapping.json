@@ -47,7 +47,8 @@
         "type": "long"
       },
       "createTime": {
-        "type": "date"
+        "type": "date",
+        "format": "strict_date_hour_minute_second||strict_date_time||yyyy-MM-dd HH:mm:ss||epoch_millis"
       },
       "collectionCount": {
         "type": "long"

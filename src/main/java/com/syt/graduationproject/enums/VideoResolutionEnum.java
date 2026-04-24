@@ -9,13 +9,13 @@ public enum VideoResolutionEnum {
 
     ORIGINAL(0, "原视频", "original"),
 
-//    LOW(1, "流畅", "360"),
+//    LOW(1, "流畅", "360p"),
 
-    MEDIUM(2, "标清", "480"),
+    MEDIUM(2, "标清", "480p"),
 
-    HIGH(3, "高清", "720"),
+    HIGH(3, "高清", "720p"),
 
-    SUPER(4, "超清", "1080"),
+    SUPER(4, "超清", "1080p"),
 
     MASTER(5, "自适应", "master");
 
@@ -32,5 +32,9 @@ public enum VideoResolutionEnum {
             }
         }
         throw new IllegalArgumentException("Invalid VideoResolutionEnum code: " + code);
+    }
+
+    public static int getHeight(VideoResolutionEnum videoResolutionEnum) {
+        return Integer.parseInt(videoResolutionEnum.getResolution().replaceAll("\\D+", ""));
     }
 }

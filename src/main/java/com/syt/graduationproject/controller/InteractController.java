@@ -2,17 +2,7 @@ package com.syt.graduationproject.controller;
 
 import com.syt.graduationproject.constant.ChatWsConstant;
 import com.syt.graduationproject.exception.CustomException;
-import com.syt.graduationproject.model.request.CollectVideoRequest;
-import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
-import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
-import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
-import com.syt.graduationproject.model.request.CoinVideoRequest;
-import com.syt.graduationproject.model.request.CommentRequest;
-import com.syt.graduationproject.model.request.FollowRequest;
-import com.syt.graduationproject.model.request.LikeRequest;
-import com.syt.graduationproject.model.request.BlockUserRequest;
-import com.syt.graduationproject.model.request.ReportSubmitRequest;
-import com.syt.graduationproject.model.request.TripleActionRequest;
+import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.service.InteractService;
@@ -174,6 +164,25 @@ public class InteractController {
     }
 
     /**
+     * 查询评论列表
+     */
+    @GetMapping("/comment/list")
+    public Response<PageVo<CommentVo>> queryCommentList(@RequestParam("videoId") Long videoId,
+                                                        @RequestParam(value = "sortType") Integer sortType,
+                                                        @RequestParam(value = "pageNum", required = false) Integer pageNum,
+                                                        @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        try {
+            return Response.success(interactService.listVideoComments(videoId, sortType, pageNum, pageSize));
+        } catch (CustomException e) {
+            log.warn("查询评论列表失败，videoId：{}，原因：{}", videoId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询评论列表失败，videoId：{}", videoId, e);
+            return Response.fail("查询评论列表失败，系统异常");
+        }
+    }
+
+    /**
      * 查询粉丝列表
      */
     @PostMapping("/fansList")
@@ -254,6 +263,23 @@ public class InteractController {
         } catch (Exception e) {
             log.error("编辑收藏夹失败，request：{}", request, e);
             return Response.fail("编辑收藏夹失败，系统异常");
+        }
+    }
+
+    /**
+     * 删除收藏夹
+     */
+    @GetMapping("/collection/directory/delete")
+    public Response<Object> deleteCollectionDirectory(@RequestParam("directoryId") Long directoryId) {
+        try {
+            interactService.deleteCollectionDirectory(directoryId);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("删除收藏夹失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("删除收藏夹失败，directoryId：{}", directoryId, e);
+            return Response.fail("删除收藏夹失败，系统异常");
         }
     }
 
@@ -385,6 +411,24 @@ public class InteractController {
         } catch (Exception e) {
             log.error("查询举报信息失败", e);
             return Response.fail("查询举报信息失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询收藏夹内视频
+     */
+    @GetMapping("/collection/item/list")
+    public Response<List<SearchVideoVo>> listCollectionItems(
+            @RequestParam("directoryId") Long directoryId,
+            @RequestParam(value = "sortType", defaultValue = "1") Integer sortType) {
+        try {
+            return Response.success(interactService.listCollectionItems(directoryId, sortType));
+        } catch (CustomException e) {
+            log.warn("查询收藏夹内视频，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询收藏夹内视频失败", e);
+            return Response.fail("查询收藏夹内视频失败，系统异常");
         }
     }
 }

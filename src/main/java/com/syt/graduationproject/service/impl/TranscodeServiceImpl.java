@@ -119,8 +119,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             log.info("开始转码为{}，videoId:{}", videoResolutionEnum.getResolution(), videoId);
             Path outputM3u8 = outputDir.resolve(videoResolutionEnum.getResolution() + ".m3u8");
             long startTime = System.currentTimeMillis();
-            int height = Integer.parseInt(videoResolutionEnum.getResolution());
-            transcodeToHls(sourcePath, outputM3u8, height);
+            transcodeToHls(sourcePath, outputM3u8, VideoResolutionEnum.getHeight(videoResolutionEnum));
             long endTime = System.currentTimeMillis();
             log.info("{}转码完成，耗时: {}s", videoResolutionEnum.getResolution(), (endTime - startTime) / 1000);
         }
@@ -208,13 +207,40 @@ public class TranscodeServiceImpl implements TranscodeService {
     }
 
     private void writeMasterPlaylist(Path masterPath) throws IOException {
-        String content = "#EXTM3U\n"
-                + "#EXT-X-VERSION:3\n"
-                + "#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720\n"
-                + "720p.m3u8\n"
-                + "#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\n"
-                + "1080p.m3u8\n";
-        Files.write(masterPath, content.getBytes(StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        sb.append("#EXTM3U\n");
+        sb.append("#EXT-X-VERSION:3\n");
+        for (VideoResolutionEnum videoResolutionEnum : VideoResolutionEnum.values()) {
+            if (videoResolutionEnum == VideoResolutionEnum.ORIGINAL || videoResolutionEnum == VideoResolutionEnum.MASTER) {
+                continue;
+            }
+            // 1. 获取高度 (e.g., "480p" -> 480)
+            int height = VideoResolutionEnum.getHeight(videoResolutionEnum);
+            // 2. 根据高度计算 RESOLUTION 字符串 (假设 16:9 比例)
+            int width = (int) (height * (16.0 / 9.0));
+            // 修正宽度为偶数（FFmpeg 转换要求）
+            width = (width % 2 == 0) ? width : width + 1;
+
+            // 3. 动态估算带宽 (单位: bps)
+            long bandwidth = calculateBandwidth(height);
+
+            sb.append(String.format("#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d\n",
+                    bandwidth, width, height));
+            sb.append(videoResolutionEnum.getResolution()).append(".m3u8\n");
+        }
+
+        Files.write(masterPath, sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 根据分辨率高度简单估算建议码率
+     */
+    private long calculateBandwidth(int height) {
+        if (height <= 360) return 800000L;
+        if (height <= 480) return 1200000L;
+        if (height <= 720) return 2500000L;
+        if (height <= 1080) return 5000000L;
+        return 8000000L; // 2K 及以上
     }
 
     private void cleanup(Path path) {

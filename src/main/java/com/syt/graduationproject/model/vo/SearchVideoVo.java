@@ -30,5 +30,7 @@ public class SearchVideoVo {
     private Long collectionCount;
 
     private Integer duration;
+
+    private LocalDateTime collectTime;
 }
 

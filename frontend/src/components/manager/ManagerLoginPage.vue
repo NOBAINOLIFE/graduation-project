@@ -58,7 +58,7 @@
 import { reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { login } from '../../api/user';
-import { clearAuth, saveLogin } from '../../utils/auth';
+import { clearAdminAuth, saveAdminLogin } from '../../utils/auth';
 
 const router = useRouter();
 const route = useRoute();
@@ -92,7 +92,7 @@ async function submitLogin() {
   try {
     isSubmitting.value = true;
     const data = await login({
-      account,
+      account: form.account,
       password: form.password
     });
 
@@ -100,16 +100,17 @@ async function submitLogin() {
       throw new Error('登录失败，未获取到令牌');
     }
     if ((data?.roleCode || '').toUpperCase() !== 'ADMIN') {
-      clearAuth();
+      clearAdminAuth();
       throw new Error('当前账号不是管理员');
     }
 
-    saveLogin(data);
+    // 保存管理员登录信息
+    saveAdminLogin(data);
 
     const redirectTarget = typeof route.query.redirect === 'string' ? route.query.redirect : '/manager';
     await router.replace(redirectTarget);
   } catch (error) {
-    clearAuth();
+    clearAdminAuth();
     errorMessage.value = error.message || '登录失败';
   } finally {
     isSubmitting.value = false;

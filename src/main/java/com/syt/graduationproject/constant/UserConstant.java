@@ -19,4 +19,6 @@ public interface UserConstant {
     String DEFAULT_BIO = "这个人很懒，什么都没有留下";
 
     String DEFAULT_AVATAR = "https://picsum.photos/200/200";
+
+    String DEFAULT_COLLECTION_DIRECTORY_COVER = "http://127.0.0.1:9000/graduation-project/cover/5e371a1ac7e47610d0f4a18fb3ac87f8";
 }

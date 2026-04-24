@@ -30,9 +30,21 @@ public class VideoPlayDetailVo {
 
     private List<VideoSourceBo> videoSourceList;
 
+    private String partitionName;
+
     private Integer duration;
 
     private Integer lastPlayTime;
+
+    private String username;
+
+    private String avatarUrl;
+
+    private String userBio;
+
+    private Long fansCount;
+
+    private Boolean isFollow;
 
     private Long playCount;
 
@@ -43,6 +55,8 @@ public class VideoPlayDetailVo {
     private Long collectCount;
 
     private Long shareCount;
+
+    private Long commentCount;
 
     private Boolean isLike;
 

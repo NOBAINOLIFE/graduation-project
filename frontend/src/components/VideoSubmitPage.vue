@@ -1,16 +1,12 @@
 <template>
-  <div class="min-h-screen bg-[#f6f7f8] pb-20 text-slate-900">
-    <header class="sticky top-0 z-10 border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <h1 class="text-lg font-medium">视频投稿</h1>
-        <div class="flex items-center gap-4">
-          <span class="text-sm text-slate-500">创作中心</span>
-          <div class="h-8 w-8 rounded-full bg-slate-200"></div>
-        </div>
+  <div class="p-6">
+    <div class="max-w-5xl mx-auto">
+      <!-- 页面标题 -->
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">视频投稿</h2>
+        <p class="text-sm text-gray-500 mt-1">上传您的视频作品，与更多人分享</p>
       </div>
-    </header>
 
-    <main class="mx-auto mt-6 max-w-5xl px-4">
       <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div class="mb-6 flex flex-wrap gap-4">
           <div v-if="videoFile" class="relative flex h-16 w-48 items-center rounded bg-[#00a1d6] px-3 text-white transition-opacity" :class="{ 'opacity-70': uploadProgress < 100 }">
@@ -179,17 +175,21 @@
           </button>
         </div>
       </section>
-    </main>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { getToken, clearUserAuth, isUserLoggedIn } from '../utils/auth';
 
+const router = useRouter();
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const CHUNK_SIZE = 5 * 1024 * 1024;
 
-const token = ref(localStorage.getItem('token') || '');
+// 使用正确的token获取方式
+const token = ref(getToken());
 const videoInputRef = ref(null);
 const videoFile = ref(null);
 const coverFile = ref(null);
@@ -211,6 +211,9 @@ const form = reactive({
   partitionId: null
 });
 
+// 标记封面是否需要上传（系统截取的默认封面为true）
+const needUploadCover = ref(false);
+
 const videoContext = reactive({
   videoId: null,
   uploadToken: ''
@@ -230,6 +233,19 @@ async function request(path, { method = 'GET', json, formData } = {}) {
   }
   const response = await fetch(`${API_BASE}${path}`, { method, headers, body });
   const payload = await response.json().catch(() => ({}));
+  
+  // 检查是否未登录或token失效
+  if (payload?.message && (
+    payload.message.includes('未登录') || 
+    payload.message.includes('失效') ||
+    payload.message.includes('登录失败')
+  )) {
+    clearUserAuth();
+    alert('登录已失效，请重新登录');
+    router.push('/');
+    return;
+  }
+  
   if (!response.ok) throw new Error(payload?.message || `HTTP ${response.status}`);
   if (payload?.code !== 0) throw new Error(payload?.message || '请求失败');
   return payload.data;
@@ -261,7 +277,7 @@ function selectPartition(partition) {
   partitionDropdownOpen.value = false;
 }
 
-// 视频自动截帧（第一帧/第0秒）
+// 视频自动截帧（第一帧/第0秒）并获取时长
 async function createVideoPoster(file) {
   const url = URL.createObjectURL(file);
   return new Promise((resolve) => {
@@ -269,6 +285,8 @@ async function createVideoPoster(file) {
     v.src = url;
     v.crossOrigin = 'anonymous';
     v.onloadedmetadata = () => {
+      // 获取视频时长（秒）
+      form.duration = Math.floor(v.duration);
       v.currentTime = 0;
     };
     v.onseeked = () => {
@@ -299,11 +317,13 @@ function onVideoFileChange(e) {
   videoContext.videoId = null;
   videoContext.uploadToken = '';
   videoFile.value = file;
+  needUploadCover.value = false; // 重置封面上传标记
 
   createVideoPoster(file).then(res => {
     if (res) {
       coverPreviewUrl.value = res;
       form.coverUrl = res;
+      needUploadCover.value = true; // 标记需要上传默认封面
     }
   });
 }
@@ -313,6 +333,7 @@ function onCoverFileChange(e) {
   if (!file) return;
   coverFile.value = file;
   coverPreviewUrl.value = URL.createObjectURL(file);
+  needUploadCover.value = false; // 用户自定义封面，不需要额外处理
   uploadCover();
 }
 
@@ -382,13 +403,28 @@ async function submitVideo() {
     if (tags.value.length === 0) throw new Error('至少需要添加1个标签');
 
     isSubmitting.value = true;
+    
+    // 如果使用的是系统截取的默认封面，先上传封面
+    let finalCoverUrl = form.coverUrl;
+    if (needUploadCover.value && form.coverUrl && form.coverUrl.startsWith('data:')) {
+      // 将 base64 转换为 File 对象并上传
+      const coverFile = await base64ToFile(form.coverUrl, 'cover.jpg');
+      const formData = new FormData();
+      formData.append('file', coverFile);
+      finalCoverUrl = await request('/graduation-project/upload/image', { 
+        method: 'POST', 
+        formData: formData 
+      });
+    }
+
     await request('/graduation-project/video/submit', {
       method: 'POST',
       json: {
         videoId: videoContext.videoId,
         title: form.title,
         description: form.description,
-        coverUrl: form.coverUrl,
+        coverUrl: finalCoverUrl,
+        duration: form.duration,
         partitionId: form.partitionId,
         tagList: [...tags.value]
       }
@@ -401,7 +437,29 @@ async function submitVideo() {
   }
 }
 
+// 将 base64 Data URL 转换为 File 对象
+function base64ToFile(dataUrl, filename) {
+  return new Promise((resolve) => {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    resolve(new File([u8arr], filename, { type: mime }));
+  });
+}
+
 onMounted(async () => {
+  // 检查登录状态
+  if (!isUserLoggedIn()) {
+    alert('请先登录');
+    router.push('/');
+    return;
+  }
+  
   try {
     const data = await request('/graduation-project/video/partitions');
     partitions.value = Array.isArray(data) ? data : [];

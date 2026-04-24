@@ -4,9 +4,11 @@ import com.syt.graduationproject.enums.UserStatusEnum;
 import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.exception.ErrorOperationException;
 import com.syt.graduationproject.exception.ErrorParamException;
+import com.syt.graduationproject.mapper.CollectionDirectoryMapper;
 import com.syt.graduationproject.mapper.UserRoleMapper;
 import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
+import com.syt.graduationproject.model.po.CollectionDirectoryPo;
 import com.syt.graduationproject.model.po.UserPo;
 import com.syt.graduationproject.model.po.UserRolePo;
 import com.syt.graduationproject.model.request.LoginRequest;
@@ -63,6 +65,8 @@ public class UserServiceImpl implements UserService {
 
     private final MinioService minioService;
 
+    private final CollectionDirectoryMapper collectionDirectoryMapper;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void register(RegisterRequest request) {
@@ -95,6 +99,17 @@ public class UserServiceImpl implements UserService {
 
         // 初始化用户数据统计信息
         interactRepository.initUserStats(newUser.getId());
+
+        // 创建默认收藏夹
+        CollectionDirectoryPo collectionDirectory = CollectionDirectoryPo.builder()
+                .userId(newUser.getId())
+                .name("默认收藏夹")
+                .coverUrl(DEFAULT_COLLECTION_DIRECTORY_COVER)
+                .isPublic(1)
+                .isDefault(1)
+                .isDeleted(0)
+                .build();
+        collectionDirectoryMapper.insert(collectionDirectory);
         log.info("用户注册成功，注册请求：{}", request);
     }
 
@@ -132,7 +147,6 @@ public class UserServiceImpl implements UserService {
         String roleCode = roleEnum == null ? RoleEnum.USER.getRoleCode() : roleEnum.getRoleCode();
         claimMap.put(USER_ID, userId);
         claimMap.put(USERNAME, userPo.getUsername());
-        claimMap.put(ROLE_ID, roleId);
         claimMap.put(ROLE_CODE, roleCode);
         String jwtToken = JwtUtil.generateJwtToken(claimMap);
         log.info("用户登录成功，用户ID：{}，用户名：{}，JWT令牌：{}", userId, userPo.getUsername(), jwtToken);
@@ -144,6 +158,7 @@ public class UserServiceImpl implements UserService {
         return LoginVo.builder()
                 .userId(userId)
                 .username(userPo.getUsername())
+                .avatarUrl(userPo.getAvatarUrl())
                 .roleCode(roleCode)
                 .token(jwtToken)
                 .build();
@@ -191,7 +206,6 @@ public class UserServiceImpl implements UserService {
         userInfoVo.setLikeNum(interactRepository.queryUserLikeNum(userId));
         userInfoVo.setIsBlack(interactService.hasMutualBlock(myId, userId));
 
-        log.info("查询用户信息成功，用户ID：{}，用户信息：{}", userId, userInfoVo);
         return userInfoVo;
     }
 

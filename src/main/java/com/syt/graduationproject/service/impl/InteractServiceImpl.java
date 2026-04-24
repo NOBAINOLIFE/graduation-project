@@ -2,52 +2,38 @@ package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.syt.graduationproject.mapper.*;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.enums.PrivateMessageStatusEnum;
 import com.syt.graduationproject.enums.ReportStatusEnum;
 import com.syt.graduationproject.enums.ReportTargetTypeEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
+import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
-import com.syt.graduationproject.model.request.BlockUserRequest;
-import com.syt.graduationproject.model.request.CollectVideoRequest;
-import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
-import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
-import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
-import com.syt.graduationproject.model.request.CoinVideoRequest;
-import com.syt.graduationproject.model.request.CommentRequest;
-import com.syt.graduationproject.model.request.FollowRequest;
-import com.syt.graduationproject.model.request.LikeRequest;
-import com.syt.graduationproject.model.request.ReportSubmitRequest;
-import com.syt.graduationproject.model.request.TripleActionRequest;
-import com.syt.graduationproject.model.vo.CoinWalletVo;
-import com.syt.graduationproject.model.vo.CollectionDirectoryVo;
-import com.syt.graduationproject.model.vo.ReportVo;
-import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
+import com.syt.graduationproject.model.request.*;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.service.InteractService;
-import com.syt.graduationproject.exception.CustomException;
-import com.syt.graduationproject.util.UserHolderUtil;
 import com.syt.graduationproject.util.JsonUtil;
-import com.syt.graduationproject.model.vo.ChatSessionVo;
-import com.syt.graduationproject.model.vo.PrivateMessageVo;
 import com.syt.graduationproject.util.RedisKeyUtil;
+import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.CloseStatus;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.time.LocalDateTime;
-import java.time.LocalDate;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -108,6 +94,7 @@ public class InteractServiceImpl implements InteractService {
      * 在线映射在 Redis 的 TTL（心跳会刷新）
      */
     private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
+
     private final UserMapper userMapper;
 
     private static final int OPERATION_ON = 1;
@@ -370,7 +357,8 @@ public class InteractServiceImpl implements InteractService {
                         .eq(CoinRecordPo::getVideoId, videoId)) > 0)
                 .isCollect(collectionItemMapper.selectCount(new QueryWrapper<CollectionItemPo>().lambda()
                         .eq(CollectionItemPo::getUserId, userId)
-                        .eq(CollectionItemPo::getVideoId, videoId)) > 0)
+                        .eq(CollectionItemPo::getVideoId, videoId)
+                        .eq(CollectionItemPo::getIsDeleted, NOT_DELETED)) > 0)
                 .build();
     }
 
@@ -1237,5 +1225,252 @@ public class InteractServiceImpl implements InteractService {
                 .createTime(po.getCreateTime())
                 .updateTime(po.getUpdateTime())
                 .build()).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<SearchVideoVo> listCollectionItems(Long directoryId, Integer sortType) {
+        if (directoryId == null) {
+            return Collections.emptyList();
+        }
+
+        List<CollectionItemPo> items = collectionItemMapper.selectList(new LambdaQueryWrapper<CollectionItemPo>().eq(CollectionItemPo::getDirectoryId, directoryId).eq(CollectionItemPo::getIsDeleted, NOT_DELETED).orderByDesc(CollectionItemPo::getCreateTime));
+
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> videoIds = items.stream().map(CollectionItemPo::getVideoId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+
+        if (videoIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<VideoPo> videos = videoMapper.selectBatchIds(videoIds);
+        Map<Long, VideoPo> videoMap = videos.stream().collect(Collectors.toMap(VideoPo::getId, v -> v));
+
+        Set<Long> userIds = videos.stream().map(VideoPo::getUserId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, UserPo> userMap = userIds.isEmpty() ? Collections.emptyMap() : userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(UserPo::getId, u -> u));
+
+        List<VideoStatsPo> statsList = videoStatsMapper.selectList(new LambdaQueryWrapper<VideoStatsPo>().in(VideoStatsPo::getVideoId, videoIds));
+        Map<Long, VideoStatsPo> statsMap = statsList.stream().collect(Collectors.toMap(VideoStatsPo::getVideoId, s -> s));
+
+        List<SearchVideoVo> result = items.stream().map(item -> {
+            VideoPo video = videoMap.get(item.getVideoId());
+            if (video == null) return null;
+            UserPo user = userMap.get(video.getUserId());
+            VideoStatsPo stats = statsMap.get(video.getId());
+
+            return SearchVideoVo.builder().videoId(video.getId()).title(video.getTitle()).userId(video.getUserId()).username(user != null ? user.getUsername() : "未知用户").coverUrl(video.getCoverUrl()).playCount(stats != null ? stats.getPlayCount() : 0L).createTime(video.getCreateTime()).collectionCount(stats != null ? stats.getCollectCount() : 0L).duration(video.getDuration()).collectTime(item.getCreateTime()).build();
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+
+        // 根据排序类型排序
+        if (sortType != null) {
+            switch (sortType) {
+                case 1: // 最近收藏
+                    result.sort((a, b) -> {
+                        if (a.getCollectTime() == null) return 1;
+                        if (b.getCollectTime() == null) return -1;
+                        return b.getCollectTime().compareTo(a.getCollectTime());
+                    });
+                    break;
+                case 2: // 最多播放
+                    result.sort((a, b) -> Long.compare(b.getPlayCount() != null ? b.getPlayCount() : 0, a.getPlayCount() != null ? a.getPlayCount() : 0));
+                    break;
+                case 3: // 最近投稿
+                    result.sort((a, b) -> {
+                        if (a.getCreateTime() == null) return 1;
+                        if (b.getCreateTime() == null) return -1;
+                        return b.getCreateTime().compareTo(a.getCreateTime());
+                    });
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    public void deleteCollectionDirectory(Long directoryId) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (directoryId == null) {
+            throw new CustomException("收藏夹ID不能为空");
+        }
+        CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
+        if (directoryPo == null) {
+            throw new CustomException("收藏夹不存在或无权限");
+        }
+        if (Objects.equals(directoryPo.getIsDefault(), 1)) {
+            throw new CustomException("默认收藏夹无法删除");
+        }
+        directoryPo.setIsDeleted(1);
+        collectionDirectoryMapper.updateById(directoryPo);
+
+        // 同步更新视频统计数据
+        List<CollectionItemPo> items = collectionItemMapper.selectList(new LambdaQueryWrapper<CollectionItemPo>()
+                .eq(CollectionItemPo::getDirectoryId, directoryId)
+                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED));
+        if (items != null && !items.isEmpty()) {
+            for (CollectionItemPo item : items) {
+                item.setIsDeleted(1);
+                collectionItemMapper.updateById(item);
+                videoStatsMapper.updateCollectCount(item.getVideoId(), -1);
+            }
+        }
+    }
+
+    @Override
+    public PageVo<CommentVo> listVideoComments(Long videoId, Integer sortType, Integer pageNum, Integer pageSize) {
+        if (videoId == null) {
+            throw new CustomException("视频ID不能为空");
+        }
+        int safePageNum = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int safePageSize = pageSize == null ? 10 : Math.min(Math.max(pageSize, 1), 50);
+        VideoPo videoPo = videoMapper.selectById(videoId);
+        if (videoPo == null || !Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
+            throw new CustomException("视频不存在或未发布");
+        }
+
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (Objects.equals(sortType, 1)) {
+            return listHotComments(videoId, myId, safePageNum, safePageSize);
+        }
+        Page<CommentPo> page = new Page<CommentPo>(safePageNum, safePageSize);
+        LambdaQueryWrapper<CommentPo> wrapper = new LambdaQueryWrapper<CommentPo>()
+                .eq(CommentPo::getVideoId, videoId)
+                .eq(CommentPo::getRootId, 0L)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(CommentPo::getCreateTime)
+                .orderByDesc(CommentPo::getId);
+        commentMapper.selectPage(page, wrapper);
+
+        return buildCommentPage(page.getRecords(), page.getTotal(), safePageNum, safePageSize, myId);
+    }
+
+    private PageVo<CommentVo> listHotComments(Long videoId, Long currentUserId, Integer pageNum, Integer pageSize) {
+        List<CommentPo> allComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
+                .eq(CommentPo::getVideoId, videoId)
+                .eq(CommentPo::getRootId, 0L)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(CommentPo::getCreateTime)
+                .orderByDesc(CommentPo::getId));
+
+        if (allComments == null || allComments.isEmpty()) {
+            return PageVo.<CommentVo>builder()
+                    .total(0L)
+                    .pageNum(pageNum)
+                    .pageSize(pageSize)
+                    .records(Collections.<CommentVo>emptyList())
+                    .build();
+        }
+
+        List<Long> commentIds = allComments.stream().map(CommentPo::getId).collect(Collectors.toList());
+        Map<Long, CommentStatsPo> commentStatsMap = queryCommentStatsMap(commentIds);
+        allComments.sort((left, right) -> {
+            long rightLikeCount = getCommentLikeCount(commentStatsMap, right.getId());
+            long leftLikeCount = getCommentLikeCount(commentStatsMap, left.getId());
+            int likeCompare = Long.compare(rightLikeCount, leftLikeCount);
+            if (likeCompare != 0) {
+                return likeCompare;
+            }
+            int timeCompare = right.getCreateTime().compareTo(left.getCreateTime());
+            if (timeCompare != 0) {
+                return timeCompare;
+            }
+            return right.getId().compareTo(left.getId());
+        });
+
+        int fromIndex = Math.min((pageNum - 1) * pageSize, allComments.size());
+        int toIndex = Math.min(fromIndex + pageSize, allComments.size());
+        List<CommentPo> pageRecords = fromIndex >= toIndex
+                ? Collections.<CommentPo>emptyList()
+                : new ArrayList<CommentPo>(allComments.subList(fromIndex, toIndex));
+        return buildCommentPage(pageRecords, (long) allComments.size(), pageNum, pageSize, currentUserId);
+    }
+
+    private PageVo<CommentVo> buildCommentPage(List<CommentPo> commentList, Long total, Integer pageNum, Integer pageSize, Long currentUserId) {
+        if (commentList == null || commentList.isEmpty()) {
+            return PageVo.<CommentVo>builder()
+                    .total(total == null ? 0L : total)
+                    .pageNum(pageNum)
+                    .pageSize(pageSize)
+                    .records(Collections.<CommentVo>emptyList())
+                    .build();
+        }
+
+        List<Long> commentIds = commentList.stream().map(CommentPo::getId).collect(Collectors.toList());
+        Map<Long, CommentStatsPo> commentStatsMap = queryCommentStatsMap(commentIds);
+        Set<Long> relatedUserIds = new HashSet<Long>();
+        for (CommentPo comment : commentList) {
+            if (comment.getUserId() != null) {
+                relatedUserIds.add(comment.getUserId());
+            }
+
+            if (comment.getReplyUserId() != null && comment.getReplyUserId() > 0) {
+                relatedUserIds.add(comment.getReplyUserId());
+            }
+        }
+
+        Map<Long, UserPo> userMap;
+        if (!relatedUserIds.isEmpty()) {
+            userMap = userMapper.selectBatchIds(relatedUserIds).stream()
+                    .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
+        } else {
+            userMap = Collections.emptyMap();
+        }
+
+        Set<Long> likedCommentIdSet = queryLikedCommentIdSet(currentUserId, commentIds);
+        List<CommentVo> records = commentList.stream().map(comment -> {
+            CommentStatsPo statsPo = commentStatsMap.get(comment.getId());
+            UserPo userPo = userMap.get(comment.getUserId());
+            UserPo replyUserPo = userMap.get(comment.getReplyUserId());
+            return CommentVo.builder()
+                    .commentId(comment.getId())
+                    .userId(comment.getUserId())
+                    .username(userPo.getUsername())
+                    .avatarUrl(userPo.getAvatarUrl())
+                    .content(comment.getContent())
+                    .rootId(comment.getRootId())
+                    .parentId(comment.getParentId())
+                    .replyUserId(comment.getReplyUserId())
+                    .replyUsername(replyUserPo.getUsername())
+                    .likeCount(statsPo == null || statsPo.getLikeCount() == null ? 0L : statsPo.getLikeCount())
+                    .replyCount(statsPo == null || statsPo.getReplyCount() == null ? 0L : statsPo.getReplyCount())
+                    .isLike(likedCommentIdSet.contains(comment.getId()))
+                    .createTime(comment.getCreateTime())
+                    .build();
+        }).collect(Collectors.toList());
+
+        return PageVo.<CommentVo>builder()
+                .total(total == null ? 0L : total)
+                .pageNum(pageNum)
+                .pageSize(pageSize)
+                .records(records)
+                .build();
+    }
+
+    private Map<Long, CommentStatsPo> queryCommentStatsMap(List<Long> commentIds) {
+        if (commentIds == null || commentIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<CommentStatsPo> statsList = commentStatsMapper.selectList(new LambdaQueryWrapper<CommentStatsPo>()
+                .in(CommentStatsPo::getCommentId, commentIds));
+        return statsList.stream()
+                .collect(Collectors.toMap(CommentStatsPo::getCommentId, item -> item, (left, right) -> left));
+    }
+
+    private Set<Long> queryLikedCommentIdSet(Long currentUserId, List<Long> commentIds) {
+        if (currentUserId == null || commentIds == null || commentIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        List<LikeCommentPo> likeCommentPos = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
+                .eq(LikeCommentPo::getUserId, currentUserId)
+                .in(LikeCommentPo::getCommentId, commentIds));
+        return likeCommentPos.stream().map(LikeCommentPo::getCommentId).collect(Collectors.toSet());
+    }
+
+    private long getCommentLikeCount(Map<Long, CommentStatsPo> commentStatsMap, Long commentId) {
+        CommentStatsPo statsPo = commentStatsMap.get(commentId);
+        return statsPo == null || statsPo.getLikeCount() == null ? 0L : statsPo.getLikeCount();
     }
 }

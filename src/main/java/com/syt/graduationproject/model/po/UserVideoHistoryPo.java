@@ -42,8 +42,8 @@ public class UserVideoHistoryPo {
     /**
      * 最后播放位置（秒）
      */
-    @TableField(value = "last_view_time")
-    private Integer lastViewTime;
+    @TableField(value = "last_play_time")
+    private Integer lastPlayTime;
 
     /**
      * 视频总时长（秒）

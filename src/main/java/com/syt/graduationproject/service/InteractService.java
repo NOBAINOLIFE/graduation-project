@@ -2,6 +2,7 @@ package com.syt.graduationproject.service;
 
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
+import com.syt.graduationproject.model.request.BlockUserRequest;
 import com.syt.graduationproject.model.request.CollectVideoRequest;
 import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
 import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
@@ -10,10 +11,17 @@ import com.syt.graduationproject.model.request.CoinVideoRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
-import com.syt.graduationproject.model.request.BlockUserRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
 import com.syt.graduationproject.model.request.TripleActionRequest;
-import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.ChatSessionVo;
+import com.syt.graduationproject.model.vo.CoinWalletVo;
+import com.syt.graduationproject.model.vo.CollectionDirectoryVo;
+import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.PrivateMessageVo;
+import com.syt.graduationproject.model.vo.ReportVo;
+import com.syt.graduationproject.model.vo.SearchVideoVo;
+import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
+import com.syt.graduationproject.model.vo.CommentVo;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
@@ -146,4 +154,10 @@ public interface InteractService {
      * 查询当前用户的举报信息
      */
     List<ReportVo> listMyReports();
+
+    List<SearchVideoVo> listCollectionItems(Long directoryId, Integer sortType);
+
+    void deleteCollectionDirectory(Long directoryId);
+
+    PageVo<CommentVo> listVideoComments(Long videoId, Integer sortType, Integer pageNum, Integer pageSize);
 }

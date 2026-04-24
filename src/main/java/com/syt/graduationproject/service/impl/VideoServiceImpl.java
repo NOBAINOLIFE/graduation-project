@@ -7,6 +7,7 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.VideoPartitionMapper;
 import com.syt.graduationproject.mapper.VideoTagMapper;
 import com.syt.graduationproject.mapper.VideoTagRelMapper;
+import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
@@ -17,17 +18,11 @@ import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.model.es.VideoEsDoc;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
-import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.VIDEO_INDEX;
+
 import static com.syt.graduationproject.constant.VideoConstant.HOME_PAGE_VIDEO_LIST_SIZE;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
+import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.ManagerService;
@@ -62,6 +57,8 @@ public class VideoServiceImpl implements VideoService {
 
     private final InteractService interactService;
 
+    private final UserRepository userRepository;
+
     private final MinioService minioService;
 
     private final VideoRepository videoRepository;
@@ -79,6 +76,7 @@ public class VideoServiceImpl implements VideoService {
     private final VideoTagRelMapper videoTagRelMapper;
 
     private final SearchRepository searchRepository;
+
     private final SearchConverter searchConverter;
 
     /**
@@ -109,6 +107,7 @@ public class VideoServiceImpl implements VideoService {
                 .title(videoPo.getTitle())
                 .description(videoPo.getDescription())
                 .coverUrl(videoPo.getCoverUrl())
+                .partitionName(loadPartitionName(videoPo.getPartitionId()))
                 .duration(videoPo.getDuration())
                 .createTime(videoPo.getCreateTime())
                 .build();
@@ -125,7 +124,7 @@ public class VideoServiceImpl implements VideoService {
         // 查询用户播放记录
         UserVideoHistoryPo userVideoHistoryPo = videoRepository.queryUserVideoHistory(myId, videoId);
         if (Objects.nonNull(userVideoHistoryPo)) {
-            videoPlayDetailVo.setLastPlayTime(userVideoHistoryPo.getLastViewTime());
+            videoPlayDetailVo.setLastPlayTime(userVideoHistoryPo.getLastPlayTime());
         }
 
         // 查询视频数据统计信息
@@ -136,6 +135,7 @@ public class VideoServiceImpl implements VideoService {
             videoPlayDetailVo.setCoinCount(videoStatsPo.getCoinCount());
             videoPlayDetailVo.setCollectCount(videoStatsPo.getCollectCount());
             videoPlayDetailVo.setShareCount(videoStatsPo.getShareCount());
+            videoPlayDetailVo.setCommentCount(videoStatsPo.getCommentCount());
         }
 
         // 查询用户与视频的交互情况
@@ -144,7 +144,30 @@ public class VideoServiceImpl implements VideoService {
         videoPlayDetailVo.setIsCoin(userVideoInteractionBo.getIsCoin());
         videoPlayDetailVo.setIsCollect(userVideoInteractionBo.getIsCollect());
 
+        UserPo userPo = userRepository.queryUserById(videoPo.getUserId());
+        if (userPo != null) {
+            videoPlayDetailVo.setUsername(userPo.getUsername());
+            videoPlayDetailVo.setAvatarUrl(userPo.getAvatarUrl());
+            videoPlayDetailVo.setUserBio(userPo.getBio());
+        }
+
+        UserStatsPo userStatsPo = userRepository.queryUserStatsById(videoPo.getUserId());
+        if (userStatsPo != null) {
+            videoPlayDetailVo.setFansCount(userStatsPo.getFansNum());
+        }
+
+        FollowBo followBo = interactService.queryFollow(myId, videoPo.getUserId());
+        videoPlayDetailVo.setIsFollow(followBo.getIsFollow());
+
         return videoPlayDetailVo;
+    }
+
+    private String loadPartitionName(Long partitionId) {
+        if (partitionId == null) {
+            return null;
+        }
+        VideoPartitionPo partitionPo = videoPartitionMapper.selectById(partitionId);
+        return partitionPo == null ? null : partitionPo.getPartitionName();
     }
 
     @Override
