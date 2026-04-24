@@ -1,6 +1,9 @@
 package com.syt.graduationproject.repository;
 
+import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
+
+import java.util.List;
 
 public interface InteractRepository {
 
@@ -48,4 +51,9 @@ public interface InteractRepository {
      * 初始化用户数据统计信息
      */
     void initUserStats(Long userId);
+
+    /**
+     * 查询用户已收藏视频
+     */
+    List<CollectionItemPo> queryUserCollectVideoId(Long userId, Long videoId, Long directoryId);
 }

@@ -32,6 +32,7 @@ import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -143,6 +144,14 @@ public class VideoServiceImpl implements VideoService {
         videoPlayDetailVo.setIsLike(userVideoInteractionBo.getIsLike());
         videoPlayDetailVo.setIsCoin(userVideoInteractionBo.getIsCoin());
         videoPlayDetailVo.setIsCollect(userVideoInteractionBo.getIsCollect());
+
+        // 查询视频标签
+        List<VideoTagPo> tagPoList = videoRepository.queryVideoTags(videoId);
+        if (CollectionUtils.isNotEmpty(tagPoList)) {
+            videoPlayDetailVo.setTagList(tagPoList.stream()
+                    .map(VideoTagPo::getTagName)
+                    .collect(Collectors.toList()));
+        }
 
         UserPo userPo = userRepository.queryUserById(videoPo.getUserId());
         if (userPo != null) {

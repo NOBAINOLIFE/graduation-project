@@ -282,6 +282,14 @@ public class InteractServiceImpl implements InteractService {
         Long myId = UserHolderUtil.getUser().getUserId();
         Long videoId = request.getTargetId();
         Integer operation = request.getOperation();
+        VideoPo videoPo = videoMapper.selectById(videoId);
+        if (videoPo == null) {
+            throw new CustomException("视频不存在");
+        }
+        if (!videoPo.getStatus().equals(VideoStatusEnum.PUBLISHED.getCode())) {
+            throw new CustomException("视频状态异常");
+        }
+
         if (operation == 1) {
             // --- 执行点赞 ---
             LikeVideoPo likeVideoPo = LikeVideoPo.builder().userId(myId).videoId(videoId).build();
@@ -289,11 +297,12 @@ public class InteractServiceImpl implements InteractService {
                 likeVideoMapper.insert(likeVideoPo);
                 // 插入成功，增加计数
                 videoStatsMapper.updateLikeCount(videoId, 1);
+                interactRepository.updateUserLikeNum(videoPo.getUserId(), 1L);
             } catch (DuplicateKeyException e) {
                 // 幂等处理：如果已经点过赞，直接忽略，不重复加分
                 log.warn("用户重复点赞，用户ID：{}，视频ID：{}", myId, videoId);
             }
-        } else {
+        } else if (operation == 0) {
             // --- 执行取消 ---
             QueryWrapper<LikeVideoPo> wrapper = new QueryWrapper<>();
             wrapper.lambda()
@@ -303,7 +312,10 @@ public class InteractServiceImpl implements InteractService {
             if (rows > 0) {
                 // 只有真正删除了记录，才减少计数
                 videoStatsMapper.updateLikeCount(videoId, -1);
+                interactRepository.updateUserLikeNum(videoPo.getUserId(), -1L);
             }
+        } else {
+            throw new CustomException("操作类型非法");
         }
     }
 
@@ -729,7 +741,7 @@ public class InteractServiceImpl implements InteractService {
         }
         Long videoId = request.getVideoId();
         Long directoryId = request.getCollectionDirectoryId();
-        Integer operation = request.getOperation();
+        int operation = request.getOperation();
         CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
         if (directoryPo == null) {
             throw new CustomException("收藏夹不存在或无权限");
@@ -740,8 +752,22 @@ public class InteractServiceImpl implements InteractService {
         }
 
         if (operation == 1) {
+            CollectionItemPo itemPo;
             // --- 执行收藏 ---
-            CollectionItemPo itemPo = CollectionItemPo.builder()
+            // 如果有收藏记录
+            List<CollectionItemPo> collectionItemPos = interactRepository.queryUserCollectVideoId(myId, videoId, directoryId);
+            if (CollectionUtils.isNotEmpty(collectionItemPos)) {
+                itemPo = collectionItemPos.get(0);
+                if (itemPo.getIsDeleted().equals(NOT_DELETED)) {
+                    throw new CustomException("该收藏夹已收藏该视频");
+                } else {
+                    itemPo.setIsDeleted(NOT_DELETED);
+                    collectionItemMapper.updateById(itemPo);
+                    return;
+                }
+            }
+            // 如果没有收藏记录
+            itemPo = CollectionItemPo.builder()
                     .directoryId(directoryId).userId(myId).videoId(videoId).build();
             try {
                 collectionItemMapper.insert(itemPo);
@@ -1432,7 +1458,8 @@ public class InteractServiceImpl implements InteractService {
                     .rootId(comment.getRootId())
                     .parentId(comment.getParentId())
                     .replyUserId(comment.getReplyUserId())
-                    .replyUsername(replyUserPo.getUsername())
+                    .replyUsername(replyUserPo == null ? null : replyUserPo.getUsername())
+                    .replyUserAvatarUrl(replyUserPo == null ? null : replyUserPo.getAvatarUrl())
                     .likeCount(statsPo == null || statsPo.getLikeCount() == null ? 0L : statsPo.getLikeCount())
                     .replyCount(statsPo == null || statsPo.getReplyCount() == null ? 0L : statsPo.getReplyCount())
                     .isLike(likedCommentIdSet.contains(comment.getId()))

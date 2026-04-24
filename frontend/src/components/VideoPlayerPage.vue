@@ -90,11 +90,21 @@
             </div>
           </section>
 
-          <section v-if="videoInfo.description" class="mt-4 rounded-2xl bg-white p-5 shadow-sm">
+          <section v-if="videoInfo.description || videoInfo.tagList.length > 0" class="mt-4 rounded-2xl bg-white p-5 shadow-sm">
             <h2 class="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">简介</h2>
-            <p class="whitespace-pre-line text-sm leading-7 text-gray-600">
+            <p v-if="videoInfo.description" class="whitespace-pre-line text-sm leading-7 text-gray-600">
               {{ videoInfo.description }}
             </p>
+
+            <div v-if="videoInfo.tagList.length > 0" class="mt-4 flex flex-wrap gap-2">
+              <span
+                v-for="tag in videoInfo.tagList"
+                :key="tag"
+                class="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-500"
+              >
+                {{ tag }}
+              </span>
+            </div>
           </section>
 
           <section class="mt-4 rounded-2xl bg-white p-5 shadow-sm">
@@ -230,6 +240,137 @@
         </aside>
       </div>
     </main>
+
+    <div
+      v-if="collectDialog.visible"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4"
+      @click.self="closeCollectDialog"
+    >
+      <div class="w-full max-w-3xl rounded-xl bg-white px-8 py-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-4">
+          <h3 class="mx-auto text-3xl font-medium tracking-[0.08em] text-gray-900">添加到收藏夹</h3>
+          <button class="ml-4 text-4xl leading-none text-gray-300 transition hover:text-gray-500" @click="closeCollectDialog">×</button>
+        </div>
+
+        <div class="mt-4 max-h-[420px] overflow-y-auto pr-2">
+          <div v-if="collectDialog.loading" class="flex h-56 items-center justify-center text-sm text-gray-400">
+            正在加载收藏夹...
+          </div>
+
+          <div v-else-if="collectDialog.directories.length === 0" class="flex h-56 items-center justify-center text-sm text-gray-400">
+            暂无可用收藏夹
+          </div>
+
+          <label
+            v-for="directory in collectDialog.directories"
+            :key="directory.directoryId"
+            class="flex cursor-pointer items-center justify-between gap-6 border-b border-gray-100 px-1 py-7 transition hover:bg-gray-50/80"
+          >
+            <div class="flex min-w-0 items-center gap-8">
+              <span
+                class="flex h-8 w-8 items-center justify-center rounded border transition"
+                :class="collectDialog.selectedDirectoryId === directory.directoryId ? 'border-[#00a1d6] bg-[#00a1d6]/10' : 'border-[#cfd6df] bg-white'"
+              >
+                <span
+                  v-if="collectDialog.selectedDirectoryId === directory.directoryId"
+                  class="h-4 w-4 rounded-sm bg-[#00a1d6]"
+                ></span>
+              </span>
+              <div class="min-w-0">
+                <p class="text-[1.125rem] font-medium text-gray-900">
+                  {{ directory.name }}
+                  <span v-if="directory.isPublic === 0" class="ml-1 text-gray-400">[私密]</span>
+                  <span v-else class="ml-1 text-gray-400">[公开]</span>
+                </p>
+              </div>
+            </div>
+            <div class="shrink-0 text-right text-[1.125rem] text-gray-500">
+              {{ formatCollectionDirectoryCount(directory.itemCount) }}
+            </div>
+            <input
+              v-model="collectDialog.selectedDirectoryId"
+              type="radio"
+              class="sr-only"
+              name="collection-directory"
+              :value="directory.directoryId"
+            />
+          </label>
+        </div>
+
+        <div class="mt-8 border-t border-gray-100 pt-7 text-center">
+          <button
+            class="min-w-[240px] rounded-lg px-8 py-4 text-xl font-medium transition"
+            :class="collectDialog.selectedDirectoryId ? 'bg-[#00a1d6] text-white hover:bg-[#00b5e5]' : 'bg-gray-200 text-gray-400'"
+            :disabled="collectDialog.submitting || !collectDialog.selectedDirectoryId"
+            @click="submitCollectSelection"
+          >
+            {{ collectDialog.submitting ? '提交中...' : '确定' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="coinDialog.visible"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4"
+      @click.self="closeCoinDialog"
+    >
+      <div class="w-full max-w-4xl rounded-xl bg-white px-8 py-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+        <div class="flex items-center justify-between">
+          <h3 class="flex-1 text-center text-[2.1rem] font-medium tracking-[0.04em] text-gray-900">
+            给UP主投上 <span class="px-1 text-[#00a1d6]">{{ coinDialog.amount }}</span> 枚硬币
+          </h3>
+          <button class="ml-4 text-4xl leading-none text-gray-300 transition hover:text-gray-500" @click="closeCoinDialog">×</button>
+        </div>
+
+        <div class="mt-10 grid gap-6 md:grid-cols-2">
+          <button
+            v-for="option in coinOptions"
+            :key="option.amount"
+            class="group rounded-2xl border-2 border-dashed p-6 text-left transition"
+            :class="coinDialog.amount === option.amount ? 'border-[#00a1d6] bg-[#f2fbff]' : 'border-[#d5dbe3] hover:border-[#8bd8f2]'"
+            @click="coinDialog.amount = option.amount"
+          >
+            <div class="text-2xl font-medium" :class="coinDialog.amount === option.amount ? 'text-[#00a1d6]' : 'text-gray-500'">
+              {{ option.amount }}硬币
+            </div>
+            <div class="mt-6 flex min-h-[220px] items-center justify-center rounded-xl bg-[radial-gradient(circle_at_top,_rgba(0,161,214,0.12),_transparent_55%),linear-gradient(180deg,_rgba(248,250,252,0.95),_rgba(241,245,249,0.85))]">
+              <div class="relative flex items-end justify-center gap-3">
+                <div
+                  v-for="coin in option.amount"
+                  :key="`coin-${option.amount}-${coin}`"
+                  class="coin-dialog-coin"
+                  :class="coin === 2 ? '-ml-5 mt-3' : ''"
+                >
+                  币
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <label class="mt-7 flex cursor-pointer items-center gap-3 text-xl text-gray-700">
+          <span
+            class="flex h-7 w-7 items-center justify-center rounded bg-[#00a1d6] text-white"
+            :class="coinDialog.alsoLike ? 'opacity-100' : 'bg-white text-transparent ring-1 ring-[#cfd6df]'"
+          >
+            ✓
+          </span>
+          <input v-model="coinDialog.alsoLike" type="checkbox" class="sr-only" />
+          同时点赞内容
+        </label>
+
+        <div class="mt-10 text-center">
+          <button
+            class="min-w-[120px] rounded-lg bg-[#00a1d6] px-8 py-4 text-2xl font-medium text-white transition hover:bg-[#00b5e5] disabled:cursor-not-allowed disabled:bg-[#9ddff3]"
+            :disabled="coinDialog.submitting"
+            @click="submitCoinSelection"
+          >
+            {{ coinDialog.submitting ? '提交中...' : '确定' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -261,7 +402,7 @@ import {
   reportVideoProgress,
   submitVideoComment
 } from '../api/video';
-import { createCollectionDirectory, listCollectionDirectories } from '../api/user';
+import { createCollectionDirectory, listCollectionDirectories, listCollectionItems } from '../api/user';
 import { getUserId, getUsername } from '../utils/auth';
 
 const route = useRoute();
@@ -281,7 +422,26 @@ const commentPageSize = 10;
 const hasMoreComments = ref(false);
 const lastReportedTime = ref(0);
 const reportInFlight = ref(false);
-const defaultCollectionDirectoryId = ref(null);
+
+const collectDialog = reactive({
+  visible: false,
+  loading: false,
+  submitting: false,
+  directories: [],
+  selectedDirectoryId: null
+});
+
+const coinDialog = reactive({
+  visible: false,
+  submitting: false,
+  amount: 2,
+  alsoLike: true
+});
+
+const coinOptions = [
+  { amount: 1 },
+  { amount: 2 }
+];
 
 const actionLoading = reactive({
   like: false,
@@ -308,6 +468,7 @@ function createDefaultVideoInfo() {
     coverUrl: '',
     videoSourceList: [],
     partitionName: '',
+    tagList: [],
     duration: 0,
     lastPlayTime: 0,
     username: '',
@@ -341,6 +502,7 @@ function normalizeVideoDetail(data) {
     fansCount: Number(data?.fansCount || 0),
     duration: Number(data?.duration || 0),
     lastPlayTime: Number(data?.lastPlayTime || 0),
+    tagList: Array.isArray(data?.tagList) ? data.tagList : [],
     isLike: Boolean(data?.isLike),
     isCoin: Boolean(data?.isCoin),
     isCollect: Boolean(data?.isCollect),
@@ -435,64 +597,183 @@ async function handleLike() {
 
 async function handleCoin() {
   if (actionLoading.coin) return;
-  if (videoInfo.value.isCoin) {
-    ElMessage.info('你已经给这个视频投过币了');
-    return;
-  }
+  coinDialog.visible = true;
+  coinDialog.amount = videoInfo.value.isCoin ? 1 : 2;
+  coinDialog.alsoLike = true;
+}
+
+function closeCoinDialog() {
+  if (coinDialog.submitting) return;
+  coinDialog.visible = false;
+}
+
+async function submitCoinSelection() {
+  if (actionLoading.coin || !currentVideoId.value) return;
   actionLoading.coin = true;
+  coinDialog.submitting = true;
   try {
-    await coinVideo({ videoId: currentVideoId.value, amount: 1 });
+    await coinVideo({
+      videoId: currentVideoId.value,
+      amount: coinDialog.amount
+    });
     videoInfo.value.isCoin = true;
-    videoInfo.value.coinCount = Number(videoInfo.value.coinCount || 0) + 1;
-    ElMessage.success('投币成功');
+    videoInfo.value.coinCount = Number(videoInfo.value.coinCount || 0) + coinDialog.amount;
+
+    let likedByCoin = false;
+    if (coinDialog.alsoLike && !videoInfo.value.isLike) {
+      try {
+        await likeVideo({
+          targetId: currentVideoId.value,
+          type: 0,
+          operation: 1
+        });
+        videoInfo.value.isLike = true;
+        videoInfo.value.likeCount = Number(videoInfo.value.likeCount || 0) + 1;
+        likedByCoin = true;
+      } catch (error) {
+        console.error('投币后点赞失败:', error);
+        ElMessage.warning('投币成功，但自动点赞失败');
+      }
+    }
+
+    coinDialog.visible = false;
+    ElMessage.success(likedByCoin ? '投币并点赞成功' : '投币成功');
   } catch (error) {
     console.error('投币失败:', error);
     ElMessage.error(error.message || '投币失败');
   } finally {
+    coinDialog.submitting = false;
     actionLoading.coin = false;
   }
 }
 
-async function ensureCollectionDirectory() {
-  if (defaultCollectionDirectoryId.value) {
-    return defaultCollectionDirectoryId.value;
-  }
-
+async function ensureCollectDialogDirectories() {
   const directories = await listCollectionDirectories();
   if (Array.isArray(directories) && directories.length > 0) {
-    const target = directories.find(item => item.isDefault) || directories[0];
-    defaultCollectionDirectoryId.value = target.directoryId;
-    return target.directoryId;
+    return directories;
   }
 
   const newDirectoryId = await createCollectionDirectory({
     name: '默认收藏夹',
-    description: '播放页自动创建的收藏夹',
+    description: '播放页自动创建的默认收藏夹',
     coverUrl: '',
     isPublic: 0
   });
-  defaultCollectionDirectoryId.value = newDirectoryId;
-  return newDirectoryId;
+  return [{
+    directoryId: newDirectoryId,
+    name: '默认收藏夹',
+    description: '播放页自动创建的默认收藏夹',
+    coverUrl: '',
+    isPublic: 0,
+    isDefault: true,
+    itemCount: 0
+  }];
 }
 
 async function handleCollect() {
   if (actionLoading.collect) return;
-  actionLoading.collect = true;
-  const nextIsCollect = !videoInfo.value.isCollect;
+  if (videoInfo.value.isCollect) {
+    await cancelCollectedVideo();
+    return;
+  }
+
+  collectDialog.visible = true;
+  collectDialog.loading = true;
+  collectDialog.directories = [];
+  collectDialog.selectedDirectoryId = null;
   try {
-    const directoryId = await ensureCollectionDirectory();
+    const directories = await ensureCollectDialogDirectories();
+    collectDialog.directories = directories;
+    const defaultDirectory = directories.find(item => item.isDefault) || directories[0];
+    collectDialog.selectedDirectoryId = defaultDirectory?.directoryId ?? null;
+  } catch (error) {
+    console.error('加载收藏夹失败:', error);
+    ElMessage.error(error.message || '加载收藏夹失败');
+    collectDialog.visible = false;
+  } finally {
+    collectDialog.loading = false;
+  }
+}
+
+async function resolveCollectedDirectoryIds(videoId) {
+  const directories = await listCollectionDirectories();
+  if (!Array.isArray(directories) || directories.length === 0) {
+    return [];
+  }
+
+  const collectedResults = await Promise.all(
+    directories.map(async (directory) => {
+      const items = await listCollectionItems(directory.directoryId, 1);
+      const matched = Array.isArray(items) && items.some(item => Number(item.videoId) === Number(videoId));
+      return matched ? directory.directoryId : null;
+    })
+  );
+
+  return collectedResults.filter(Boolean);
+}
+
+async function cancelCollectedVideo() {
+  if (!currentVideoId.value) return;
+  actionLoading.collect = true;
+  try {
+    const matchedDirectoryIds = await resolveCollectedDirectoryIds(currentVideoId.value);
+    if (matchedDirectoryIds.length === 0) {
+      videoInfo.value.isCollect = false;
+      ElMessage.info('当前视频没有可取消的收藏记录');
+      return;
+    }
+
+    await Promise.all(
+      matchedDirectoryIds.map((directoryId) => collectVideo({
+        videoId: currentVideoId.value,
+        collectionDirectoryId: directoryId,
+        operation: 0
+      }))
+    );
+
+    videoInfo.value.isCollect = false;
+    videoInfo.value.collectCount = Math.max(0, Number(videoInfo.value.collectCount || 0) - matchedDirectoryIds.length);
+    ElMessage.success('已取消收藏');
+  } catch (error) {
+    console.error('取消收藏失败:', error);
+    ElMessage.error(error.message || '取消收藏失败');
+  } finally {
+    actionLoading.collect = false;
+  }
+}
+
+function closeCollectDialog() {
+  if (collectDialog.submitting) return;
+  collectDialog.visible = false;
+}
+
+async function submitCollectSelection() {
+  if (actionLoading.collect || !collectDialog.selectedDirectoryId || !currentVideoId.value) return;
+  actionLoading.collect = true;
+  collectDialog.submitting = true;
+  try {
     await collectVideo({
       videoId: currentVideoId.value,
-      collectionDirectoryId: directoryId,
-      operation: nextIsCollect ? 1 : 0
+      collectionDirectoryId: collectDialog.selectedDirectoryId,
+      operation: 1
     });
-    videoInfo.value.isCollect = nextIsCollect;
-    videoInfo.value.collectCount = Math.max(0, Number(videoInfo.value.collectCount || 0) + (nextIsCollect ? 1 : -1));
-    ElMessage.success(nextIsCollect ? '已加入收藏' : '已取消收藏');
+    if (!videoInfo.value.isCollect) {
+      videoInfo.value.isCollect = true;
+      videoInfo.value.collectCount = Number(videoInfo.value.collectCount || 0) + 1;
+    }
+
+    const targetDirectory = collectDialog.directories.find(item => item.directoryId === collectDialog.selectedDirectoryId);
+    if (targetDirectory) {
+      targetDirectory.itemCount = Number(targetDirectory.itemCount || 0) + 1;
+    }
+
+    collectDialog.visible = false;
+    ElMessage.success('已添加到收藏夹');
   } catch (error) {
     console.error('收藏失败:', error);
     ElMessage.error(error.message || '收藏失败');
   } finally {
+    collectDialog.submitting = false;
     actionLoading.collect = false;
   }
 }
@@ -601,6 +882,11 @@ function formatCount(count) {
   return `${value}`;
 }
 
+function formatCollectionDirectoryCount(count) {
+  const value = Number(count || 0);
+  return `${value}/1000`;
+}
+
 function formatDuration(seconds) {
   const totalSeconds = Number(seconds || 0);
   if (!totalSeconds) return '00:00';
@@ -683,5 +969,22 @@ onBeforeUnmount(() => {
 
 .line-clamp-3 {
   -webkit-line-clamp: 3;
+}
+
+.coin-dialog-coin {
+  display: flex;
+  height: 5.75rem;
+  width: 5.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid #b4bac3;
+  background: radial-gradient(circle at 30% 30%, #ffffff, #d8dbe1 58%, #b9bec7 100%);
+  color: #808892;
+  font-size: 2rem;
+  font-weight: 700;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.8),
+    0 10px 18px rgba(148, 163, 184, 0.22);
 }
 </style>

@@ -32,6 +32,8 @@ public class VideoPlayDetailVo {
 
     private String partitionName;
 
+    private List<String> tagList;
+
     private Integer duration;
 
     private Integer lastPlayTime;

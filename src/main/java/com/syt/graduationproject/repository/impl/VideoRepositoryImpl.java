@@ -6,21 +6,18 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
-import com.syt.graduationproject.mapper.UserVideoHistoryMapper;
-import com.syt.graduationproject.mapper.VideoMapper;
-import com.syt.graduationproject.mapper.VideoSourceMapper;
-import com.syt.graduationproject.mapper.VideoStatsMapper;
+import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.bo.VideoSourceBo;
-import com.syt.graduationproject.model.po.UserVideoHistoryPo;
-import com.syt.graduationproject.model.po.VideoPo;
-import com.syt.graduationproject.model.po.VideoSourcePo;
-import com.syt.graduationproject.model.po.VideoStatsPo;
+import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
@@ -37,6 +34,10 @@ public class VideoRepositoryImpl implements VideoRepository {
     private final VideoSourceMapper videoSourceMapper;
 
     private final VideoConverter videoConverter;
+
+    private final VideoTagMapper videoTagMapper;
+
+    private final VideoTagRelMapper videoTagRelMapper;
 
     /**
      * 创建上传中的视频记录
@@ -94,6 +95,18 @@ public class VideoRepositoryImpl implements VideoRepository {
                 .eq(UserVideoHistoryPo::getVideoId, videoId)
                 .eq(UserVideoHistoryPo::getIsDeleted, NOT_DELETED);
         return userVideoHistoryMapper.selectOne(queryWrapper);
+    }
+
+    /**
+     * 批量查询用户观看历史
+     */
+    @Override
+    public List<UserVideoHistoryPo> batchQueryUserVideoHistory(Long userId) {
+        QueryWrapper<UserVideoHistoryPo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.lambda()
+                .eq(UserVideoHistoryPo::getUserId, userId)
+                .eq(UserVideoHistoryPo::getIsDeleted, NOT_DELETED);
+        return userVideoHistoryMapper.selectList(queryWrapper);
     }
 
     @Override
@@ -194,5 +207,19 @@ public class VideoRepositoryImpl implements VideoRepository {
     @Override
     public int incrVideoPlayCount(Long videoId, Long delta) {
         return videoStatsMapper.updatePlayCount(videoId, delta);
+    }
+
+    @Override
+    public List<VideoTagPo> queryVideoTags(Long videoId) {
+        LambdaQueryWrapper<VideoTagRelPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(VideoTagRelPo::getVideoId, videoId);
+        List<VideoTagRelPo> relList = videoTagRelMapper.selectList(queryWrapper);
+        if (CollectionUtils.isEmpty(relList)) {
+            return Collections.emptyList();
+        }
+        List<Long> tagIdList = relList.stream()
+                .map(VideoTagRelPo::getTagId)
+                .collect(Collectors.toList());
+        return videoTagMapper.selectBatchIds(tagIdList);
     }
 }

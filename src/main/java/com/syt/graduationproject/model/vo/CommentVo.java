@@ -31,6 +31,8 @@ public class CommentVo {
 
     private String replyUsername;
 
+    private String replyUserAvatarUrl;
+
     private Long likeCount;
 
     private Long replyCount;

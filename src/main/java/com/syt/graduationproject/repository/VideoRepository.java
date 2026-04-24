@@ -1,10 +1,7 @@
 package com.syt.graduationproject.repository;
 
 import com.syt.graduationproject.model.bo.VideoSourceBo;
-import com.syt.graduationproject.model.po.UserVideoHistoryPo;
-import com.syt.graduationproject.model.po.VideoPo;
-import com.syt.graduationproject.model.po.VideoSourcePo;
-import com.syt.graduationproject.model.po.VideoStatsPo;
+import com.syt.graduationproject.model.po.*;
 
 import java.util.List;
 
@@ -31,9 +28,14 @@ public interface VideoRepository {
     VideoStatsPo queryVideoStatsById(Long videoId);
 
     /**
-     * 查询用户视频播放记录
+     * 查询用户某个视频的播放记录
      */
     UserVideoHistoryPo queryUserVideoHistory(Long userId, Long videoId);
+
+    /**
+     * 批量查询用户视频播放记录
+     */
+    List<UserVideoHistoryPo> batchQueryUserVideoHistory(Long userId);
 
     /**
      * 查询视频播放源
@@ -79,4 +81,9 @@ public interface VideoRepository {
      * 增加视频播放量
      */
     int incrVideoPlayCount(Long videoId, Long delta);
+
+    /**
+     * 查询视频标签
+     */
+    List<VideoTagPo> queryVideoTags(Long videoId);
 }

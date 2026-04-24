@@ -1,13 +1,18 @@
 package com.syt.graduationproject.repository.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.syt.graduationproject.mapper.CollectionItemMapper;
 import com.syt.graduationproject.mapper.FollowRecordMapper;
 import com.syt.graduationproject.mapper.UserStatsMapper;
+import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
 import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.repository.InteractRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
@@ -18,6 +23,8 @@ public class InteractRepositoryImpl implements InteractRepository {
     private final FollowRecordMapper followRecordMapper;
 
     private final UserStatsMapper userStatsMapper;
+
+    private final CollectionItemMapper collectionItemMapper;
 
     /**
      * 查询两者关注关系
@@ -109,5 +116,18 @@ public class InteractRepositoryImpl implements InteractRepository {
                 .userId(userId)
                 .build();
         userStatsMapper.insert(userStatsPo);
+    }
+
+    @Override
+    public List<CollectionItemPo> queryUserCollectVideoId(Long userId, Long videoId, Long directoryId) {
+        LambdaQueryWrapper<CollectionItemPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(CollectionItemPo::getUserId, userId);
+        if (videoId != null) {
+            queryWrapper.eq(CollectionItemPo::getVideoId, videoId);
+        }
+        if (directoryId != null) {
+            queryWrapper.eq(CollectionItemPo::getDirectoryId, directoryId);
+        }
+        return collectionItemMapper.selectList(queryWrapper);
     }
 }

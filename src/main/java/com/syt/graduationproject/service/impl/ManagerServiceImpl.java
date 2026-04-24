@@ -6,16 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.exception.ErrorParamException;
-import com.syt.graduationproject.mapper.ReportMapper;
-import com.syt.graduationproject.mapper.CommentMapper;
-import com.syt.graduationproject.mapper.CommentStatsMapper;
-import com.syt.graduationproject.mapper.UserMapper;
-import com.syt.graduationproject.mapper.VideoAuditRecordMapper;
-import com.syt.graduationproject.mapper.VideoMapper;
-import com.syt.graduationproject.mapper.VideoPartitionMapper;
-import com.syt.graduationproject.mapper.VideoStatsMapper;
-import com.syt.graduationproject.mapper.VideoTagMapper;
-import com.syt.graduationproject.mapper.VideoTagRelMapper;
+import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
@@ -27,6 +18,7 @@ import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.ReportVo;
 import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.model.vo.VideoTagVo;
+import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
@@ -88,6 +80,8 @@ public class ManagerServiceImpl implements ManagerService {
 	private final SearchRepository searchRepository;
 
 	private final MinioService minioService;
+
+	private final InteractRepository interactRepository;
 
 	@Override
 	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
@@ -516,5 +510,7 @@ public class ManagerServiceImpl implements ManagerService {
 		videoEsDoc.setDuration(videoPo.getDuration());
 		videoEsDoc.setCreateTime(videoPo.getCreateTime());
 		searchRepository.upsertVideoDoc(videoEsDoc);
+
+		interactRepository.updateUserVideoNum(videoPo.getUserId(), 1L);
 	}
 }
