@@ -1,5 +1,6 @@
 package com.syt.graduationproject.repository;
 
+import com.syt.graduationproject.model.po.CollectionDirectoryPo;
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
 
@@ -53,7 +54,25 @@ public interface InteractRepository {
     void initUserStats(Long userId);
 
     /**
-     * 查询用户已收藏视频
+     * 查询用户收藏记录（不管是否删除）
      */
-    List<CollectionItemPo> queryUserCollectVideoId(Long userId, Long videoId, Long directoryId);
+    List<CollectionItemPo> queryUserCollectRecord(Long userId, Long videoId, Long directoryId);
+
+    /**
+     * 查询用户所有收藏夹
+     */
+    List<CollectionDirectoryPo> queryUserCollectionDirectory(Long userId);
+
+    /**
+     * 查询用户所有收藏有某视频的收藏记录
+     */
+    List<CollectionItemPo> queryUserCollectionItemWithVideo(Long userId, Long videoId);
+
+    boolean isCollectVideo(Long userId, Long videoId);
+
+    List<CollectionDirectoryPo> batchQueryUserCollectionDirectory(Long userId, List<Long> directoryIdList);
+
+    int batchCollectVideo(Long userId, Long directoryId, List<Long> videoIdList);
+
+    int batchCancelCollectVideo(Long userId, Long directoryId, List<Long> videoIdList);
 }

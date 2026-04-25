@@ -234,6 +234,22 @@ public class InteractController {
     }
 
     /**
+     * 查询视频与收藏夹关系
+     */
+    @GetMapping("/collection/rel")
+    public Response<List<VideoDirectoryRelationVo>> queryVideoDirectoryRelations(@RequestParam("videoId") Long videoId) {
+        try {
+            return Response.success(interactService.queryVideoDirectoryRelations(videoId));
+        } catch (CustomException e) {
+            log.warn("查询视频收藏关系失败，videoId：{}，原因：{}", videoId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询视频收藏关系失败，videoI：{}", videoId, e);
+            return Response.fail("查询视频收藏关系失败，系统异常");
+        }
+    }
+
+    /**
      * 创建收藏夹
      */
     @PostMapping("/collection/directory/create")

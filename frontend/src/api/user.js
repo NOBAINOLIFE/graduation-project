@@ -7,6 +7,13 @@ export function login(payload) {
   });
 }
 
+export function register(payload) {
+  return request('/graduation-project/user/register', {
+    method: 'POST',
+    json: payload
+  });
+}
+
 export function logout() {
   return request('/graduation-project/user/logout', {
     method: 'POST'
@@ -60,6 +67,20 @@ export function updateCollectionDirectory(payload) {
 export function deleteCollectionDirectory(directoryId) {
   return request('/graduation-project/interact/collection/directory/delete', {
     method: 'GET',
+    params: { directoryId }
+  });
+}
+
+export function batchOperateCollectionItems(payload) {
+  return request('/graduation-project/interact/collection/item/batch', {
+    method: 'POST',
+    json: payload
+  });
+}
+
+export function clearInvalidCollectionItems(directoryId) {
+  return request('/graduation-project/interact/collection/item/clearInvalid', {
+    method: 'POST',
     params: { directoryId }
   });
 }

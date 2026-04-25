@@ -86,4 +86,6 @@ public interface VideoRepository {
      * 查询视频标签
      */
     List<VideoTagPo> queryVideoTags(Long videoId);
+
+    int batchAddVideoCollectCount(List<Long> videoIdList, Long delta);
 }

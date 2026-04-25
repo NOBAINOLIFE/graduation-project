@@ -82,6 +82,13 @@ export function collectVideo(payload) {
   });
 }
 
+export function queryVideoDirectoryRelations(videoId) {
+  return request('/graduation-project/interact/collection/rel', {
+    method: 'GET',
+    params: { videoId }
+  });
+}
+
 export function followUser(payload) {
   return request('/graduation-project/interact/follow', {
     method: 'POST',

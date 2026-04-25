@@ -94,7 +94,7 @@ public class VideoServiceImpl implements VideoService {
      */
     @Override
     public VideoPlayDetailVo queryVideoInfo(Long videoId) {
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long myId = getCurrentUserIdOrNull();
         VideoPo videoPo = videoRepository.queryVideoById(videoId);
         if (Objects.isNull(videoPo)) {
             throw new CustomException("视频不存在");
@@ -124,9 +124,11 @@ public class VideoServiceImpl implements VideoService {
         videoPlayDetailVo.setVideoSourceList(videoSourceList);
 
         // 查询用户播放记录
-        UserVideoHistoryPo userVideoHistoryPo = videoRepository.queryUserVideoHistory(myId, videoId);
-        if (Objects.nonNull(userVideoHistoryPo)) {
-            videoPlayDetailVo.setLastPlayTime(userVideoHistoryPo.getLastPlayTime());
+        if (myId != null) {
+            UserVideoHistoryPo userVideoHistoryPo = videoRepository.queryUserVideoHistory(myId, videoId);
+            if (Objects.nonNull(userVideoHistoryPo)) {
+                videoPlayDetailVo.setLastPlayTime(userVideoHistoryPo.getLastPlayTime());
+            }
         }
 
         // 查询视频数据统计信息
@@ -141,10 +143,12 @@ public class VideoServiceImpl implements VideoService {
         }
 
         // 查询用户与视频的交互情况
-        UserVideoInteractionBo userVideoInteractionBo = interactService.queryUserVideoInteraction(myId, videoId);
-        videoPlayDetailVo.setIsLike(userVideoInteractionBo.getIsLike());
-        videoPlayDetailVo.setIsCoin(userVideoInteractionBo.getIsCoin());
-        videoPlayDetailVo.setIsCollect(userVideoInteractionBo.getIsCollect());
+        if (myId != null) {
+            UserVideoInteractionBo userVideoInteractionBo = interactService.queryUserVideoInteraction(myId, videoId);
+            videoPlayDetailVo.setIsLike(userVideoInteractionBo.getIsLike());
+            videoPlayDetailVo.setIsCoin(userVideoInteractionBo.getIsCoin());
+            videoPlayDetailVo.setIsCollect(userVideoInteractionBo.getIsCollect());
+        }
 
         // 查询视频标签
         List<VideoTagPo> tagPoList = videoRepository.queryVideoTags(videoId);
@@ -166,10 +170,16 @@ public class VideoServiceImpl implements VideoService {
             videoPlayDetailVo.setFansCount(userStatsPo.getFansNum());
         }
 
-        FollowBo followBo = interactService.queryFollow(myId, videoPo.getUserId());
-        videoPlayDetailVo.setIsFollow(followBo.getIsFollow());
+        if (myId != null) {
+            FollowBo followBo = interactService.queryFollow(myId, videoPo.getUserId());
+            videoPlayDetailVo.setIsFollow(followBo.getIsFollow());
+        }
 
         return videoPlayDetailVo;
+    }
+
+    private Long getCurrentUserIdOrNull() {
+        return UserHolderUtil.getUser() == null ? null : UserHolderUtil.getUser().getUserId();
     }
 
     private String loadPartitionName(Long partitionId) {

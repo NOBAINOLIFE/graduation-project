@@ -3,10 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.syt.graduationproject.enums.PrivateMessageStatusEnum;
-import com.syt.graduationproject.enums.ReportStatusEnum;
-import com.syt.graduationproject.enums.ReportTargetTypeEnum;
-import com.syt.graduationproject.enums.VideoStatusEnum;
+import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.bo.FollowBo;
@@ -16,6 +13,7 @@ import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
+import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
@@ -39,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
 
+import static com.syt.graduationproject.constant.CommonConstant.DELETED;
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
 @Slf4j
@@ -79,6 +78,8 @@ public class InteractServiceImpl implements InteractService {
     private final VideoMapper videoMapper;
 
     private final StringRedisTemplate stringRedisTemplate;
+
+    private final VideoRepository videoRepository;
 
     /**
      * 在线私聊会话：userId -> sessions（多端登录）
@@ -735,63 +736,75 @@ public class InteractServiceImpl implements InteractService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void collectVideo(CollectVideoRequest request) {
-        Long myId = UserHolderUtil.getUser().getUserId();
-        if (request == null || request.getVideoId() == null || request.getCollectionDirectoryId() == null || request.getOperation() == null) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getVideoId() == null) {
             throw new CustomException("收藏参数不完整");
         }
         Long videoId = request.getVideoId();
-        Long directoryId = request.getCollectionDirectoryId();
-        int operation = request.getOperation();
-        CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
-        if (directoryPo == null) {
-            throw new CustomException("收藏夹不存在或无权限");
-        }
+        List<Long> collectDirectoryIdList = request.getCollectDirectoryIdList();
+        List<Long> removeDirectoryIdList = request.getRemoveDirectoryIdList();
+
         VideoPo videoPo = videoMapper.selectById(videoId);
         if (videoPo == null || videoPo.getStatus() != VideoStatusEnum.PUBLISHED.getCode()) {
             throw new CustomException("视频不存在或不可收藏");
         }
 
-        if (operation == 1) {
-            CollectionItemPo itemPo;
-            // --- 执行收藏 ---
+        List<Long> directoryIdList = Optional
+                .ofNullable(interactRepository.batchQueryUserCollectionDirectory(userId, null))
+                .orElse(Collections.emptyList()).stream()
+                .map(CollectionDirectoryPo::getId)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(directoryIdList)) {
+            return;
+        }
+
+        // 操作前是否收藏该视频
+        boolean beforeCollect = interactRepository.isCollectVideo(userId, videoId);
+
+        // --- 执行收藏 ---
+        for (Long directoryId : CollectionUtils.emptyIfNull(collectDirectoryIdList)) {
             // 如果有收藏记录
-            List<CollectionItemPo> collectionItemPos = interactRepository.queryUserCollectVideoId(myId, videoId, directoryId);
+            List<CollectionItemPo> collectionItemPos = interactRepository.queryUserCollectRecord(userId, videoId, directoryId);
             if (CollectionUtils.isNotEmpty(collectionItemPos)) {
-                itemPo = collectionItemPos.get(0);
+                CollectionItemPo itemPo = collectionItemPos.get(0);
                 if (itemPo.getIsDeleted().equals(NOT_DELETED)) {
                     throw new CustomException("该收藏夹已收藏该视频");
                 } else {
                     itemPo.setIsDeleted(NOT_DELETED);
                     collectionItemMapper.updateById(itemPo);
-                    return;
+                    continue;
                 }
             }
             // 如果没有收藏记录
-            itemPo = CollectionItemPo.builder()
-                    .directoryId(directoryId).userId(myId).videoId(videoId).build();
             try {
-                collectionItemMapper.insert(itemPo);
-                videoStatsMapper.updateCollectCount(videoId, 1);
+                collectionItemMapper.insert(CollectionItemPo.builder()
+                        .directoryId(directoryId).userId(userId).videoId(videoId).build());
             } catch (DuplicateKeyException e) {
                 // 幂等处理：如果已经收藏过，直接忽略，不重复加分
-                log.warn("用户重复收藏，用户ID：{}，视频ID：{}", myId, videoId);
+                log.warn("用户重复收藏，用户ID：{}，视频ID：{}", userId, videoId);
             }
-        } else if (operation == 0) {
-            // --- 执行取消收藏 ---
-            QueryWrapper<CollectionItemPo> wrapper = new QueryWrapper<>();
-            wrapper.lambda()
-                    .eq(CollectionItemPo::getUserId, myId)
-                    .eq(CollectionItemPo::getDirectoryId, directoryId)
-                    .eq(CollectionItemPo::getVideoId, videoId)
-                    .eq(CollectionItemPo::getIsDeleted, NOT_DELETED);
-            CollectionItemPo itemPo = collectionItemMapper.selectOne(wrapper);
-            if (itemPo != null) {
-                itemPo.setIsDeleted(1);
-                collectionItemMapper.updateById(itemPo);
-                videoStatsMapper.updateCollectCount(videoId, -1);
+        }
+
+        // --- 执行取消收藏 ---
+        for (Long directoryId : CollectionUtils.emptyIfNull(removeDirectoryIdList)) {
+            // 如果有收藏记录
+            List<CollectionItemPo> collectionItemPos = interactRepository.queryUserCollectRecord(userId, videoId, directoryId);
+            if (CollectionUtils.isNotEmpty(collectionItemPos)) {
+                CollectionItemPo itemPo = collectionItemPos.get(0);
+                if (itemPo.getIsDeleted().equals(NOT_DELETED)) {
+                    itemPo.setIsDeleted(DELETED);
+                    collectionItemMapper.updateById(itemPo);
+                }
             }
-        } else {
-            throw new CustomException("收藏操作类型非法");
+            // 如果没有收藏记录则直接跳过
+        }
+
+        // 操作后是否收藏该视频
+        boolean afterCollect = interactRepository.isCollectVideo(userId, videoId);
+        if (beforeCollect && !afterCollect) {
+            videoStatsMapper.updateCollectCount(videoId, -1);
+        } else if (!beforeCollect && afterCollect) {
+            videoStatsMapper.updateCollectCount(videoId, 1);
         }
     }
 
@@ -921,49 +934,88 @@ public class InteractServiceImpl implements InteractService {
         return result;
     }
 
+    /**
+     * 查询某视频在所有收藏夹的状态
+     */
+    @Override
+    public List<VideoDirectoryRelationVo> queryVideoDirectoryRelations(Long videoId) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        if (videoId == null) {
+            throw new CustomException("视频ID不能为空");
+        }
+        List<CollectionDirectoryPo> directories = interactRepository.queryUserCollectionDirectory(userId);
+        List<CollectionItemPo> items = interactRepository.queryUserCollectionItemWithVideo(userId, videoId);
+        Set<Long> directoryIds = Optional.ofNullable(items).orElse(Collections.emptyList()).stream()
+                .map(CollectionItemPo::getDirectoryId).collect(Collectors.toSet());
+
+        List<VideoDirectoryRelationVo> result = new ArrayList<>();
+        for (CollectionDirectoryPo directoryPo : directories) {
+            VideoDirectoryRelationVo vo = VideoDirectoryRelationVo.builder()
+                    .videoId(videoId)
+                    .directoryId(directoryPo.getId())
+                    .directoryName(directoryPo.getName())
+                    .isPublic(directoryPo.getIsPublic() == 1)
+                    .isDefault(directoryPo.getIsDefault() == 1)
+                    .isCollect(false)
+                    .build();
+            if (directoryIds.contains(directoryPo.getId())) {
+                vo.setIsCollect(true);
+            }
+            result.add(vo);
+        }
+        return result;
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Integer batchOperateCollectionItems(CollectionBatchOperateRequest request) {
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long userId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getSourceDirectoryId() == null || request.getOperation() == null
-                || CollectionUtils.isEmpty(request.getVideoIds())) {
+                || request.getTargetDirectoryId() == null || CollectionUtils.isEmpty(request.getVideoIds())) {
             throw new CustomException("批量操作参数不完整");
         }
-        CollectionDirectoryPo sourceDirectory = queryOwnedDirectory(myId, request.getSourceDirectoryId());
+        CollectionDirectoryPo sourceDirectory = queryOwnedDirectory(userId, request.getSourceDirectoryId());
         if (sourceDirectory == null) {
             throw new CustomException("来源收藏夹不存在或无权限");
         }
-
-        int affected = 0;
-        if (request.getOperation() == 1) {
-            for (Long videoId : request.getVideoIds()) {
-                affected += removeCollectedVideo(myId, request.getSourceDirectoryId(), videoId);
-            }
-            return affected;
-        }
-
-        if (request.getTargetDirectoryId() == null) {
-            throw new CustomException("目标收藏夹不能为空");
-        }
-        CollectionDirectoryPo targetDirectory = queryOwnedDirectory(myId, request.getTargetDirectoryId());
+        CollectionDirectoryPo targetDirectory = queryOwnedDirectory(userId, request.getTargetDirectoryId());
         if (targetDirectory == null) {
             throw new CustomException("目标收藏夹不存在或无权限");
         }
 
-        for (Long videoId : request.getVideoIds()) {
-            if (request.getOperation() == 2) {
-                affected += addCollectedVideo(myId, request.getTargetDirectoryId(), videoId);
-            } else if (request.getOperation() == 3) {
-                int removed = removeCollectedVideo(myId, request.getSourceDirectoryId(), videoId);
-                int added = addCollectedVideo(myId, request.getTargetDirectoryId(), videoId);
-                if (removed > 0 || added > 0) {
-                    affected++;
-                }
-            } else {
-                throw new CustomException("批量操作类型非法");
+        Integer operation = request.getOperation();
+        List<Long> videoIdList = request.getVideoIds();
+
+        // 批量取消收藏
+        if (operation.equals(BatchCollectOperationEnum.CANCEL_COLLECT.getCode())) {
+            int canceled1 = interactRepository.batchCollectVideo(userId, sourceDirectory.getId(), videoIdList);
+            int canceled2 = videoRepository.batchAddVideoCollectCount(videoIdList, -1L);
+            if (canceled1 != videoIdList.size() || canceled2 != videoIdList.size()) {
+                throw new CustomException("批量操作失败");
             }
+            return canceled1;
         }
-        return affected;
+
+        // 批量复制
+        if (operation.equals(BatchCollectOperationEnum.COPY.getCode())) {
+            int added = interactRepository.batchCollectVideo(userId, targetDirectory.getId(), videoIdList);
+            if (added != videoIdList.size()) {
+                throw new CustomException("批量操作失败");
+            }
+            return added;
+        }
+
+        // 批量移动
+        if (operation.equals(BatchCollectOperationEnum.MOVE.getCode())) {
+            int canceled = interactRepository.batchCancelCollectVideo(userId, sourceDirectory.getId(), videoIdList);
+            int added = interactRepository.batchCollectVideo(userId, targetDirectory.getId(), videoIdList);
+            if (canceled != added) {
+                throw new CustomException("批量操作失败");
+            }
+            return canceled;
+        }
+
+        throw new CustomException("批量操作参数错误");
     }
 
     @Override
@@ -1093,8 +1145,7 @@ public class InteractServiceImpl implements InteractService {
         CollectionDirectoryPo defaultDirectory = getOrCreateDefaultDirectory(myId);
         collectVideo(CollectVideoRequest.builder()
                 .videoId(request.getVideoId())
-                .collectionDirectoryId(defaultDirectory.getId())
-                .operation(1)
+                .collectDirectoryIdList(Collections.singletonList(defaultDirectory.getId()))
                 .build());
     }
 
@@ -1136,52 +1187,6 @@ public class InteractServiceImpl implements InteractService {
                 .build();
         collectionDirectoryMapper.insert(po);
         return po;
-    }
-
-    private int addCollectedVideo(Long userId, Long directoryId, Long videoId) {
-        QueryWrapper<CollectionItemPo> wrapper = new QueryWrapper<>();
-        wrapper.lambda()
-                .eq(CollectionItemPo::getUserId, userId)
-                .eq(CollectionItemPo::getDirectoryId, directoryId)
-                .eq(CollectionItemPo::getVideoId, videoId);
-        CollectionItemPo existed = collectionItemMapper.selectOne(wrapper);
-        if (existed == null) {
-            try {
-                collectionItemMapper.insert(CollectionItemPo.builder()
-                        .userId(userId)
-                        .directoryId(directoryId)
-                        .videoId(videoId)
-                        .isDeleted(NOT_DELETED)
-                        .build());
-                videoStatsMapper.updateCollectCount(videoId, 1);
-                return 1;
-            } catch (DuplicateKeyException ignore) {
-                return 0;
-            }
-        }
-        if (NOT_DELETED.equals(existed.getIsDeleted())) {
-            return 0;
-        }
-        existed.setIsDeleted(NOT_DELETED);
-        collectionItemMapper.updateById(existed);
-        videoStatsMapper.updateCollectCount(videoId, 1);
-        return 1;
-    }
-
-    private int removeCollectedVideo(Long userId, Long directoryId, Long videoId) {
-        CollectionItemPo itemPo = collectionItemMapper.selectOne(new LambdaQueryWrapper<CollectionItemPo>()
-                .eq(CollectionItemPo::getUserId, userId)
-                .eq(CollectionItemPo::getDirectoryId, directoryId)
-                .eq(CollectionItemPo::getVideoId, videoId)
-                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED)
-                .last("limit 1"));
-        if (itemPo == null) {
-            return 0;
-        }
-        itemPo.setIsDeleted(1);
-        collectionItemMapper.updateById(itemPo);
-        videoStatsMapper.updateCollectCount(videoId, -1);
-        return 1;
     }
 
     private void ensureWalletRow(Long userId) {
@@ -1356,7 +1361,7 @@ public class InteractServiceImpl implements InteractService {
             throw new CustomException("视频不存在或未发布");
         }
 
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long myId = getCurrentUserIdOrNull();
         if (Objects.equals(sortType, 1)) {
             return listHotComments(videoId, myId, safePageNum, safePageSize);
         }
@@ -1499,5 +1504,9 @@ public class InteractServiceImpl implements InteractService {
     private long getCommentLikeCount(Map<Long, CommentStatsPo> commentStatsMap, Long commentId) {
         CommentStatsPo statsPo = commentStatsMap.get(commentId);
         return statsPo == null || statsPo.getLikeCount() == null ? 0L : statsPo.getLikeCount();
+    }
+
+    private Long getCurrentUserIdOrNull() {
+        return UserHolderUtil.getUser() == null ? null : UserHolderUtil.getUser().getUserId();
     }
 }

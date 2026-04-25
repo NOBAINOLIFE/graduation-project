@@ -6,16 +6,15 @@ function shouldRedirectToLogin(message) {
   if (!message) return false;
   return (
     message.includes('未登录') ||
-    message.includes('失效') ||
-    message.includes('登录失败')
+    message.includes('失效')
   );
 }
 
-function redirectToLogin() {
-  const currentPath = `${window.location.pathname}${window.location.search}`;
-  if (window.location.pathname === '/manager/login') return;
-  const redirect = encodeURIComponent(currentPath);
-  window.location.href = `/manager/login?redirect=${redirect}`;
+function isAuthFormRequest(path) {
+  return (
+    path === '/graduation-project/user/login' ||
+    path === '/graduation-project/user/register'
+  );
 }
 
 export async function request(path, { method = 'GET', json, formData, params } = {}) {
@@ -57,9 +56,10 @@ export async function request(path, { method = 'GET', json, formData, params } =
 
   const payload = await response.json().catch(() => ({}));
   const failMessage = payload?.message || `HTTP ${response.status}`;
+  const shouldHandleAuthRedirect = !isAuthFormRequest(path);
 
   if (!response.ok || payload?.code !== 0) {
-    if (shouldRedirectToLogin(failMessage)) {
+    if (shouldHandleAuthRedirect && shouldRedirectToLogin(failMessage)) {
       // 根据API类型清除对应的认证
       if (isAdminApi) {
         // 管理后台登录失效，跳转到管理登录页

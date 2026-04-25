@@ -13,15 +13,7 @@ import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
 import com.syt.graduationproject.model.request.TripleActionRequest;
-import com.syt.graduationproject.model.vo.ChatSessionVo;
-import com.syt.graduationproject.model.vo.CoinWalletVo;
-import com.syt.graduationproject.model.vo.CollectionDirectoryVo;
-import com.syt.graduationproject.model.vo.PageVo;
-import com.syt.graduationproject.model.vo.PrivateMessageVo;
-import com.syt.graduationproject.model.vo.ReportVo;
-import com.syt.graduationproject.model.vo.SearchVideoVo;
-import com.syt.graduationproject.model.vo.UserSimpleInfoVo;
-import com.syt.graduationproject.model.vo.CommentVo;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
@@ -130,6 +122,8 @@ public interface InteractService {
     void updateCollectionDirectory(CollectionDirectoryUpdateRequest request);
 
     List<CollectionDirectoryVo> listCollectionDirectories(Long targetUserId);
+
+    List<VideoDirectoryRelationVo> queryVideoDirectoryRelations(Long videoId);
 
     @Transactional(rollbackFor = Exception.class)
     Integer batchOperateCollectionItems(CollectionBatchOperateRequest request);

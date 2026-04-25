@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.syt.graduationproject.mapper.VideoStatsMapper">
+
+    <update id="batchAddVideoCollectCount">
+        UPDATE tb_video_stats
+        SET collect_count = GREATEST(collect_count + #{delta}, 0)
+        WHERE video_id IN
+        <foreach collection="videoIdList" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+</mapper>

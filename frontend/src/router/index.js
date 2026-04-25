@@ -7,7 +7,14 @@ import VideoPlayerPage from '../components/VideoPlayerPage.vue';
 import UserHistoryPage from '../components/UserHistoryPage.vue';
 import ManagerPage from '../components/manager/ManagerPage.vue';
 import ManagerLoginPage from '../components/manager/ManagerLoginPage.vue';
-import { clearAdminAuth, getAdminToken, isAdmin, isUserLoggedIn } from '../utils/auth';
+import {
+  clearAdminAuth,
+  getAdminToken,
+  isAdmin,
+  isUserLoggedIn,
+  openLoginModal,
+  SHOW_LOGIN_MODAL_ONCE_KEY
+} from '../utils/auth';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,7 +27,8 @@ const router = createRouter({
     {
       path: '/user/:userId',
       name: 'user-profile',
-      component: UserProfilePage
+      component: UserProfilePage,
+      meta: { requiresUserAuth: true }
     },
     {
       path: '/video/:id',
@@ -88,21 +96,18 @@ const router = createRouter({
   ]
 });
 
-router.beforeEach((to) => {
-  // 检查是否需要普通用户登录
+router.beforeEach((to, from) => {
   if (to.meta.requiresUserAuth) {
     if (!isUserLoggedIn()) {
-      // 未登录，显示登录弹窗或跳转到首页
-      if (window.location.pathname === '/') {
-        window.dispatchEvent(new CustomEvent('show-login-modal'));
-        return false;
-      } else {
+      if (from.matched.length === 0) {
+        sessionStorage.setItem(SHOW_LOGIN_MODAL_ONCE_KEY, '1');
         return '/';
       }
+      openLoginModal({ redirect: to.fullPath });
+      return false;
     }
   }
 
-  // 检查是否需要管理员登录
   const token = getAdminToken();
   if (to.meta.requiresAuth) {
     if (!token) {

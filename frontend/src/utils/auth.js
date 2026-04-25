@@ -2,6 +2,9 @@
 const USER_TOKEN_KEY = 'user_token';
 const USER_ID_KEY = 'user_id';
 const USERNAME_KEY = 'username';
+export const USER_AUTH_CHANGE_EVENT = 'user-auth-changed';
+export const SHOW_LOGIN_MODAL_EVENT = 'show-login-modal';
+export const SHOW_LOGIN_MODAL_ONCE_KEY = 'show-login-modal-once';
 
 // 管理员认证
 const ADMIN_TOKEN_KEY = 'admin_token';
@@ -32,6 +35,7 @@ export function saveUserLogin(loginData) {
   localStorage.setItem(USER_TOKEN_KEY, loginData?.token || '');
   localStorage.setItem(USER_ID_KEY, String(loginData?.userId || ''));
   localStorage.setItem(USERNAME_KEY, loginData?.username || '');
+  emitUserAuthChanged(true);
 }
 
 /**
@@ -41,6 +45,7 @@ export function setUserAuth(token, userId, username) {
   localStorage.setItem(USER_TOKEN_KEY, token || '');
   localStorage.setItem(USER_ID_KEY, String(userId || ''));
   localStorage.setItem(USERNAME_KEY, username || '');
+  emitUserAuthChanged(Boolean(token));
 }
 
 /**
@@ -65,6 +70,23 @@ export function clearUserAuth() {
   localStorage.removeItem(USER_TOKEN_KEY);
   localStorage.removeItem(USER_ID_KEY);
   localStorage.removeItem(USERNAME_KEY);
+  emitUserAuthChanged(false);
+}
+
+function emitUserAuthChanged(isLoggedIn) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(USER_AUTH_CHANGE_EVENT, {
+    detail: {
+      isLoggedIn,
+      userId: getUserId(),
+      username: getUsername()
+    }
+  }));
+}
+
+export function openLoginModal(detail = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SHOW_LOGIN_MODAL_EVENT, { detail }));
 }
 
 // ==================== 管理员认证 ====================

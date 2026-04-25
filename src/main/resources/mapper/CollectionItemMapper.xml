@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.syt.graduationproject.mapper.CollectionItemMapper">
+
+    <!-- 批量添加（存在则恢复） -->
+    <insert id="batchCollectVideo">
+        INSERT INTO tb_collection_item (
+        directory_id,
+        user_id,
+        video_id,
+        is_deleted
+        )
+        VALUES
+        <foreach collection="videoIdList" item="videoId" separator=",">
+            (
+            #{directoryId},
+            #{userId},
+            #{videoId},
+            0
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        is_deleted = 0,
+        update_time = CURRENT_TIMESTAMP
+    </insert>
+
+
+    <!-- 批量删除（逻辑删除） -->
+    <update id="batchCancelCollectVideo">
+        UPDATE tb_collection_item
+        SET is_deleted = 1,
+        update_time = CURRENT_TIMESTAMP
+        WHERE directory_id = #{directoryId}
+        AND user_id = #{userId}
+        AND is_deleted = 0
+        AND video_id IN
+        <foreach collection="videoIdList" item="videoId" open="(" separator="," close=")">
+            #{videoId}
+        </foreach>
+    </update>
+
+</mapper>

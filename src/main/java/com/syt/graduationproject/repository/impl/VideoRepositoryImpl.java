@@ -225,4 +225,12 @@ public class VideoRepositoryImpl implements VideoRepository {
                 .collect(Collectors.toList());
         return videoTagMapper.selectBatchIds(tagIdList);
     }
+
+    /**
+     * 批量增加视频收藏数
+     */
+    @Override
+    public int batchAddVideoCollectCount(List<Long> videoIdList, Long delta) {
+        return videoStatsMapper.batchAddVideoCollectCount(videoIdList, delta);
+    }
 }

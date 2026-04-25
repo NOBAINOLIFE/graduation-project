@@ -130,7 +130,9 @@
                   :rows="3"
                   maxlength="500"
                   show-word-limit
-                  placeholder="发条友善的评论吧"
+                  :readonly="!viewerLoggedIn"
+                  :placeholder="viewerLoggedIn ? '发条友善的评论吧' : '登录后参与评论互动'"
+                  @focus="handleCommentFocus"
                 />
                 <div class="mt-3 flex justify-end">
                   <el-button
@@ -191,7 +193,7 @@
                         <el-icon><CaretTop /></el-icon>
                         <span>{{ formatCount(comment.likeCount) }}</span>
                       </button>
-                      <button class="transition-colors hover:text-[#00a1d6]" @click="showReplyTip">
+                      <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply">
                         回复
                       </button>
                     </div>
@@ -262,47 +264,45 @@
             暂无可用收藏夹
           </div>
 
-          <label
+          <button
             v-for="directory in collectDialog.directories"
             :key="directory.directoryId"
-            class="flex cursor-pointer items-center justify-between gap-6 border-b border-gray-100 px-1 py-7 transition hover:bg-gray-50/80"
+            class="flex w-full items-center justify-between gap-6 border-b border-gray-100 px-1 py-7 text-left transition hover:bg-gray-50/80"
+            type="button"
+            @click="toggleCollectDirectorySelection(directory.directoryId)"
           >
             <div class="flex min-w-0 items-center gap-8">
               <span
                 class="flex h-8 w-8 items-center justify-center rounded border transition"
-                :class="collectDialog.selectedDirectoryId === directory.directoryId ? 'border-[#00a1d6] bg-[#00a1d6]/10' : 'border-[#cfd6df] bg-white'"
+                :class="isCollectDialogSelected(directory.directoryId) ? 'border-[#00a1d6] bg-[#00a1d6]/10' : 'border-[#cfd6df] bg-white'"
               >
                 <span
-                  v-if="collectDialog.selectedDirectoryId === directory.directoryId"
+                  v-if="isCollectDialogSelected(directory.directoryId)"
                   class="h-4 w-4 rounded-sm bg-[#00a1d6]"
                 ></span>
               </span>
               <div class="min-w-0">
                 <p class="text-[1.125rem] font-medium text-gray-900">
-                  {{ directory.name }}
-                  <span v-if="directory.isPublic === 0" class="ml-1 text-gray-400">[私密]</span>
+                  {{ directory.directoryName }}
+                  <span v-if="!directory.isPublic" class="ml-1 text-gray-400">[私密]</span>
                   <span v-else class="ml-1 text-gray-400">[公开]</span>
+                </p>
+                <p class="mt-2 text-sm text-gray-400">
+                  {{ isCollectDialogSelected(directory.directoryId) ? '已选择' : '未选择' }}
                 </p>
               </div>
             </div>
             <div class="shrink-0 text-right text-[1.125rem] text-gray-500">
-              {{ formatCollectionDirectoryCount(directory.itemCount) }}
+              <span v-if="directory.isDefault" class="rounded-full bg-[#eef7ff] px-3 py-1 text-sm text-[#00a1d6]">默认收藏夹</span>
             </div>
-            <input
-              v-model="collectDialog.selectedDirectoryId"
-              type="radio"
-              class="sr-only"
-              name="collection-directory"
-              :value="directory.directoryId"
-            />
-          </label>
+          </button>
         </div>
 
         <div class="mt-8 border-t border-gray-100 pt-7 text-center">
           <button
             class="min-w-[240px] rounded-lg px-8 py-4 text-xl font-medium transition"
-            :class="collectDialog.selectedDirectoryId ? 'bg-[#00a1d6] text-white hover:bg-[#00b5e5]' : 'bg-gray-200 text-gray-400'"
-            :disabled="collectDialog.submitting || !collectDialog.selectedDirectoryId"
+            :class="collectDialogHasChanges ? 'bg-[#00a1d6] text-white hover:bg-[#00b5e5]' : 'bg-gray-200 text-gray-400'"
+            :disabled="collectDialog.submitting || !collectDialogHasChanges"
             @click="submitCollectSelection"
           >
             {{ collectDialog.submitting ? '提交中...' : '确定' }}
@@ -400,14 +400,22 @@ import {
   getVideoDetail,
   likeComment,
   likeVideo,
+  queryVideoDirectoryRelations,
   reportVideoProgress,
   submitVideoComment
 } from '../api/video';
-import { createCollectionDirectory, listCollectionDirectories, listCollectionItems } from '../api/user';
-import { getUserId, getUsername } from '../utils/auth';
+import {
+  getUserId,
+  getUsername,
+  isUserLoggedIn,
+  openLoginModal,
+  USER_AUTH_CHANGE_EVENT
+} from '../utils/auth';
 
 const route = useRoute();
 const router = useRouter();
+const viewerLoggedIn = ref(isUserLoggedIn());
+const currentUsername = ref(getUsername());
 
 const loading = ref(false);
 const commentLoading = ref(false);
@@ -429,7 +437,8 @@ const collectDialog = reactive({
   loading: false,
   submitting: false,
   directories: [],
-  selectedDirectoryId: null
+  selectedDirectoryIds: [],
+  initialSelectedDirectoryIds: []
 });
 
 const coinDialog = reactive({
@@ -454,10 +463,16 @@ const actionLoading = reactive({
 const videoInfo = ref(createDefaultVideoInfo());
 
 const videoSources = computed(() => videoInfo.value.videoSourceList || []);
-const currentUsernameInitial = computed(() => (getUsername() || 'U').slice(0, 1));
+const currentUsernameInitial = computed(() => (currentUsername.value || 'U').slice(0, 1));
 const isSelfVideo = computed(() => {
   const userId = getUserId();
   return Boolean(userId && videoInfo.value.userId && userId === videoInfo.value.userId);
+});
+const collectDialogHasChanges = computed(() => {
+  const current = [...collectDialog.selectedDirectoryIds].sort((a, b) => a - b);
+  const initial = [...collectDialog.initialSelectedDirectoryIds].sort((a, b) => a - b);
+  if (current.length !== initial.length) return true;
+  return current.some((id, index) => id !== initial[index]);
 });
 
 function createDefaultVideoInfo() {
@@ -551,6 +566,7 @@ async function loadComments(isLoadMore = false) {
 }
 
 async function submitComment() {
+  if (!ensureLoggedIn('登录后才可以发表评论')) return;
   const content = commentContent.value.trim();
   if (!content) return;
   commentSubmitting.value = true;
@@ -576,6 +592,7 @@ async function submitComment() {
 }
 
 async function handleLike() {
+  if (!ensureLoggedIn('登录后可点赞视频')) return;
   if (actionLoading.like) return;
   actionLoading.like = true;
   const nextIsLike = !videoInfo.value.isLike;
@@ -597,6 +614,7 @@ async function handleLike() {
 }
 
 async function handleCoin() {
+  if (!ensureLoggedIn('登录后可给视频投币')) return;
   if (actionLoading.coin) return;
   coinDialog.visible = true;
   coinDialog.amount = videoInfo.value.isCoin ? 1 : 2;
@@ -649,44 +667,27 @@ async function submitCoinSelection() {
 }
 
 async function ensureCollectDialogDirectories() {
-  const directories = await listCollectionDirectories();
-  if (Array.isArray(directories) && directories.length > 0) {
-    return directories;
-  }
-
-  const newDirectoryId = await createCollectionDirectory({
-    name: '默认收藏夹',
-    description: '播放页自动创建的默认收藏夹',
-    coverUrl: '',
-    isPublic: 0
-  });
-  return [{
-    directoryId: newDirectoryId,
-    name: '默认收藏夹',
-    description: '播放页自动创建的默认收藏夹',
-    coverUrl: '',
-    isPublic: 0,
-    isDefault: true,
-    itemCount: 0
-  }];
+  const relations = await queryVideoDirectoryRelations(currentVideoId.value);
+  return Array.isArray(relations) ? relations : [];
 }
 
 async function handleCollect() {
-  if (actionLoading.collect) return;
-  if (videoInfo.value.isCollect) {
-    await cancelCollectedVideo();
-    return;
-  }
+  if (!ensureLoggedIn('登录后可收藏视频')) return;
+  if (actionLoading.collect || !currentVideoId.value) return;
 
   collectDialog.visible = true;
   collectDialog.loading = true;
   collectDialog.directories = [];
-  collectDialog.selectedDirectoryId = null;
+  collectDialog.selectedDirectoryIds = [];
+  collectDialog.initialSelectedDirectoryIds = [];
   try {
     const directories = await ensureCollectDialogDirectories();
     collectDialog.directories = directories;
-    const defaultDirectory = directories.find(item => item.isDefault) || directories[0];
-    collectDialog.selectedDirectoryId = defaultDirectory?.directoryId ?? null;
+    const collectedIds = directories
+      .filter(item => item.isCollect)
+      .map(item => Number(item.directoryId));
+    collectDialog.selectedDirectoryIds = [...collectedIds];
+    collectDialog.initialSelectedDirectoryIds = [...collectedIds];
   } catch (error) {
     console.error('加载收藏夹失败:', error);
     ElMessage.error(error.message || '加载收藏夹失败');
@@ -696,83 +697,66 @@ async function handleCollect() {
   }
 }
 
-async function resolveCollectedDirectoryIds(videoId) {
-  const directories = await listCollectionDirectories();
-  if (!Array.isArray(directories) || directories.length === 0) {
-    return [];
-  }
-
-  const collectedResults = await Promise.all(
-    directories.map(async (directory) => {
-      const items = await listCollectionItems(directory.directoryId, 1);
-      const matched = Array.isArray(items) && items.some(item => Number(item.videoId) === Number(videoId));
-      return matched ? directory.directoryId : null;
-    })
-  );
-
-  return collectedResults.filter(Boolean);
+function isCollectDialogSelected(directoryId) {
+  return collectDialog.selectedDirectoryIds.includes(Number(directoryId));
 }
 
-async function cancelCollectedVideo() {
-  if (!currentVideoId.value) return;
-  actionLoading.collect = true;
-  try {
-    const matchedDirectoryIds = await resolveCollectedDirectoryIds(currentVideoId.value);
-    if (matchedDirectoryIds.length === 0) {
-      videoInfo.value.isCollect = false;
-      ElMessage.info('当前视频没有可取消的收藏记录');
-      return;
-    }
-
-    await Promise.all(
-      matchedDirectoryIds.map((directoryId) => collectVideo({
-        videoId: currentVideoId.value,
-        collectionDirectoryId: directoryId,
-        operation: 0
-      }))
-    );
-
-    videoInfo.value.isCollect = false;
-    videoInfo.value.collectCount = Math.max(0, Number(videoInfo.value.collectCount || 0) - matchedDirectoryIds.length);
-    ElMessage.success('已取消收藏');
-  } catch (error) {
-    console.error('取消收藏失败:', error);
-    ElMessage.error(error.message || '取消收藏失败');
-  } finally {
-    actionLoading.collect = false;
+function toggleCollectDirectorySelection(directoryId) {
+  if (collectDialog.submitting) return;
+  const normalizedId = Number(directoryId);
+  if (isCollectDialogSelected(normalizedId)) {
+    collectDialog.selectedDirectoryIds = collectDialog.selectedDirectoryIds.filter(id => id !== normalizedId);
+    return;
   }
+  collectDialog.selectedDirectoryIds = [...collectDialog.selectedDirectoryIds, normalizedId];
 }
 
 function closeCollectDialog() {
   if (collectDialog.submitting) return;
   collectDialog.visible = false;
+  collectDialog.directories = [];
+  collectDialog.selectedDirectoryIds = [];
+  collectDialog.initialSelectedDirectoryIds = [];
 }
 
 async function submitCollectSelection() {
-  if (actionLoading.collect || !collectDialog.selectedDirectoryId || !currentVideoId.value) return;
+  if (actionLoading.collect || !currentVideoId.value) return;
+
+  const initialSelectedDirectoryIds = [...collectDialog.initialSelectedDirectoryIds];
+  const selectedDirectoryIds = [...collectDialog.selectedDirectoryIds];
+  const initialDirectorySet = new Set(initialSelectedDirectoryIds.map(Number));
+  const currentDirectorySet = new Set(selectedDirectoryIds.map(Number));
+  const collectDirectoryIdList = [...currentDirectorySet].filter(id => !initialDirectorySet.has(id));
+  const removeDirectoryIdList = [...initialDirectorySet].filter(id => !currentDirectorySet.has(id));
+
+  if (collectDirectoryIdList.length === 0 && removeDirectoryIdList.length === 0) {
+    closeCollectDialog();
+    return;
+  }
+
+  closeCollectDialog();
   actionLoading.collect = true;
   collectDialog.submitting = true;
   try {
+    const beforeCollect = initialSelectedDirectoryIds.length > 0;
     await collectVideo({
       videoId: currentVideoId.value,
-      collectionDirectoryId: collectDialog.selectedDirectoryId,
-      operation: 1
+      collectDirectoryIdList,
+      removeDirectoryIdList
     });
-    if (!videoInfo.value.isCollect) {
-      videoInfo.value.isCollect = true;
+
+    const afterCollect = selectedDirectoryIds.length > 0;
+    videoInfo.value.isCollect = afterCollect;
+    if (!beforeCollect && afterCollect) {
       videoInfo.value.collectCount = Number(videoInfo.value.collectCount || 0) + 1;
+    } else if (beforeCollect && !afterCollect) {
+      videoInfo.value.collectCount = Math.max(0, Number(videoInfo.value.collectCount || 0) - 1);
     }
 
-    const targetDirectory = collectDialog.directories.find(item => item.directoryId === collectDialog.selectedDirectoryId);
-    if (targetDirectory) {
-      targetDirectory.itemCount = Number(targetDirectory.itemCount || 0) + 1;
-    }
-
-    collectDialog.visible = false;
-    ElMessage.success('已添加到收藏夹');
+    ElMessage.success('收藏夹已更新');
   } catch (error) {
-    console.error('收藏失败:', error);
-    ElMessage.error(error.message || '收藏失败');
+    console.error('更新收藏夹失败:', error);
+    ElMessage.error(error.message || '更新收藏夹失败');
   } finally {
     collectDialog.submitting = false;
     actionLoading.collect = false;
@@ -780,6 +764,7 @@ async function submitCollectSelection() {
 }
 
 async function handleFollow() {
+  if (!ensureLoggedIn('登录后可关注 UP 主')) return;
   if (isSelfVideo.value || actionLoading.follow || !videoInfo.value.userId) return;
   actionLoading.follow = true;
   const nextIsFollow = !videoInfo.value.isFollow;
@@ -800,6 +785,7 @@ async function handleFollow() {
 }
 
 async function handleLikeComment(comment) {
+  if (!ensureLoggedIn('登录后可点赞评论')) return;
   if (!comment?.commentId) return;
   const nextIsLike = !comment.isLike;
   try {
@@ -829,11 +815,13 @@ function handleShare() {
   ElMessage.info(url);
 }
 
-function showReplyTip() {
+function handleReply() {
+  if (!ensureLoggedIn('登录后可参与评论回复')) return;
   ElMessage.info('当前版本先支持一级评论，楼中楼回复后续可以继续补');
 }
 
 function goToUserProfile() {
+  if (!ensureLoggedIn('登录后可查看用户主页')) return;
   if (!videoInfo.value.userId) return;
   router.push(`/user/${videoInfo.value.userId}`);
 }
@@ -857,6 +845,7 @@ async function handleSeekCommit(payload) {
 }
 
 async function reportProgress(seconds, force) {
+  if (!viewerLoggedIn.value) return;
   if (reportInFlight.value || !currentVideoId.value || !seconds) return;
   if (!force && seconds - lastReportedTime.value < 15) return;
 
@@ -875,6 +864,7 @@ async function reportProgress(seconds, force) {
 }
 
 async function flushProgressBeforeLeave() {
+  if (!viewerLoggedIn.value) return;
   if (!currentVideoId.value) return;
   const seconds = Math.floor(appVideoPlayerRef.value?.getCurrentTime?.() || 0);
   if (seconds > 0) {
@@ -887,11 +877,6 @@ function formatCount(count) {
   if (value >= 100000000) return `${(value / 100000000).toFixed(1)}亿`;
   if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
   return `${value}`;
-}
-
-function formatCollectionDirectoryCount(count) {
-  const value = Number(count || 0);
-  return `${value}/1000`;
 }
 
 function formatDuration(seconds) {
@@ -933,6 +918,30 @@ function formatDate(dateStr) {
   });
 }
 
+function syncViewerAuth(event) {
+  viewerLoggedIn.value = event?.detail?.isLoggedIn ?? isUserLoggedIn();
+  currentUsername.value = event?.detail?.username ?? getUsername();
+}
+
+function promptLogin(message) {
+  openLoginModal({ source: 'video-player' });
+  if (message) {
+    ElMessage.info(message);
+  }
+}
+
+function ensureLoggedIn(message) {
+  if (viewerLoggedIn.value) return true;
+  promptLogin(message);
+  return false;
+}
+
+function handleCommentFocus() {
+  if (!viewerLoggedIn.value) {
+    promptLogin('登录后才可以发表评论');
+  }
+}
+
 async function loadPage() {
   comments.value = [];
   commentTotal.value = 0;
@@ -959,11 +968,14 @@ watch(
 );
 
 onMounted(() => {
+  syncViewerAuth();
+  window.addEventListener(USER_AUTH_CHANGE_EVENT, syncViewerAuth);
   loadPage();
 });
 
 onBeforeUnmount(() => {
   flushProgressBeforeLeave();
+  window.removeEventListener(USER_AUTH_CHANGE_EVENT, syncViewerAuth);
 });
 </script>
 

@@ -38,9 +38,8 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
-        // 若url中含有login或register则放行
         String uri = request.getRequestURI();
-        if (uri.equals("/graduation-project/user/login") || uri.equals("/graduation-project/user/register")) {
+        if (isPublicPath(uri)) {
             return true;
         }
 
@@ -122,6 +121,16 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
 
     private boolean isManagerAllowedPath(String uri) {
         return uri.startsWith("/graduation-project/manager") || uri.equals("/graduation-project/user/logout");
+    }
+
+    private boolean isPublicPath(String uri) {
+        return uri.equals("/graduation-project/user/login")
+                || uri.equals("/graduation-project/user/register")
+                || uri.equals("/graduation-project/video/partitions")
+                || uri.equals("/graduation-project/video/videoPlayList")
+                || uri.startsWith("/graduation-project/video/videoInfo/")
+                || uri.equals("/graduation-project/interact/comment/list")
+                || uri.equals("/graduation-project/search/video");
     }
 
     private boolean hasPermission(Object handler, UserDto userDto) {

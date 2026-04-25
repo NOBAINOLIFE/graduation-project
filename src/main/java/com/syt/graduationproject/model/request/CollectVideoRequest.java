@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -13,7 +16,7 @@ public class CollectVideoRequest {
 
     private Long videoId;
 
-    private Long collectionDirectoryId;
+    private List<Long> collectDirectoryIdList;
 
-    private Integer operation;
+    private List<Long> removeDirectoryIdList;
 }

@@ -2,16 +2,20 @@ package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.syt.graduationproject.mapper.CollectionDirectoryMapper;
 import com.syt.graduationproject.mapper.CollectionItemMapper;
 import com.syt.graduationproject.mapper.FollowRecordMapper;
 import com.syt.graduationproject.mapper.UserStatsMapper;
+import com.syt.graduationproject.model.po.CollectionDirectoryPo;
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
 import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.repository.InteractRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collections;
 import java.util.List;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
@@ -25,6 +29,8 @@ public class InteractRepositoryImpl implements InteractRepository {
     private final UserStatsMapper userStatsMapper;
 
     private final CollectionItemMapper collectionItemMapper;
+
+    private final CollectionDirectoryMapper collectionDirectoryMapper;
 
     /**
      * 查询两者关注关系
@@ -118,8 +124,11 @@ public class InteractRepositoryImpl implements InteractRepository {
         userStatsMapper.insert(userStatsPo);
     }
 
+    /**
+     * 查询用户收藏记录（不管是否删除）
+     */
     @Override
-    public List<CollectionItemPo> queryUserCollectVideoId(Long userId, Long videoId, Long directoryId) {
+    public List<CollectionItemPo> queryUserCollectRecord(Long userId, Long videoId, Long directoryId) {
         LambdaQueryWrapper<CollectionItemPo> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(CollectionItemPo::getUserId, userId);
         if (videoId != null) {
@@ -129,5 +138,56 @@ public class InteractRepositoryImpl implements InteractRepository {
             queryWrapper.eq(CollectionItemPo::getDirectoryId, directoryId);
         }
         return collectionItemMapper.selectList(queryWrapper);
+    }
+
+    @Override
+    public List<CollectionDirectoryPo> queryUserCollectionDirectory(Long userId) {
+        return collectionDirectoryMapper.selectList(new LambdaQueryWrapper<CollectionDirectoryPo>()
+                .eq(CollectionDirectoryPo::getUserId, userId)
+                .eq(CollectionDirectoryPo::getIsDeleted, NOT_DELETED));
+    }
+
+    @Override
+    public List<CollectionItemPo> queryUserCollectionItemWithVideo(Long userId, Long videoId) {
+        return collectionItemMapper.selectList(new LambdaQueryWrapper<CollectionItemPo>()
+                .eq(CollectionItemPo::getUserId, userId)
+                .eq(CollectionItemPo::getVideoId, videoId)
+                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED));
+    }
+
+    /**
+     * 判断用户是否收藏某视频
+     */
+    @Override
+    public boolean isCollectVideo(Long userId, Long videoId) {
+        return collectionItemMapper.selectOne(new LambdaQueryWrapper<CollectionItemPo>()
+                .eq(CollectionItemPo::getUserId, userId)
+                .eq(CollectionItemPo::getVideoId, videoId)
+                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED)
+                .last("LIMIT 1")) != null;
+    }
+
+    @Override
+    public List<CollectionDirectoryPo> batchQueryUserCollectionDirectory(Long userId, List<Long> directoryIdList) {
+        return collectionDirectoryMapper.selectList(new LambdaQueryWrapper<CollectionDirectoryPo>()
+                .eq(CollectionDirectoryPo::getUserId, userId)
+                .in(CollectionUtils.isNotEmpty(directoryIdList), CollectionDirectoryPo::getId, directoryIdList)
+                .eq(CollectionDirectoryPo::getIsDeleted, NOT_DELETED));
+    }
+
+    /**
+     * 批量往一个收藏夹内添加视频
+     */
+    @Override
+    public int batchCollectVideo(Long userId, Long directoryId, List<Long> videoIdList) {
+        return collectionItemMapper.batchCollectVideo(userId, directoryId, videoIdList);
+    }
+
+    /**
+     * 批量取消收藏一个收藏夹内的视频
+     */
+    @Override
+    public int batchCancelCollectVideo(Long userId, Long directoryId, List<Long> videoIdList) {
+        return collectionItemMapper.batchCancelCollectVideo(userId, directoryId, videoIdList);
     }
 }

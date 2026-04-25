@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+
 @Mapper
 public interface VideoStatsMapper extends BaseMapper<VideoStatsPo> {
 
@@ -32,4 +34,7 @@ public interface VideoStatsMapper extends BaseMapper<VideoStatsPo> {
 
     @Update("UPDATE tb_video_stats SET play_count = GREATEST(play_count + #{delta}, 0) WHERE video_id = #{videoId} AND is_deleted = 0")
     int updatePlayCount(@Param("videoId") Long videoId, @Param("delta") Long delta);
+
+    int batchAddVideoCollectCount(@Param("videoIdList") List<Long> videoIdList,
+                                  @Param("delta") Long delta);
 }
