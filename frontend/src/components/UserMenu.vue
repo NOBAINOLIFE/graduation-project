@@ -89,25 +89,6 @@
           <span>投稿管理</span>
         </button>
 
-        <button
-          class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-          @click="goToHistory"
-        >
-          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <span>历史记录</span>
-        </button>
-
-        <button
-          class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-          @click="goToCollections"
-        >
-          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
-          </svg>
-          <span>我的收藏</span>
-        </button>
       </div>
 
       <!-- 退出登录 -->
@@ -214,20 +195,6 @@ function goToFollowers() {
 function goToFollowing() {
   // TODO: 实现关注列表路由
   console.log('跳转到关注列表');
-  showMenu.value = false;
-}
-
-// 跳转到历史记录
-function goToHistory() {
-  // TODO: 实现历史记录路由
-  console.log('跳转到历史记录');
-  showMenu.value = false;
-}
-
-// 跳转到收藏
-function goToCollections() {
-  // TODO: 实现收藏路由
-  console.log('跳转到收藏');
   showMenu.value = false;
 }
 

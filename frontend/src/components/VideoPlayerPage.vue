@@ -44,6 +44,7 @@
                 autoplay
                 @timeupdate="handlePlaybackTimeUpdate"
                 @ended="handleVideoEnded"
+                @seek-commit="handleSeekCommit"
               />
             </div>
           </section>
@@ -846,6 +847,12 @@ async function handlePlaybackTimeUpdate(payload) {
 async function handleVideoEnded(payload) {
   const seconds = Math.floor(payload?.duration || payload?.currentTime || 0);
   if (!seconds) return;
+  await reportProgress(seconds, true);
+}
+
+async function handleSeekCommit(payload) {
+  const seconds = Math.floor(payload?.currentTime || 0);
+  if (seconds <= 0) return;
   await reportProgress(seconds, true);
 }
 

@@ -122,7 +122,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { isUserLoggedIn } from '../utils/auth';
+import { getUserId, isUserLoggedIn } from '../utils/auth';
 import UserMenu from './UserMenu.vue';
 import LoginModal from './LoginModal.vue';
 
@@ -156,6 +156,23 @@ function goToCreator() {
 
 function goToSubmit() {
   router.push('/creator/upload');
+}
+
+function goToHistory() {
+  router.push('/history');
+}
+
+function goToCollection() {
+  const userId = getUserId();
+  if (!userId) return;
+  router.push({
+    path: `/user/${userId}`,
+    query: { tab: 'favorites' }
+  });
+}
+
+function goToMessage() {
+  console.log('跳转到消息页');
 }
 </script>
 

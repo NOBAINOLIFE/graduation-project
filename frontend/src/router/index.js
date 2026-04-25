@@ -4,7 +4,8 @@ import UserProfilePage from '../components/UserProfilePage.vue';
 import CreatorCenter from '../components/CreatorCenter.vue';
 import VideoSubmitPage from '../components/VideoSubmitPage.vue';
 import VideoPlayerPage from '../components/VideoPlayerPage.vue';
-import ManagerPage from '../components/ManagerPage.vue';
+import UserHistoryPage from '../components/UserHistoryPage.vue';
+import ManagerPage from '../components/manager/ManagerPage.vue';
 import ManagerLoginPage from '../components/manager/ManagerLoginPage.vue';
 import { clearAdminAuth, getAdminToken, isAdmin, isUserLoggedIn } from '../utils/auth';
 
@@ -25,6 +26,12 @@ const router = createRouter({
       path: '/video/:id',
       name: 'video-player',
       component: VideoPlayerPage
+    },
+    {
+      path: '/history',
+      name: 'user-history',
+      component: UserHistoryPage,
+      meta: { requiresUserAuth: true }
     },
     {
       path: '/creator',

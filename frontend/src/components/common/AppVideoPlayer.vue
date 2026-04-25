@@ -81,6 +81,7 @@
               step="0.1"
               :value="playerState.currentTime"
               @input="seekToValue($event)"
+              @change="commitSeekValue($event)"
             />
           </div>
         </div>
@@ -229,6 +230,7 @@ const emit = defineEmits([
   'ended',
   'play',
   'pause',
+  'seek-commit',
   'source-change',
   'error',
   'loadedmetadata'
@@ -620,6 +622,16 @@ function seekTo(seconds) {
 
 function seekToValue(event) {
   seekTo(Number(event?.target?.value || 0));
+}
+
+function commitSeekValue(event) {
+  const seconds = Number(event?.target?.value || 0);
+  seekTo(seconds);
+  emit('seek-commit', {
+    currentTime: Number(playerRef.value?.currentTime || seconds || 0),
+    duration: playerState.value.duration,
+    sourceIndex: activeSourceIndex.value
+  });
 }
 
 function handleLoadedMetadata() {

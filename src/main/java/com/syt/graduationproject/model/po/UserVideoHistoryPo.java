@@ -58,25 +58,19 @@ public class UserVideoHistoryPo {
     private Integer isFinished;
 
     /**
-     * 该用户看该视频的次数
-     */
-    @TableField(value = "view_count")
-    private Integer viewCount;
-
-    /**
      * 状态 0-未删除 1-已删除
      */
     @TableField(value = "is_deleted")
     private Integer isDeleted;
 
     /**
-     * 第一次看的时间
+     * 创建时间
      */
     @TableField(value = "create_time")
     private LocalDateTime createTime;
 
     /**
-     * 最后一次看的时间
+     * 更新时间
      */
     @TableField(value = "update_time")
     private LocalDateTime updateTime;

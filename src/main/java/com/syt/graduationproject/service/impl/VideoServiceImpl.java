@@ -15,6 +15,7 @@ import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
+import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.model.es.VideoEsDoc;
@@ -388,5 +389,43 @@ public class VideoServiceImpl implements VideoService {
     public List<SearchVideoVo> getVideoPlayList(Long lastVideoId) {
         List<VideoEsDoc> docs = searchRepository.listVideoPlayList(lastVideoId, HOME_PAGE_VIDEO_LIST_SIZE);
         return docs.stream().map(searchConverter::toSearchVideoVo).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserVideoHistoryVo> listUserVideoHistory(Integer pageNum, Integer pageSize) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        int safePageNum = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int safePageSize = pageSize == null ? 20 : Math.min(Math.max(pageSize, 1), 50);
+
+        List<UserVideoHistoryPo> historyList = videoRepository.batchQueryUserVideoHistory(userId, safePageNum, safePageSize);
+        if (CollectionUtils.isEmpty(historyList)) {
+            return Collections.emptyList();
+        }
+
+        List<UserVideoHistoryVo> result = new ArrayList<>();
+        for (UserVideoHistoryPo historyPo : historyList) {
+            if (historyPo == null || historyPo.getVideoId() == null) {
+                continue;
+            }
+
+            VideoPo videoPo = videoRepository.queryVideoById(historyPo.getVideoId());
+            if (videoPo == null) {
+                continue;
+            }
+
+            UserPo userPo = userRepository.queryUserById(videoPo.getUserId());
+            result.add(UserVideoHistoryVo.builder()
+                    .videoId(videoPo.getId())
+                    .title(videoPo.getTitle())
+                    .userId(videoPo.getUserId())
+                    .username(userPo == null ? "未知用户" : userPo.getUsername())
+                    .coverUrl(videoPo.getCoverUrl())
+                    .duration(videoPo.getDuration() == null ? historyPo.getDuration() : videoPo.getDuration())
+                    .lastPlayTime(historyPo.getLastPlayTime())
+                    .isFinished(historyPo.getIsFinished())
+                    .historyTime(historyPo.getUpdateTime())
+                    .build());
+        }
+        return result;
     }
 }

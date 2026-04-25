@@ -52,9 +52,9 @@
 
 <script setup>
 import { ref } from 'vue';
-import ManagerReportTab from './manager/ManagerReportTab.vue';
-import ManagerVideoAuditTab from './manager/ManagerVideoAuditTab.vue';
-import AdminMenu from './manager/AdminMenu.vue';
+import ManagerReportTab from './ManagerReportTab.vue';
+import ManagerVideoAuditTab from './ManagerVideoAuditTab.vue';
+import AdminMenu from './AdminMenu.vue';
 
 const activeTab = ref('videoAudit');
 </script>

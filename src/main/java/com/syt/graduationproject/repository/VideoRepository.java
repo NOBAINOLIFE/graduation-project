@@ -35,7 +35,7 @@ public interface VideoRepository {
     /**
      * 批量查询用户视频播放记录
      */
-    List<UserVideoHistoryPo> batchQueryUserVideoHistory(Long userId);
+    List<UserVideoHistoryPo> batchQueryUserVideoHistory(Long userId, Integer pageNum, Integer pageSize);
 
     /**
      * 查询视频播放源

@@ -5,6 +5,7 @@ import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
+import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.service.VideoService;
@@ -89,6 +90,24 @@ public class VideoController {
         } catch (Exception e) {
             log.error("上报视频播放进度失败，request:{}", request, e);
             return Response.fail("上报视频播放进度失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询当前用户的历史记录
+     */
+    @GetMapping("/history")
+    public Response<List<UserVideoHistoryVo>> listUserVideoHistory(
+            @RequestParam(value = "pageNum", required = false) Integer pageNum,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        try {
+            return Response.success(videoService.listUserVideoHistory(pageNum, pageSize));
+        } catch (CustomException e) {
+            log.warn("查询历史记录失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询历史记录失败", e);
+            return Response.fail("查询历史记录失败，系统异常");
         }
     }
 

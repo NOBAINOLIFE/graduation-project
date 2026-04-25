@@ -3,6 +3,7 @@ package com.syt.graduationproject.repository.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
@@ -101,12 +102,14 @@ public class VideoRepositoryImpl implements VideoRepository {
      * 批量查询用户观看历史
      */
     @Override
-    public List<UserVideoHistoryPo> batchQueryUserVideoHistory(Long userId) {
+    public List<UserVideoHistoryPo> batchQueryUserVideoHistory(Long userId, Integer pageNum, Integer pageSize) {
+        Page<UserVideoHistoryPo> page = new Page<>(pageNum, pageSize);
         QueryWrapper<UserVideoHistoryPo> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda()
                 .eq(UserVideoHistoryPo::getUserId, userId)
-                .eq(UserVideoHistoryPo::getIsDeleted, NOT_DELETED);
-        return userVideoHistoryMapper.selectList(queryWrapper);
+                .eq(UserVideoHistoryPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(UserVideoHistoryPo::getUpdateTime, UserVideoHistoryPo::getId);
+        return userVideoHistoryMapper.selectPage(page, queryWrapper).getRecords();
     }
 
     @Override

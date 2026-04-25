@@ -27,6 +27,8 @@ public class UserInfoVo {
 
     private Long likeNum;
 
+    private Long playNum;
+
     private Boolean isFollow;
 
     private Boolean isFans;

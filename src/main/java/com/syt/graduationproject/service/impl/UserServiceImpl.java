@@ -11,6 +11,7 @@ import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.po.CollectionDirectoryPo;
 import com.syt.graduationproject.model.po.UserPo;
 import com.syt.graduationproject.model.po.UserRolePo;
+import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
 import com.syt.graduationproject.model.request.UserInfoUpdateRequest;
@@ -200,10 +201,14 @@ public class UserServiceImpl implements UserService {
         userInfoVo.setIsFans(followBo.getIsFans());
 
         // 查询各种数量
-        userInfoVo.setVideoNum(videoRepository.queryUserVideoNum(userId));
-        userInfoVo.setFansNum(interactRepository.queryUserFansNum(userId));
-        userInfoVo.setFollowNum(interactRepository.queryUserFollowNum(userId));
-        userInfoVo.setLikeNum(interactRepository.queryUserLikeNum(userId));
+        UserStatsPo userStatsPo = userRepository.queryUserStatsById(userId);
+        userInfoVo.setVideoNum(userStatsPo.getVideoNum());
+        userInfoVo.setFansNum(userStatsPo.getFansNum());
+        userInfoVo.setFollowNum(userStatsPo.getFollowNum());
+        userInfoVo.setLikeNum(userStatsPo.getLikeNum());
+        userInfoVo.setPlayNum(userStatsPo.getPlayNum());
+
+        // 设置黑名单
         userInfoVo.setIsBlack(interactService.hasMutualBlock(myId, userId));
 
         return userInfoVo;

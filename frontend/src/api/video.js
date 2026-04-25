@@ -20,6 +20,13 @@ export function reportVideoProgress(payload) {
   });
 }
 
+export function getUserVideoHistory(pageNum = 1, pageSize = 20) {
+  return request('/graduation-project/video/history', {
+    method: 'GET',
+    params: { pageNum, pageSize }
+  });
+}
+
 export function listPartitions() {
   return request('/graduation-project/video/partitions', {
     method: 'GET'

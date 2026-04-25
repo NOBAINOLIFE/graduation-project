@@ -89,7 +89,7 @@
             </div>
             <div class="text-center">
               <div class="text-sm text-gray-500">播放数</div>
-              <div class="text-lg font-semibold text-gray-800">{{ formatCount(userInfo?.playCount) }}</div>
+              <div class="text-lg font-semibold text-gray-800">{{ formatCount(userInfo?.playNum) }}</div>
             </div>
           </div>
         </div>
@@ -443,9 +443,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 const route = useRoute();
 const router = useRouter();
 
+const PROFILE_TAB_KEYS = ['videos', 'favorites'];
+
 const userId = ref(route.params.userId || getUserId());
 const userInfo = ref(null);
-const activeTab = ref('videos');
+const activeTab = ref(resolveActiveTab(route.query.tab));
 const activeSort = ref(2); // 2-最新发布
 const videoList = ref([]);
 const loading = ref(false);
@@ -499,6 +501,10 @@ const favoriteSortOptions = [
   { key: 2, label: '最多播放' },
   { key: 3, label: '最近投稿' }
 ];
+
+function resolveActiveTab(tab) {
+  return PROFILE_TAB_KEYS.includes(tab) ? tab : 'videos';
+}
 
 function goHome() {
   router.push('/');
@@ -794,6 +800,13 @@ watch(() => route.params.userId, (newId) => {
     loadCollectionDirectories();
   }
 });
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    activeTab.value = resolveActiveTab(tab);
+  }
+);
 
 onMounted(() => {
   if (!isUserLoggedIn()) {

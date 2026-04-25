@@ -58,6 +58,12 @@ public class UserStatsPo {
     private Long fansNum;
 
     /**
+     * 总播放数
+     */
+    @TableField(value = "play_num")
+    private Long playNum;
+
+    /**
      * 状态 0-未删除 1-已删除
      */
     @TableField(value = "is_deleted")

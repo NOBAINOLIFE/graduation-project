@@ -31,4 +31,10 @@ public interface UserStatsMapper extends BaseMapper<UserStatsPo> {
      */
     @Update("update tb_user_stats set video_num = video_num + #{addNum} where user_id = #{userId}")
     void updateUserVideoNum(Long userId, Long addNum);
+
+    /**
+     * 更新用户播放数
+     */
+    @Update("update tb_user_stats set play_num = play_num + #{addNum} where user_id = #{userId}")
+    void updateUserPlayNum(Long userId, Long addNum);
 }

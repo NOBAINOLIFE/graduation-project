@@ -1,5 +1,8 @@
 package com.syt.graduationproject.schedule;
 
+import com.syt.graduationproject.model.po.UserStatsPo;
+import com.syt.graduationproject.model.po.VideoPo;
+import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import lombok.RequiredArgsConstructor;
@@ -7,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Map;
 
@@ -21,6 +25,10 @@ public class VideoPvFlushJob {
     private final StringRedisTemplate stringRedisTemplate;
 
     private final VideoRepository videoRepository;
+
+    private final UserRepository userRepository;
+
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 每 10 秒刷一次视频 PV 增量
@@ -39,12 +47,30 @@ public class VideoPvFlushJob {
                 continue;
             }
             try {
-                int updated = videoRepository.incrVideoPlayCount(videoId, delta);
-                if (updated <= 0) {
-                    videoRepository.insertVideoStatsIfAbsent(videoId);
-                    updated = videoRepository.incrVideoPlayCount(videoId, delta);
-                }
-                if (updated > 0) {
+                Boolean updated = transactionTemplate.execute(status -> {
+                    int videoUpdated = videoRepository.incrVideoPlayCount(videoId, delta);
+                    if (videoUpdated <= 0) {
+                        videoRepository.insertVideoStatsIfAbsent(videoId);
+                        videoUpdated = videoRepository.incrVideoPlayCount(videoId, delta);
+                    }
+                    if (videoUpdated <= 0) {
+                        return false;
+                    }
+
+                    VideoPo videoPo = videoRepository.queryVideoById(videoId);
+                    if (videoPo == null || videoPo.getUserId() == null) {
+                        return true;
+                    }
+
+                    UserStatsPo userStatsPo = userRepository.queryUserStatsById(videoPo.getUserId());
+                    if (userStatsPo == null) {
+                        userRepository.initUserStats(videoPo.getUserId());
+                    }
+                    userRepository.updateUserPlayNum(videoPo.getUserId(), delta);
+                    return true;
+                });
+
+                if (Boolean.TRUE.equals(updated)) {
                     Long remain = stringRedisTemplate.opsForHash().increment(pvDeltaKey, String.valueOf(videoId), -delta);
                     if (remain <= 0) {
                         stringRedisTemplate.opsForHash().delete(pvDeltaKey, String.valueOf(videoId));

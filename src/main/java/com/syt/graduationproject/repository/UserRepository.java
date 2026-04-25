@@ -25,4 +25,14 @@ public interface UserRepository {
      * 根据ID查询用户统计信息
      */
     UserStatsPo queryUserStatsById(Long userId);
+
+    /**
+     * 更新用户总播放数
+     */
+    void updateUserPlayNum(Long userId, Long addNum);
+
+    /**
+     * 初始化用户统计信息
+     */
+    void initUserStats(Long userId);
 }

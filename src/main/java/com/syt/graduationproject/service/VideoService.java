@@ -3,6 +3,7 @@ package com.syt.graduationproject.service;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
+import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import java.util.List;
@@ -40,4 +41,6 @@ public interface VideoService {
     List<VideoPartitionVo> listAllPartitions();
 
     List<SearchVideoVo> getVideoPlayList(Long lastVideoId);
+
+    List<UserVideoHistoryVo> listUserVideoHistory(Integer pageNum, Integer pageSize);
 }

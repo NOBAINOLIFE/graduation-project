@@ -65,4 +65,17 @@ public class UserRepositoryImpl implements UserRepository {
                 .eq(UserStatsPo::getIsDeleted, NOT_DELETED);
         return userStatsMapper.selectOne(queryWrapper);
     }
+
+    @Override
+    public void updateUserPlayNum(Long userId, Long addNum) {
+        userStatsMapper.updateUserPlayNum(userId, addNum);
+    }
+
+    @Override
+    public void initUserStats(Long userId) {
+        UserStatsPo userStatsPo = UserStatsPo.builder()
+                .userId(userId)
+                .build();
+        userStatsMapper.insert(userStatsPo);
+    }
 }
