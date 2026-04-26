@@ -14,6 +14,7 @@ import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.VideoRepository;
+import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
@@ -81,6 +82,8 @@ public class InteractServiceImpl implements InteractService {
 
     private final VideoRepository videoRepository;
 
+    private final EsSyncService esSyncService;
+
     /**
      * 在线私聊会话：userId -> sessions（多端登录）
      */
@@ -133,6 +136,7 @@ public class InteractServiceImpl implements InteractService {
         Long myId = UserHolderUtil.getUser().getUserId();
         Long followeeId = request.getFolloweeId();
         Integer operation = request.getOperation(); // 1: 关注, 0: 取关
+        boolean fansChanged = false;
         if (followeeId == null || operation == null) {
             throw new CustomException("关注参数不完整");
         }
@@ -168,6 +172,7 @@ public class InteractServiceImpl implements InteractService {
             // 更新关注数和粉丝数
             interactRepository.updateUserFollowNum(myId, 1L);
             interactRepository.updateUserFansNum(followeeId, 1L);
+            fansChanged = true;
         } else {
             // --- 取关逻辑 ---
             // 只有当前是关注状态，才执行逻辑删除
@@ -177,7 +182,12 @@ public class InteractServiceImpl implements InteractService {
                 // 更新关注数和粉丝数
                 interactRepository.updateUserFollowNum(myId, -1L);
                 interactRepository.updateUserFansNum(followeeId, -1L);
+                fansChanged = true;
             }
+        }
+
+        if (fansChanged) {
+            esSyncService.syncUser(followeeId);
         }
     }
 
@@ -803,8 +813,10 @@ public class InteractServiceImpl implements InteractService {
         boolean afterCollect = interactRepository.isCollectVideo(userId, videoId);
         if (beforeCollect && !afterCollect) {
             videoStatsMapper.updateCollectCount(videoId, -1);
+            esSyncService.syncVideo(videoId);
         } else if (!beforeCollect && afterCollect) {
             videoStatsMapper.updateCollectCount(videoId, 1);
+            esSyncService.syncVideo(videoId);
         }
     }
 
@@ -1162,6 +1174,7 @@ public class InteractServiceImpl implements InteractService {
         followRecordMapper.updateById(followRecordPo);
         interactRepository.updateUserFollowNum(followerId, -1L);
         interactRepository.updateUserFansNum(followeeId, -1L);
+        esSyncService.syncUser(followeeId);
     }
 
     private CollectionDirectoryPo queryOwnedDirectory(Long userId, Long directoryId) {
@@ -1345,6 +1358,7 @@ public class InteractServiceImpl implements InteractService {
                 item.setIsDeleted(1);
                 collectionItemMapper.updateById(item);
                 videoStatsMapper.updateCollectCount(item.getVideoId(), -1);
+                esSyncService.syncVideo(item.getVideoId());
             }
         }
     }

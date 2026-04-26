@@ -21,6 +21,7 @@ import com.syt.graduationproject.model.vo.UserInfoVo;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
+import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.UserService;
@@ -57,6 +58,8 @@ public class UserServiceImpl implements UserService {
     private final VideoRepository videoRepository;
 
     private final InteractRepository interactRepository;
+
+    private final EsSyncService esSyncService;
 
     private final UserMapper userMapper;
 
@@ -111,6 +114,7 @@ public class UserServiceImpl implements UserService {
                 .isDeleted(0)
                 .build();
         collectionDirectoryMapper.insert(collectionDirectory);
+        esSyncService.syncUser(newUser.getId());
         log.info("用户注册成功，注册请求：{}", request);
     }
 
@@ -221,7 +225,9 @@ public class UserServiceImpl implements UserService {
             throw new ErrorOperationException("用户不存在");
         }
         boolean changed = false;
+        boolean usernameChanged = false;
         if (request.getUsername() != null) {
+            usernameChanged = !Objects.equals(userPo.getUsername(), request.getUsername());
             userPo.setUsername(request.getUsername());
             changed = true;
         }
@@ -237,6 +243,10 @@ public class UserServiceImpl implements UserService {
         }
         if (changed) {
             userMapper.updateById(userPo);
+            esSyncService.syncUser(userId);
+            if (usernameChanged) {
+                esSyncService.syncPublishedVideosByUserId(userId);
+            }
         }
     }
 

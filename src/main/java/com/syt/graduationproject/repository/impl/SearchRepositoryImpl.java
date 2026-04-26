@@ -73,11 +73,24 @@ public class SearchRepositoryImpl implements SearchRepository {
     }
 
     @Override
+    public void upsertUserDoc(UserEsDoc userEsDoc) {
+        elasticsearchRestTemplate.save(userEsDoc, IndexCoordinates.of(USER_INDEX));
+    }
+
+    @Override
     public void deleteVideoDoc(Long videoId) {
         if (videoId == null) {
             return;
         }
         elasticsearchRestTemplate.delete(String.valueOf(videoId), IndexCoordinates.of(VIDEO_INDEX));
+    }
+
+    @Override
+    public void deleteUserDoc(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        elasticsearchRestTemplate.delete(String.valueOf(userId), IndexCoordinates.of(USER_INDEX));
     }
 }
 

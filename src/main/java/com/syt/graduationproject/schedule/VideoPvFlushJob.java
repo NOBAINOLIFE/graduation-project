@@ -4,6 +4,7 @@ import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.model.po.VideoPo;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
+import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,8 @@ public class VideoPvFlushJob {
     private final VideoRepository videoRepository;
 
     private final UserRepository userRepository;
+
+    private final EsSyncService esSyncService;
 
     private final TransactionTemplate transactionTemplate;
 
@@ -71,6 +74,7 @@ public class VideoPvFlushJob {
                 });
 
                 if (Boolean.TRUE.equals(updated)) {
+                    esSyncService.syncVideo(videoId);
                     Long remain = stringRedisTemplate.opsForHash().increment(pvDeltaKey, String.valueOf(videoId), -delta);
                     if (remain <= 0) {
                         stringRedisTemplate.opsForHash().delete(pvDeltaKey, String.valueOf(videoId));

@@ -1,6 +1,10 @@
 <template>
-  <div v-if="visible" class="fixed inset-0 z-[100] flex items-center justify-center" @click.self="handleClose">
-    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+  <div v-if="visible" class="fixed inset-0 z-[100] flex items-center justify-center">
+    <div
+      class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+      @mousedown="handleBackdropMouseDown"
+      @mouseup="handleBackdropMouseUp"
+    ></div>
 
     <div class="relative w-full max-w-md bg-white rounded-lg shadow-2xl overflow-hidden animate-scale-in">
       <button
@@ -167,6 +171,7 @@ const loading = ref(false);
 const errorMessage = ref('');
 const successMessage = ref('');
 const errors = ref({});
+const shouldCloseOnBackdropMouseUp = ref(false);
 
 const isRegisterMode = computed(() => viewMode.value === 'register');
 const currentAccount = computed({
@@ -380,7 +385,21 @@ function resetAllState() {
   clearMessages();
 }
 
+function handleBackdropMouseDown(event) {
+  shouldCloseOnBackdropMouseUp.value = event.target === event.currentTarget;
+}
+
+function handleBackdropMouseUp(event) {
+  const shouldClose = shouldCloseOnBackdropMouseUp.value && event.target === event.currentTarget;
+  shouldCloseOnBackdropMouseUp.value = false;
+
+  if (shouldClose) {
+    handleClose();
+  }
+}
+
 function handleClose() {
+  shouldCloseOnBackdropMouseUp.value = false;
   emit('update:visible', false);
   resetAllState();
 }

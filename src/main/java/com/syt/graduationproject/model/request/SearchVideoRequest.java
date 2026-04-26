@@ -14,6 +14,11 @@ import java.time.LocalDateTime;
 public class SearchVideoRequest {
 
     /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
      * 视频标题关键词
      */
     private String keyword;

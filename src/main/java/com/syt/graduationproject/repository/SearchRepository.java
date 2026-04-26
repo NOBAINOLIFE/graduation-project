@@ -24,9 +24,19 @@ public interface SearchRepository {
     void upsertVideoDoc(VideoEsDoc videoEsDoc);
 
     /**
+     * 写入或更新用户索引文档
+     */
+    void upsertUserDoc(UserEsDoc userEsDoc);
+
+    /**
      * 删除视频索引文档
      */
     void deleteVideoDoc(Long videoId);
+
+    /**
+     * 删除用户索引文档
+     */
+    void deleteUserDoc(Long userId);
 
     /**
      * 查询首页视频播放列表（去重、分页）

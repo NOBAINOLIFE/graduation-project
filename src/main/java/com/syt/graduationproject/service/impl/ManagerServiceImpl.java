@@ -7,7 +7,6 @@ import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.mapper.*;
-import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
@@ -19,9 +18,9 @@ import com.syt.graduationproject.model.vo.ReportVo;
 import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.model.vo.VideoTagVo;
 import com.syt.graduationproject.repository.InteractRepository;
-import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
+import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.ManagerService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.util.UserHolderUtil;
@@ -77,7 +76,7 @@ public class ManagerServiceImpl implements ManagerService {
 
 	private final VideoRepository videoRepository;
 
-	private final SearchRepository searchRepository;
+	private final EsSyncService esSyncService;
 
 	private final MinioService minioService;
 
@@ -347,6 +346,7 @@ public class ManagerServiceImpl implements ManagerService {
 				.set(UserPo::getStatus, UserStatusEnum.BANNED.getCode())
 				.set(UserPo::getUpdateTime, LocalDateTime.now());
 		userMapper.update(null, updateWrapper);
+		esSyncService.deleteUser(userId);
 	}
 
 	@Override
@@ -359,6 +359,7 @@ public class ManagerServiceImpl implements ManagerService {
 		updateWrapper.eq(UserPo::getId, userId)
 				.set(UserPo::getStatus, UserStatusEnum.NORMAL.getCode());
 		userMapper.update(null, updateWrapper);
+		esSyncService.syncUser(userId);
 	}
 
 	@Override
@@ -367,8 +368,13 @@ public class ManagerServiceImpl implements ManagerService {
 		if (videoPo == null) {
 			throw new CustomException("视频不存在");
 		}
+		boolean publishedBeforeBan = Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode());
 		videoRepository.updateVideoStatus(videoId, null, VideoStatusEnum.BANNED.getCode());
-		searchRepository.deleteVideoDoc(videoId);
+		if (publishedBeforeBan) {
+			interactRepository.updateUserVideoNum(videoPo.getUserId(), -1L);
+			esSyncService.syncUser(videoPo.getUserId());
+		}
+		esSyncService.deleteVideo(videoId);
 	}
 
 	@Override
@@ -476,41 +482,8 @@ public class ManagerServiceImpl implements ManagerService {
 		}
 
 		VideoPo videoPo = videoRepository.queryVideoById(videoId);
-		VideoStatsPo statsPo = videoRepository.queryVideoStatsById(videoId);
-		UserPo userPo = userRepository.queryUserAnyStatusById(videoPo.getUserId());
-		VideoPartitionPo partitionPo = videoPo.getPartitionId() == null
-				? null
-				: videoPartitionMapper.selectById(videoPo.getPartitionId());
-
-		List<VideoTagRelPo> tagRelList = videoTagRelMapper.selectList(new LambdaQueryWrapper<VideoTagRelPo>()
-				.eq(VideoTagRelPo::getVideoId, videoId));
-		List<Long> tagIdList = tagRelList.stream().map(VideoTagRelPo::getTagId).collect(Collectors.toList());
-		List<String> tagNameList = Collections.emptyList();
-		if (!tagIdList.isEmpty()) {
-			tagNameList = videoTagMapper.selectBatchIds(tagIdList)
-					.stream()
-					.map(VideoTagPo::getTagName)
-					.filter(Objects::nonNull)
-					.distinct()
-					.collect(Collectors.toList());
-		}
-
-		VideoEsDoc videoEsDoc = new VideoEsDoc();
-		videoEsDoc.setVideoId(videoPo.getId());
-		videoEsDoc.setTitle(videoPo.getTitle());
-		videoEsDoc.setDescription(videoPo.getDescription());
-		videoEsDoc.setUserId(videoPo.getUserId());
-		videoEsDoc.setUsername(userPo == null ? "" : userPo.getUsername());
-		videoEsDoc.setCoverUrl(videoPo.getCoverUrl());
-		videoEsDoc.setPartitionId(videoPo.getPartitionId());
-		videoEsDoc.setPartitionName(partitionPo == null ? "" : partitionPo.getPartitionName());
-		videoEsDoc.setTagList(tagNameList);
-		videoEsDoc.setPlayCount(statsPo == null ? 0L : statsPo.getPlayCount());
-		videoEsDoc.setCollectionCount(statsPo == null ? 0L : statsPo.getCollectCount());
-		videoEsDoc.setDuration(videoPo.getDuration());
-		videoEsDoc.setCreateTime(videoPo.getCreateTime());
-		searchRepository.upsertVideoDoc(videoEsDoc);
-
 		interactRepository.updateUserVideoNum(videoPo.getUserId(), 1L);
+		esSyncService.syncVideo(videoId);
+		esSyncService.syncUser(videoPo.getUserId());
 	}
 }

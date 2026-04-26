@@ -92,6 +92,10 @@ public class SearchServiceImpl implements SearchService {
      */
     private NativeSearchQuery buildVideoQuery(SearchVideoRequest request) {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        if (request.getUserId() != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("userId", request.getUserId()));
+        }
+
         if (StringUtils.isNotBlank(request.getKeyword())) {
             boolQueryBuilder.must(QueryBuilders.matchQuery("title", request.getKeyword()));
         } else {
