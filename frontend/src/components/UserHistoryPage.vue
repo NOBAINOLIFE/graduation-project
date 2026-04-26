@@ -48,15 +48,15 @@
             <article
               v-for="item in historyItems"
               :key="item.videoId"
-              class="history-card cursor-pointer rounded-2xl border border-[#f1f2f3] p-3"
+              class="group cursor-pointer overflow-hidden rounded-lg bg-transparent"
               @click="goToVideo(item.videoId)"
             >
-              <div class="relative aspect-video overflow-hidden rounded-xl bg-[#f6f7f8]">
+              <div class="relative aspect-video overflow-hidden rounded-xl bg-transparent">
                 <img
                   v-if="item.coverUrl"
                   :src="item.coverUrl"
                   :alt="item.title"
-                  class="h-full w-full object-cover"
+                  class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   @error="handleImageError"
                 />
                 <div v-else class="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#dbeafe] to-[#fce7f3] text-4xl text-white/80">
@@ -66,9 +66,9 @@
                 <div v-if="item.isFinished" class="absolute left-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-xs text-white">
                   已看完
                 </div>
-                <div class="absolute bottom-3 right-3 rounded-md bg-black/75 px-2 py-1 text-xs text-white">
+                <span class="absolute bottom-2 right-2 text-sm text-white drop-shadow-lg">
                   {{ formatDuration(item.lastPlayTime) }}/{{ formatDuration(item.duration) }}
-                </div>
+                </span>
                 <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/15">
                   <div
                     class="h-full bg-[#fb7299]"
@@ -77,12 +77,12 @@
                 </div>
               </div>
 
-              <div class="mt-3">
-                <h3 class="line-clamp-2 min-h-[3rem] text-sm font-medium leading-6 text-[#18191c] transition-colors hover:text-[#00a1d6]">
+              <div class="mt-1">
+                <h3 class="line-clamp-2 min-h-[3rem] text-left text-sm font-medium leading-6 text-[#18191c] transition-colors group-hover:text-[#00a1d6]">
                   {{ item.title || '未命名视频' }}
                 </h3>
 
-                <div class="mt-2 flex items-center justify-between gap-3 text-xs text-[#9499a0]">
+                <div class="mt-1 flex items-center justify-between gap-3 text-xs text-[#9499a0]">
                   <span class="truncate">{{ item.username || '未知用户' }}</span>
                   <span class="flex-shrink-0">{{ formatAbsoluteDateTime(item.historyTime) }}</span>
                 </div>

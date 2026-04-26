@@ -30,9 +30,6 @@
       >
         <p class="text-sm uppercase tracking-[0.4em] text-white/80">Video Hub</p>
         <h2 class="mt-3 text-3xl font-bold">发现新内容，也找到你的兴趣分区</h2>
-        <p class="mt-3 max-w-2xl text-sm leading-7 text-white/90">
-          首页会展示推荐内容，切换上方分区后会直接走检索结果，方便按分区快速找视频。
-        </p>
       </section>
 
       <section class="rounded-[28px] bg-white px-4 py-6 shadow-sm ring-1 ring-black/5 sm:px-6">
@@ -48,13 +45,6 @@
               </template>
             </p>
           </div>
-          <button
-            v-if="selectedPartition !== null"
-            class="rounded-2xl border border-[#dbe2ea] px-4 py-2 text-sm text-[#61666d] transition-colors hover:border-[#00a1d6] hover:text-[#00a1d6]"
-            @click="selectPartition(null)"
-          >
-            返回推荐
-          </button>
         </div>
 
         <div v-if="loading && videos.length === 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -77,10 +67,10 @@
           <article
             v-for="video in videos"
             :key="video.videoId"
-            class="group cursor-pointer overflow-hidden rounded-2xl bg-white transition-all hover:-translate-y-1 hover:shadow-lg"
+            class="group cursor-pointer overflow-hidden rounded-lg bg-transparent"
             @click="goToVideo(video.videoId)"
           >
-            <div class="relative aspect-video overflow-hidden rounded-2xl bg-[#eef2f6]">
+            <div class="relative aspect-video overflow-hidden rounded-lg bg-[#eef2f6]">
               <img
                 v-if="video.coverUrl"
                 :src="video.coverUrl"
@@ -89,34 +79,30 @@
                 @error="handleImageError"
               />
               <div v-else class="flex h-full items-center justify-center text-4xl text-[#c2cad3]">🎬</div>
-              <span class="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+              <span class="absolute bottom-2 right-2 text-sm text-white drop-shadow-lg">
                 {{ formatDuration(video.duration) }}
+              </span>
+              <span class="absolute bottom-2 left-2 flex items-center gap-1 text-sm text-white drop-shadow-lg">
+                <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current">
+                  <path d="M8 5.14v13.72c0 .75.82 1.23 1.5.86l10.27-5.86a1 1 0 0 0 0-1.72L9.5 4.28A1 1 0 0 0 8 5.14Z"></path>
+                </svg>
+                {{ formatCount(video.playCount) }}
               </span>
             </div>
 
-            <div class="px-1 pb-1 pt-3">
-              <h3 class="line-clamp-2 text-[15px] font-medium leading-6 text-[#18191c] transition-colors group-hover:text-[#00a1d6]">
+            <div class="mt-1">
+              <h3 class="line-clamp-2 min-h-[3rem] text-left text-sm font-medium leading-6 text-[#18191c] transition-colors group-hover:text-[#00a1d6]">
                 {{ video.title }}
               </h3>
-              <p class="mt-2 truncate text-sm text-[#61666d]">
-                {{ video.username || '未知用户' }}
+              <p class="mt-1 truncate text-xs text-[#9499a0]">
+                {{ video.username || '未知用户' }} · {{ formatDate(video.createTime) }}
               </p>
-              <div class="mt-2 flex items-center justify-between text-xs text-[#9499a0]">
-                <span>{{ formatCount(video.playCount) }} 播放</span>
-                <span>{{ formatDate(video.createTime) }}</span>
-              </div>
             </div>
           </article>
         </div>
 
-        <div v-if="hasMore && videos.length > 0" class="mt-10 flex justify-center">
-          <button
-            class="rounded-2xl border border-[#dbe2ea] bg-white px-8 py-3 text-sm font-medium text-[#18191c] transition-colors hover:border-[#00a1d6] hover:text-[#00a1d6] disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="loading"
-            @click="loadMore"
-          >
-            {{ loading ? '加载中...' : '加载更多' }}
-          </button>
+        <div v-if="loading && videos.length > 0" class="mt-10 flex justify-center">
+          <span class="text-sm text-[#9499a0]">加载中...</span>
         </div>
       </section>
     </main>
@@ -124,7 +110,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getVideoPlayList, listPartitions, searchVideos } from '../api/video';
 import HeaderNav from './HeaderNav.vue';
@@ -285,9 +271,26 @@ function formatDate(dateStr) {
   return `${month}-${day}`;
 }
 
+function handleScroll() {
+  if (!hasMore.value || loading.value) return;
+
+  const scrollHeight = document.documentElement.scrollHeight;
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const clientHeight = document.documentElement.clientHeight;
+
+  if (scrollHeight - scrollTop - clientHeight < 300) {
+    loadMore();
+  }
+}
+
 onMounted(async () => {
   await loadPartitions();
   await loadHomeVideos(false);
+  window.addEventListener('scroll', handleScroll);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll);
 });
 </script>
 

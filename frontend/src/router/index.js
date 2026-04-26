@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import HomePage from '../components/HomePage.vue';
 import SearchPage from '../components/SearchPage.vue';
 import UserProfilePage from '../components/UserProfilePage.vue';
+import UserRelationPage from '../components/UserRelationPage.vue';
 import CreatorCenter from '../components/CreatorCenter.vue';
 import VideoSubmitPage from '../components/VideoSubmitPage.vue';
 import VideoPlayerPage from '../components/VideoPlayerPage.vue';
@@ -29,6 +30,18 @@ const router = createRouter({
       path: '/search',
       name: 'search',
       component: SearchPage
+    },
+    {
+      path: '/user/:userId/following',
+      name: 'user-following',
+      component: UserRelationPage,
+      meta: { requiresUserAuth: true }
+    },
+    {
+      path: '/user/:userId/fans',
+      name: 'user-fans',
+      component: UserRelationPage,
+      meta: { requiresUserAuth: true }
     },
     {
       path: '/user/:userId',

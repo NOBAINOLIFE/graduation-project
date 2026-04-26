@@ -8,8 +8,10 @@ import com.syt.graduationproject.model.vo.PageVo;
 import com.syt.graduationproject.model.vo.SearchUserVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.repository.SearchRepository;
+import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.SearchService;
 import com.syt.graduationproject.converter.SearchConverter;
+import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -51,6 +53,8 @@ public class SearchServiceImpl implements SearchService {
 
     private final SearchConverter searchConverter;
 
+    private final InteractService interactService;
+
     @Override
     public PageVo<SearchVideoVo> searchVideos(SearchVideoRequest request) {
         NativeSearchQuery query = buildVideoQuery(request);
@@ -73,10 +77,19 @@ public class SearchServiceImpl implements SearchService {
     public PageVo<SearchUserVo> searchUsers(SearchUserRequest request) {
         NativeSearchQuery query = buildUserQuery(request);
         SearchHits<UserEsDoc> searchHits = searchRepository.commonSearch(query, UserEsDoc.class, USER_INDEX);
+
+        Long userId = UserHolderUtil.getUser().getUserId();
         List<SearchUserVo> records = searchHits.getSearchHits()
                 .stream()
                 .map(SearchHit::getContent)
                 .map(searchConverter::toSearchUserVo)
+                .peek(userVo -> {
+                    if (userId != null) {
+                        userVo.setIsFollow(interactService.queryFollow(userId, userVo.getUserId()).getIsFollow());
+                    } else {
+                        userVo.setIsFollow(false);
+                    }
+                })
                 .collect(Collectors.toList());
 
         return PageVo.<SearchUserVo>builder()

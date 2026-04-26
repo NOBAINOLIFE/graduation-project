@@ -679,34 +679,46 @@ public class InteractServiceImpl implements InteractService {
 
     @Override
     public List<UserSimpleInfoVo> queryFansList(Long userId) {
+        Long currentUserId = UserHolderUtil.getUser().getUserId();
+        if (!Objects.equals(currentUserId, userId) && hasMutualBlock(currentUserId, userId)) {
+            throw new CustomException("由于隐私设置，无法查看该用户粉丝列表");
+        }
         // 查询粉丝列表
         List<FollowRecordPo> fans = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
                 .eq(FollowRecordPo::getFolloweeId, userId)
-                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(FollowRecordPo::getCreateTime)
+                .orderByDesc(FollowRecordPo::getId));
         if (CollectionUtils.isEmpty(fans)) {
             return Collections.emptyList();
         }
-        // 判断是否关注粉丝
-        List<Long> fanIds = fans.stream().map(FollowRecordPo::getFollowerId).collect(Collectors.toList());
-        List<FollowRecordPo> myFollows = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
-                .eq(FollowRecordPo::getFollowerId, userId)
-                .in(FollowRecordPo::getFolloweeId, fanIds)
-                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
-        Set<Long> followedFanIds = myFollows.stream().map(FollowRecordPo::getFolloweeId).collect(Collectors.toSet());
-        // 构造返回列表
+        List<Long> fanIds = fans.stream()
+                .map(FollowRecordPo::getFollowerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(fanIds)) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> followedFanIds = queryFolloweeIdSet(currentUserId, fanIds);
+        Map<Long, UserPo> fansInfoMap = queryUserMap(fanIds);
+
         List<UserSimpleInfoVo> result = new ArrayList<>();
-        List<UserPo> fansInfoList = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
-                .in(UserPo::getId, fanIds));
-        for (UserPo fansInfo : fansInfoList) {
-            if (hasMutualBlock(userId, fansInfo.getId())) {
+        for (Long fanId : fanIds) {
+            UserPo fansInfo = fansInfoMap.get(fanId);
+            if (fansInfo == null) {
+                continue;
+            }
+            if (hasMutualBlock(currentUserId, fanId)) {
                 continue;
             }
             UserSimpleInfoVo vo = new UserSimpleInfoVo();
-            vo.setUserId(fansInfo.getId());
+            vo.setUserId(fanId);
             vo.setUsername(fansInfo.getUsername());
             vo.setBio(fansInfo.getBio());
             vo.setAvatarUrl(fansInfo.getAvatarUrl());
-            vo.setIsFollow(followedFanIds.contains(fansInfo.getId()));
+            vo.setIsFollow(followedFanIds.contains(fanId));
             result.add(vo);
         }
         return result;
@@ -714,30 +726,46 @@ public class InteractServiceImpl implements InteractService {
 
     @Override
     public List<UserSimpleInfoVo> queryFollowList(Long userId) {
+        Long currentUserId = UserHolderUtil.getUser().getUserId();
+        if (!Objects.equals(currentUserId, userId) && hasMutualBlock(currentUserId, userId)) {
+            throw new CustomException("由于隐私设置，无法查看该用户关注列表");
+        }
         // 查询关注列表
         List<FollowRecordPo> follows = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
                 .eq(FollowRecordPo::getFollowerId, userId)
-                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(FollowRecordPo::getCreateTime)
+                .orderByDesc(FollowRecordPo::getId));
         if (CollectionUtils.isEmpty(follows)) {
             return Collections.emptyList();
         }
-        // 构造返回列表
-        List<UserSimpleInfoVo> result = new ArrayList<>();
         List<Long> followsIdList = follows.stream()
                 .map(FollowRecordPo::getFolloweeId)
+                .filter(Objects::nonNull)
+                .distinct()
                 .collect(Collectors.toList());
-        List<UserPo> followsInfoList = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
-                .in(UserPo::getId, followsIdList));
-        for (UserPo followsInfo : followsInfoList) {
-            if (hasMutualBlock(userId, followsInfo.getId())) {
+        if (CollectionUtils.isEmpty(followsIdList)) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> followedUserIds = queryFolloweeIdSet(currentUserId, followsIdList);
+        Map<Long, UserPo> followsInfoMap = queryUserMap(followsIdList);
+
+        List<UserSimpleInfoVo> result = new ArrayList<>();
+        for (Long followeeId : followsIdList) {
+            UserPo followsInfo = followsInfoMap.get(followeeId);
+            if (followsInfo == null) {
+                continue;
+            }
+            if (hasMutualBlock(currentUserId, followeeId)) {
                 continue;
             }
             UserSimpleInfoVo vo = new UserSimpleInfoVo();
-            vo.setUserId(followsInfo.getId());
+            vo.setUserId(followeeId);
             vo.setUsername(followsInfo.getUsername());
             vo.setBio(followsInfo.getBio());
             vo.setAvatarUrl(followsInfo.getAvatarUrl());
-            vo.setIsFollow(true);
+            vo.setIsFollow(followedUserIds.contains(followeeId));
             result.add(vo);
         }
         return result;
@@ -1363,6 +1391,29 @@ public class InteractServiceImpl implements InteractService {
         }
     }
 
+    private Set<Long> queryFolloweeIdSet(Long followerId, List<Long> followeeIds) {
+        if (followerId == null || CollectionUtils.isEmpty(followeeIds)) {
+            return Collections.emptySet();
+        }
+        List<FollowRecordPo> followRecordPos = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
+                .eq(FollowRecordPo::getFollowerId, followerId)
+                .in(FollowRecordPo::getFolloweeId, followeeIds)
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+        return followRecordPos.stream()
+                .map(FollowRecordPo::getFolloweeId)
+                .collect(Collectors.toSet());
+    }
+
+    private Map<Long, UserPo> queryUserMap(List<Long> userIds) {
+        if (CollectionUtils.isEmpty(userIds)) {
+            return Collections.emptyMap();
+        }
+        List<UserPo> userPos = userMapper.selectList(new QueryWrapper<UserPo>().lambda()
+                .in(UserPo::getId, userIds));
+        return userPos.stream()
+                .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
+    }
+
     @Override
     public PageVo<CommentVo> listVideoComments(Long videoId, Integer sortType, Integer pageNum, Integer pageSize) {
         if (videoId == null) {
@@ -1379,7 +1430,7 @@ public class InteractServiceImpl implements InteractService {
         if (Objects.equals(sortType, 1)) {
             return listHotComments(videoId, myId, safePageNum, safePageSize);
         }
-        Page<CommentPo> page = new Page<CommentPo>(safePageNum, safePageSize);
+        Page<CommentPo> page = new Page<>(safePageNum, safePageSize);
         LambdaQueryWrapper<CommentPo> wrapper = new LambdaQueryWrapper<CommentPo>()
                 .eq(CommentPo::getVideoId, videoId)
                 .eq(CommentPo::getRootId, 0L)
@@ -1404,7 +1455,7 @@ public class InteractServiceImpl implements InteractService {
                     .total(0L)
                     .pageNum(pageNum)
                     .pageSize(pageSize)
-                    .records(Collections.<CommentVo>emptyList())
+                    .records(Collections.emptyList())
                     .build();
         }
 
@@ -1427,8 +1478,8 @@ public class InteractServiceImpl implements InteractService {
         int fromIndex = Math.min((pageNum - 1) * pageSize, allComments.size());
         int toIndex = Math.min(fromIndex + pageSize, allComments.size());
         List<CommentPo> pageRecords = fromIndex >= toIndex
-                ? Collections.<CommentPo>emptyList()
-                : new ArrayList<CommentPo>(allComments.subList(fromIndex, toIndex));
+                ? Collections.emptyList()
+                : new ArrayList<>(allComments.subList(fromIndex, toIndex));
         return buildCommentPage(pageRecords, (long) allComments.size(), pageNum, pageSize, currentUserId);
     }
 
@@ -1438,13 +1489,13 @@ public class InteractServiceImpl implements InteractService {
                     .total(total == null ? 0L : total)
                     .pageNum(pageNum)
                     .pageSize(pageSize)
-                    .records(Collections.<CommentVo>emptyList())
+                    .records(Collections.emptyList())
                     .build();
         }
 
         List<Long> commentIds = commentList.stream().map(CommentPo::getId).collect(Collectors.toList());
         Map<Long, CommentStatsPo> commentStatsMap = queryCommentStatsMap(commentIds);
-        Set<Long> relatedUserIds = new HashSet<Long>();
+        Set<Long> relatedUserIds = new HashSet<>();
         for (CommentPo comment : commentList) {
             if (comment.getUserId() != null) {
                 relatedUserIds.add(comment.getUserId());

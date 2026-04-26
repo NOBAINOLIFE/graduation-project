@@ -94,3 +94,19 @@ export function uploadImage(file) {
   });
 }
 
+export function listFansUsers(targetUserId = null) {
+  const params = targetUserId ? { targetUserId } : {};
+  return request('/graduation-project/interact/fansList', {
+    method: 'POST',
+    params
+  });
+}
+
+export function listFollowUsers(targetUserId = null) {
+  const params = targetUserId ? { targetUserId } : {};
+  return request('/graduation-project/interact/followList', {
+    method: 'POST',
+    params
+  });
+}
+

@@ -53,7 +53,7 @@
     <!-- 导航标签和统计信息 -->
     <div class="bg-white border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-4">
-        <div class="flex items-center justify-between gap-6">
+        <div class="flex items-center justify-between gap-6 py-1">
           <!-- 左侧导航标签 -->
           <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             <button
@@ -75,14 +75,14 @@
 
           <!-- 右侧统计信息 -->
           <div class="flex shrink-0 items-center gap-6 py-2">
-            <div class="text-center">
+            <button class="text-center transition-colors hover:text-[#00a1d6]" @click="goToRelationPage('following')">
               <div class="text-xs text-gray-500">关注数</div>
               <div class="text-base font-semibold leading-5 text-gray-800">{{ userInfo?.followNum || 0 }}</div>
-            </div>
-            <div class="text-center">
+            </button>
+            <button class="text-center transition-colors hover:text-[#00a1d6]" @click="goToRelationPage('fans')">
               <div class="text-xs text-gray-500">粉丝数</div>
               <div class="text-base font-semibold leading-5 text-gray-800">{{ formatCount(userInfo?.fansNum) }}</div>
-            </div>
+            </button>
             <div class="text-center">
               <div class="text-xs text-gray-500">获赞数</div>
               <div class="text-base font-semibold leading-5 text-gray-800">{{ formatCount(userInfo?.likeNum) }}</div>
@@ -123,33 +123,42 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <div
-              v-for="video in videoList"
-              :key="video.videoId"
-              class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              @click="goToVideo(video.videoId)"
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <article
+                v-for="video in videoList"
+                :key="video.videoId"
+                class="group cursor-pointer overflow-hidden rounded-lg bg-transparent"
+                @click="goToVideo(video.videoId)"
             >
-              <div class="relative aspect-video bg-gray-200">
-                <img v-if="video.coverUrl" :src="video.coverUrl" class="w-full h-full object-cover" />
-                <div v-else class="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400"></div>
-                <div class="absolute bottom-2 right-2 px-2 py-1 bg-black/70 text-white text-xs rounded">
-                  {{ formatDuration(video.duration) }}
-                </div>
+              <div class="relative aspect-video overflow-hidden rounded-lg bg-[#eef2f6]">
+                <img
+                    v-if="video.coverUrl"
+                    :src="video.coverUrl"
+                    :alt="video.title"
+                    class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    @error="handleImageError"
+                />
+                <div v-else class="flex h-full items-center justify-center text-4xl text-[#c2cad3]">🎬</div>
+                <span class="absolute bottom-2 right-2 text-sm text-white drop-shadow-lg">
+                {{ formatDuration(video.duration) }}
+              </span>
+                <span class="absolute bottom-2 left-2 flex items-center gap-1 text-sm text-white drop-shadow-lg">
+                <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current">
+                  <path d="M8 5.14v13.72c0 .75.82 1.23 1.5.86l10.27-5.86a1 1 0 0 0 0-1.72L9.5 4.28A1 1 0 0 0 8 5.14Z"></path>
+                </svg>
+                {{ formatCount(video.playCount) }}
+              </span>
               </div>
-              <div class="p-3">
-                <h3 class="text-sm font-medium text-gray-800 line-clamp-2 mb-2 group-hover:text-[#00a1d6]">{{ video.title }}</h3>
-                <div class="flex items-center gap-3 text-xs text-gray-500">
-                  <span class="flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                    {{ formatCount(video.playCount) }}
-                  </span>
-                  <span>{{ formatDate(video.createTime) }}</span>
-                </div>
+
+              <div class="mt-1">
+                <h3 class="line-clamp-2 min-h-[3rem] text-left text-sm font-medium leading-6 text-[#18191c] transition-colors group-hover:text-[#00a1d6]">
+                  {{ video.title }}
+                </h3>
+                <p class="mt-1 truncate text-xs text-[#9499a0]">
+                  {{ formatDate(video.createTime) }}
+                </p>
               </div>
-            </div>
+            </article>
           </div>
 
           <!-- 加载更多 -->
@@ -1100,6 +1109,14 @@ function loadMoreVideos() {
 function handleSortChange(sortType) {
   activeSort.value = sortType;
   loadUserVideos(true);
+}
+
+function goToRelationPage(type) {
+  const routeName = type === 'fans' ? 'user-fans' : 'user-following';
+  router.push({
+    name: routeName,
+    params: { userId: userId.value }
+  });
 }
 
 // 关注/取消关注

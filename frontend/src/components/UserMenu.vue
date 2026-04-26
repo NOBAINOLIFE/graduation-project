@@ -186,15 +186,19 @@ function goToMyVideos() {
 
 // 跳转到粉丝列表
 function goToFollowers() {
-  // TODO: 实现粉丝列表路由
-  console.log('跳转到粉丝列表');
+  const userId = getUserId();
+  if (userId) {
+    router.push(`/user/${userId}/fans`);
+  }
   showMenu.value = false;
 }
 
 // 跳转到关注列表
 function goToFollowing() {
-  // TODO: 实现关注列表路由
-  console.log('跳转到关注列表');
+  const userId = getUserId();
+  if (userId) {
+    router.push(`/user/${userId}/following`);
+  }
   showMenu.value = false;
 }
 

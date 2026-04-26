@@ -22,5 +22,7 @@ public class SearchUserVo {
     private Long videoCount;
 
     private String bio;
+
+    private Boolean isFollow;
 }
 

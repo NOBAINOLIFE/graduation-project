@@ -186,8 +186,8 @@ public class InteractController {
      * 查询粉丝列表
      */
     @PostMapping("/fansList")
-    public Response<List<UserSimpleInfoVo>> queryFansList() {
-        Long userId = UserHolderUtil.getUser().getUserId();
+    public Response<List<UserSimpleInfoVo>> queryFansList(@RequestParam(value = "targetUserId", required = false) Long targetUserId) {
+        Long userId = targetUserId != null ? targetUserId : UserHolderUtil.getUser().getUserId();
         try {
             return Response.success(interactService.queryFansList(userId));
         } catch (CustomException e) {
@@ -203,8 +203,8 @@ public class InteractController {
      * 查询关注列表
      */
     @PostMapping("/followList")
-    public Response<List<UserSimpleInfoVo>> queryFollowList() {
-        Long userId = UserHolderUtil.getUser().getUserId();
+    public Response<List<UserSimpleInfoVo>> queryFollowList(@RequestParam(value = "targetUserId", required = false) Long targetUserId) {
+        Long userId = targetUserId != null ? targetUserId : UserHolderUtil.getUser().getUserId();
         try {
             return Response.success(interactService.queryFollowList(userId));
         } catch (CustomException e) {

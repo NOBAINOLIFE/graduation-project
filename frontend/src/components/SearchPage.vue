@@ -253,10 +253,11 @@
                               
                     <!-- 关注按钮 -->
                     <button
-                      class="flex-shrink-0 rounded-lg bg-[#00a1d6] px-6 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0094c8]"
-                      @click.stop="handleFollow(user.userId)"
+                      class="flex-shrink-0 rounded-lg px-6 py-1.5 text-sm font-medium transition-colors"
+                      :class="user.isFollow ? 'bg-gray-400 hover:bg-gray-500 text-white' : 'bg-[#00a1d6] hover:bg-[#0094c8] text-white'"
+                      @click.stop="handleFollow(user)"
                     >
-                      + 关注
+                      {{ user.isFollow ? '已关注' : '+ 关注' }}
                     </button>
                   </div>
                 </div>
@@ -283,7 +284,10 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { searchUsers, searchVideos } from '../api/video';
+import { followUser } from '../api/video';
+import { getUserId } from '../utils/auth';
 import HeaderNav from './HeaderNav.vue';
+import { ElMessage } from 'element-plus';
 
 const VIDEO_TAB = 'video';
 const USER_TAB = 'user';
@@ -555,9 +559,31 @@ function goToUser(userId) {
   router.push(`/user/${userId}`);
 }
 
-function handleFollow(userId) {
-  // TODO: 实现关注功能
-  console.log('关注用户:', userId);
+function handleFollow(user) {
+  const currentUserId = getUserId();
+  if (!currentUserId) {
+    ElMessage.warning('请先登录');
+    return;
+  }
+  
+  if (String(user.userId) === String(currentUserId)) {
+    ElMessage.warning('不能关注自己');
+    return;
+  }
+
+  const nextIsFollow = !user.isFollow;
+  
+  followUser({
+    followeeId: user.userId,
+    operation: nextIsFollow ? 1 : 0
+  }).then(() => {
+    user.isFollow = nextIsFollow;
+    user.fansCount = Math.max(0, Number(user.fansCount || 0) + (nextIsFollow ? 1 : -1));
+    ElMessage.success(nextIsFollow ? '关注成功' : '已取消关注');
+  }).catch(error => {
+    console.error('关注操作失败:', error);
+    ElMessage.error(error.message || '关注操作失败');
+  });
 }
 
 function handleImageError(event) {
