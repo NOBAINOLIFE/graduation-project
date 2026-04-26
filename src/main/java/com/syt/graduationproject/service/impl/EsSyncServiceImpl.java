@@ -3,6 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.syt.graduationproject.enums.UserStatusEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
+import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.mapper.VideoMapper;
 import com.syt.graduationproject.mapper.VideoPartitionMapper;
 import com.syt.graduationproject.model.es.UserEsDoc;
@@ -34,6 +35,8 @@ public class EsSyncServiceImpl implements EsSyncService {
     private final SearchRepository searchRepository;
 
     private final UserRepository userRepository;
+
+    private final UserMapper userMapper;
 
     private final VideoRepository videoRepository;
 
@@ -139,6 +142,24 @@ public class EsSyncServiceImpl implements EsSyncService {
                 .eq(VideoPo::getUserId, userId)
                 .eq(VideoPo::getStatus, VideoStatusEnum.PUBLISHED.getCode()));
         for (VideoPo videoPo : publishedVideoList) {
+            syncVideo(videoPo.getId());
+        }
+    }
+
+    @Override
+    public void syncAllUsers() {
+        List<UserPo> userPoList = userMapper.selectList(new LambdaQueryWrapper<UserPo>()
+                .eq(UserPo::getStatus, UserStatusEnum.NORMAL.getCode()));
+        for (UserPo userPo : userPoList) {
+            syncUser(userPo.getId());
+        }
+    }
+
+    @Override
+    public void syncAllPublishedVideos() {
+        List<VideoPo> videoPoList = videoMapper.selectList(new LambdaQueryWrapper<VideoPo>()
+                .eq(VideoPo::getStatus, VideoStatusEnum.PUBLISHED.getCode()));
+        for (VideoPo videoPo : videoPoList) {
             syncVideo(videoPo.getId());
         }
     }

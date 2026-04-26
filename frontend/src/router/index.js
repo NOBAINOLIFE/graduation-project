@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomePage from '../components/HomePage.vue';
+import SearchPage from '../components/SearchPage.vue';
 import UserProfilePage from '../components/UserProfilePage.vue';
 import CreatorCenter from '../components/CreatorCenter.vue';
 import VideoSubmitPage from '../components/VideoSubmitPage.vue';
@@ -23,6 +24,11 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomePage
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: SearchPage
     },
     {
       path: '/user/:userId',

@@ -12,7 +12,7 @@
       </div>
 
       <!-- 中间搜索框 -->
-      <div class="flex-1 max-w-[500px] mx-4">
+      <div v-if="!isSearchPage" class="flex-1 max-w-[500px] mx-4">
         <div class="relative">
           <input
             v-model="searchKeyword"
@@ -111,8 +111,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   getUserId,
   isUserLoggedIn,
@@ -124,10 +124,12 @@ import {
 import UserMenu from './UserMenu.vue';
 import LoginModal from './LoginModal.vue';
 
+const route = useRoute();
 const router = useRouter();
 const searchKeyword = ref('');
 const showLoginModal = ref(false);
 const isLoggedIn = ref(isUserLoggedIn());
+const isSearchPage = computed(() => route.path === '/search');
 
 function goHome() {
   router.push('/');
@@ -138,9 +140,13 @@ function clearSearch() {
 }
 
 function handleSearch() {
-  if (searchKeyword.value.trim()) {
-    router.push({ path: '/', query: { keyword: searchKeyword.value } });
-  }
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) return;
+  const nextType = route.path === '/search' && route.query.type === 'user' ? 'user' : 'video';
+  router.push({
+    path: '/search',
+    query: { keyword, type: nextType }
+  });
 }
 
 function handleLoginSuccess() {
@@ -199,6 +205,7 @@ function handleShowLoginModal() {
 
 onMounted(() => {
   syncLoginStatus();
+  searchKeyword.value = typeof route.query.keyword === 'string' ? route.query.keyword : '';
   if (sessionStorage.getItem(SHOW_LOGIN_MODAL_ONCE_KEY) === '1') {
     sessionStorage.removeItem(SHOW_LOGIN_MODAL_ONCE_KEY);
     showLoginModal.value = true;
@@ -211,6 +218,13 @@ onBeforeUnmount(() => {
   window.removeEventListener(USER_AUTH_CHANGE_EVENT, syncLoginStatus);
   window.removeEventListener(SHOW_LOGIN_MODAL_EVENT, handleShowLoginModal);
 });
+
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    searchKeyword.value = typeof keyword === 'string' ? keyword : '';
+  }
+);
 </script>
 
 <style scoped>

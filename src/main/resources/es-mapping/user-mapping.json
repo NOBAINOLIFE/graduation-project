@@ -1,4 +1,24 @@
 {
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "single_char_ngram_tokenizer": {
+          "type": "ngram",
+          "min_gram": 1,
+          "max_gram": 2
+        }
+      },
+      "analyzer": {
+        "single_char_ngram_analyzer": {
+          "type": "custom",
+          "tokenizer": "single_char_ngram_tokenizer",
+          "filter": [
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
   "mappings": {
     "properties": {
       "userId": {
@@ -8,6 +28,11 @@
         "type": "text",
         "analyzer": "ik_max_word",
         "fields": {
+          "ngram": {
+            "type": "text",
+            "analyzer": "single_char_ngram_analyzer",
+            "search_analyzer": "single_char_ngram_analyzer"
+          },
           "keyword": {
             "type": "keyword"
           }

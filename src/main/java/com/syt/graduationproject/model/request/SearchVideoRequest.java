@@ -1,5 +1,6 @@
 package com.syt.graduationproject.model.request;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,6 +25,11 @@ public class SearchVideoRequest {
     private String keyword;
 
     /**
+     * 分区ID
+     */
+    private Long partitionId;
+
+    /**
      * 排序方式：1-最多播放 2-最新发布 3-最多收藏
      */
     private Integer sortType;
@@ -41,11 +47,13 @@ public class SearchVideoRequest {
     /**
      * 发布日期开始时间
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime publishStartTime;
 
     /**
      * 发布日期结束时间
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime publishEndTime;
 
     /**

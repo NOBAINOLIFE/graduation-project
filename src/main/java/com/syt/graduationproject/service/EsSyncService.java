@@ -26,4 +26,14 @@ public interface EsSyncService {
      * 重刷某个用户名下所有已发布视频的 ES 文档
      */
     void syncPublishedVideosByUserId(Long userId);
+
+    /**
+     * 全量重刷所有正常用户到 ES
+     */
+    void syncAllUsers();
+
+    /**
+     * 全量重刷所有已发布视频到 ES
+     */
+    void syncAllPublishedVideos();
 }

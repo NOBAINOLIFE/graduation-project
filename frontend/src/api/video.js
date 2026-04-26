@@ -40,6 +40,13 @@ export function searchVideos(payload) {
   });
 }
 
+export function searchUsers(payload) {
+  return request('/graduation-project/search/user', {
+    method: 'POST',
+    json: payload
+  });
+}
+
 export function getVideoComments(videoId, { sortType = 1, pageNum = 1, pageSize = 10 } = {}) {
   return request('/graduation-project/interact/comment/list', {
     method: 'GET',

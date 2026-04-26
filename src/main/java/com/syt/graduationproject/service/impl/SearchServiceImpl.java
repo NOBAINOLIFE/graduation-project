@@ -95,9 +95,16 @@ public class SearchServiceImpl implements SearchService {
         if (request.getUserId() != null) {
             boolQueryBuilder.filter(QueryBuilders.termQuery("userId", request.getUserId()));
         }
-
+        if (request.getPartitionId() != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("partitionId", request.getPartitionId()));
+        }
+        
         if (StringUtils.isNotBlank(request.getKeyword())) {
-            boolQueryBuilder.must(QueryBuilders.matchQuery("title", request.getKeyword()));
+            BoolQueryBuilder keywordQuery = QueryBuilders.boolQuery()
+                    .should(QueryBuilders.matchQuery("title", request.getKeyword()))
+                    .should(QueryBuilders.matchQuery("title.ngram", request.getKeyword()))
+                    .minimumShouldMatch(1);
+            boolQueryBuilder.must(keywordQuery);
         } else {
             boolQueryBuilder.must(QueryBuilders.matchAllQuery());
         }
@@ -156,7 +163,11 @@ public class SearchServiceImpl implements SearchService {
     private NativeSearchQuery buildUserQuery(SearchUserRequest request) {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         if (StringUtils.isNotBlank(request.getKeyword())) {
-            boolQueryBuilder.must(QueryBuilders.matchQuery("username", request.getKeyword()));
+            BoolQueryBuilder keywordQuery = QueryBuilders.boolQuery()
+                    .should(QueryBuilders.matchQuery("username", request.getKeyword()))
+                    .should(QueryBuilders.matchQuery("username.ngram", request.getKeyword()))
+                    .minimumShouldMatch(1);
+            boolQueryBuilder.must(keywordQuery);
         } else {
             boolQueryBuilder.must(QueryBuilders.matchAllQuery());
         }
