@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="min-h-screen bg-[#f6f7fb] text-gray-800">
     <HeaderNav />
 
@@ -919,8 +919,14 @@ function formatDate(dateStr) {
 }
 
 function syncViewerAuth(event) {
+  const wasLoggedIn = viewerLoggedIn.value;
   viewerLoggedIn.value = event?.detail?.isLoggedIn ?? isUserLoggedIn();
   currentUsername.value = event?.detail?.username ?? getUsername();
+  
+  // 如果从游客状态变为登录状态，重新加载页面以获取用户相关数据
+  if (!wasLoggedIn && viewerLoggedIn.value) {
+    loadPage();
+  }
 }
 
 function promptLogin(message) {

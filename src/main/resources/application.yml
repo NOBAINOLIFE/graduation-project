@@ -60,4 +60,4 @@ minio:
 search:
   es:
     # 修改分词器或 mapping 后，可临时改为 true 触发删除重建并全量回灌，完成后建议改回 false
-    rebuild-on-startup: false在·
+    rebuild-on-startup: false

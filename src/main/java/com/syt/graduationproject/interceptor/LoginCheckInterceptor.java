@@ -39,24 +39,26 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
         String uri = request.getRequestURI();
-        if (isPublicPath(uri)) {
-            return true;
-        }
 
         // 放行预检请求
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
 
-        // 获取请求头中的令牌，若不存在，返回错误
+        // 公开路径 + 没有 token：直接放行
         String jwtToken = request.getHeader(JWT_HTTP_HEADER);
-        if (StringUtils.isEmpty(jwtToken)) {
+        if (isPublicPath(uri) && StringUtils.isEmpty(jwtToken)) {
+            return true;
+        }
+
+        // 非公开路径 + 没有 token：拦截
+        if (!isPublicPath(uri) && StringUtils.isEmpty(jwtToken)) {
             log.error("请求头token为空，返回未登录的信息");
             editResponseMessage(response, "未登录");
             return false;
         }
 
-        // 若存在，则解析token，若解析失败，返回错误
+        // 有 token：解析 token
         try {
             UserDto userDto = praseJwtToken(jwtToken);
             // 校验token是否在Redis白名单
@@ -80,7 +82,7 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
             UserHolderUtil.saveUser(userDto);
         } catch (Exception e) {
             log.error("解析JWT令牌失败", e);
-            editResponseMessage(response, "登录失败");
+            editResponseMessage(response, "操作失败，登录令牌错误");
             return false;
         }
         return true;

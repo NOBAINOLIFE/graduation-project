@@ -108,10 +108,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { getUserInfo, logout } from '../api/user';
-import { clearUserAuth, getUserId } from '../utils/auth';
+import { clearUserAuth, getUserId, USER_AUTH_CHANGE_EVENT } from '../utils/auth';
 
 const router = useRouter();
 const showMenu = ref(false);
@@ -221,9 +221,26 @@ async function handleLogout() {
   }
 }
 
+// 监听登录状态变化，重新加载用户信息
+function handleAuthChange(event) {
+  if (event?.detail?.isLoggedIn) {
+    // 登录后重新加载用户信息
+    userInfo.value = null;
+    loadUserInfo();
+  } else {
+    // 登出后清空用户信息
+    userInfo.value = null;
+  }
+}
+
 onMounted(() => {
   // 预加载用户信息
   loadUserInfo();
+  window.addEventListener(USER_AUTH_CHANGE_EVENT, handleAuthChange);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener(USER_AUTH_CHANGE_EVENT, handleAuthChange);
 });
 </script>
 
