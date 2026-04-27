@@ -1,6 +1,5 @@
 package com.syt.graduationproject.model.vo;
 
-import com.syt.graduationproject.model.bo.VideoSourceBo;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,7 +27,7 @@ public class VideoPlayDetailVo {
 
     private String coverUrl;
 
-    private List<VideoSourceBo> videoSourceList;
+    private List<VideoSourceVo> videoSourceList;
 
     private String partitionName;
 

@@ -24,8 +24,8 @@ public class ReportPo {
     @TableField("reporter_id")
     private Long reporterId;
 
-    @TableField("target_type")
-    private Integer targetType;
+    @TableField("report_type")
+    private Integer reportType;
 
     @TableField("target_id")
     private Long targetId;

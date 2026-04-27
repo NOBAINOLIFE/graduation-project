@@ -1,4 +1,4 @@
-﻿import { request } from './http';
+import { request } from './http';
 
 export function getVideoPlayList(lastVideoId = 0) {
   return request('/graduation-project/video/videoPlayList', {
@@ -98,6 +98,13 @@ export function queryVideoDirectoryRelations(videoId) {
 
 export function followUser(payload) {
   return request('/graduation-project/interact/follow', {
+    method: 'POST',
+    json: payload
+  });
+}
+
+export function reportVideo(payload) {
+  return request('/graduation-project/interact/report', {
     method: 'POST',
     json: payload
   });

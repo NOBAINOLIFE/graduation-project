@@ -1,7 +1,5 @@
 package com.syt.graduationproject.model.vo;
 
-import com.syt.graduationproject.model.bo.VideoSourceBo;
-import com.syt.graduationproject.model.po.VideoTagPo;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,7 +16,7 @@ public class VideoAuditVo {
 
     private Long videoId;
 
-    private List<VideoSourceBo> videoSourceList;
+    private List<VideoSourceVo> videoSourceList;
 
     private String title;
 

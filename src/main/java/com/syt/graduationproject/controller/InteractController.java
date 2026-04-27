@@ -5,6 +5,7 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
@@ -418,7 +419,7 @@ public class InteractController {
      * 查询当前用户的举报信息
      */
     @GetMapping("/report/my")
-    public Response<List<ReportVo>> listMyReports() {
+    public Response<List<ManagerReportRecordVo>> listMyReports() {
         try {
             return Response.success(interactService.listMyReports());
         } catch (CustomException e) {

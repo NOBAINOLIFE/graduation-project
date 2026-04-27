@@ -59,14 +59,15 @@
             <button
               v-for="tab in tabs"
               :key="tab.key"
-              class="relative flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors"
+              class="relative flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-base font-medium transition-colors"
               :class="activeTab === tab.key ? 'text-[#00a1d6]' : 'text-gray-600 hover:text-gray-800'"
-              @click="activeTab = tab.key"
+              @click="switchContentTab(tab.key)"
             >
               <!-- 图标 -->
-              <svg v-if="tab.icon" class="h-[18px] w-[18px] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                <path :d="tab.icon"/>
-              </svg>
+              <el-icon v-if="tab.iconType" class="h-[18px] w-[18px] shrink-0" :color="tab.iconColor">
+                <VideoCamera v-if="tab.iconType === 'video'" />
+                <Star v-else-if="tab.iconType === 'star'" />
+              </el-icon>
               <span>{{ tab.label }}</span>
               <span v-if="tab.count !== undefined && tab.count !== null" class="text-xs text-gray-400">{{ tab.count }}</span>
               <div v-if="activeTab === tab.key" class="absolute bottom-0 left-2 right-2 h-0.5 bg-[#00a1d6]"></div>
@@ -75,11 +76,19 @@
 
           <!-- 右侧统计信息 -->
           <div class="flex shrink-0 items-center gap-6 py-2">
-            <button class="text-center transition-colors hover:text-[#00a1d6]" @click="goToRelationPage('following')">
+            <button
+              class="text-center transition-colors"
+              :class="activeTab === 'following' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]'"
+              @click="switchContentTab('following')"
+            >
               <div class="text-xs text-gray-500">关注数</div>
               <div class="text-base font-semibold leading-5 text-gray-800">{{ userInfo?.followNum || 0 }}</div>
             </button>
-            <button class="text-center transition-colors hover:text-[#00a1d6]" @click="goToRelationPage('fans')">
+            <button
+              class="text-center transition-colors"
+              :class="activeTab === 'fans' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]'"
+              @click="switchContentTab('fans')"
+            >
               <div class="text-xs text-gray-500">粉丝数</div>
               <div class="text-base font-semibold leading-5 text-gray-800">{{ formatCount(userInfo?.fansNum) }}</div>
             </button>
@@ -439,6 +448,134 @@
           </div>
         </div>
       </div>
+
+      <div v-if="isRelationTab" class="flex flex-col gap-6 xl:flex-row">
+        <aside class="w-full xl:w-[220px] xl:flex-shrink-0">
+            <div>
+              <div class="mb-2 flex items-center justify-between">
+                <h3 class="text-[15px] font-semibold text-[#111827]">{{ followingSectionTitle }}</h3>
+              </div>
+              <button
+                class="flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left text-[15px] font-medium transition-colors"
+                :class="activeTab === 'following' ? 'bg-[#18a8df] text-white' : 'text-[#111827] hover:bg-[#f4f8fb]'"
+                @click="switchContentTab('following')"
+              >
+                <span>关注列表</span>
+                <span>{{ userInfo?.followNum || 0 }}</span>
+              </button>
+            </div>
+
+            <div class="mt-2 border-t border-gray-300 pt-8">
+              <div class="mb-2 flex items-center justify-between">
+                <h3 class="text-[15px] font-semibold text-[#111827]">{{ fansSectionTitle }}</h3>
+              </div>
+              <button
+                class="flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left text-[15px] font-medium transition-colors"
+                :class="activeTab === 'fans' ? 'bg-[#18a8df] text-white' : 'text-[#111827] hover:bg-[#f4f8fb]'"
+                @click="switchContentTab('fans')"
+              >
+                <span>粉丝列表</span>
+                <span>{{ userInfo?.fansNum || 0 }}</span>
+              </button>
+            </div>
+        </aside>
+
+        <div class="min-w-0 flex-1">
+          <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h2 class="text-[25px] leading-none text-[#18191c]">{{ relationTitle }}</h2>
+            </div>
+
+            <div class="w-full xl:w-[320px]">
+              <label class="relative block">
+                <input
+                  v-model.trim="relationKeyword"
+                  type="text"
+                  class="h-12 w-full rounded-2xl border border-[#d8dee8] bg-white pl-5 pr-14 text-sm text-[#111827] outline-none transition focus:border-[#18a8df] focus:ring-4 focus:ring-[#18a8df]/10"
+                  placeholder="输入关键词"
+                />
+                <svg class="pointer-events-none absolute right-5 top-1/2 h-6 w-6 -translate-y-1/2 text-[#111827]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+                </svg>
+              </label>
+            </div>
+          </div>
+
+          <div v-if="relationLoading" class="flex min-h-[420px] items-center justify-center text-center">
+            <h3 class="text-xl font-semibold text-[#111827]">
+              拼命加载中...
+            </h3>
+          </div>
+
+          <div
+            v-else-if="filteredRelationList.length === 0"
+            class="flex min-h-[420px] flex-col items-center justify-center rounded-[32px] border border-dashed border-[#d7dee8] bg-white/70 px-6 text-center"
+          >
+            <div class="flex h-20 w-20 items-center justify-center rounded-full bg-[#eef6fb]">
+              <svg class="h-10 w-10 text-[#8fa3b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 20.5a8.38 8.38 0 0 0-10 0m10 0a8.5 8.5 0 1 0-10 0m10 0H7m8-11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </div>
+            <h3 class="mt-5 text-2xl font-semibold text-[#111827]">
+              {{ relationKeyword ? '没有找到匹配的用户' : emptyRelationTitle }}
+            </h3>
+            <p class="mt-2 text-sm text-[#6b7280]">
+              {{ relationKeyword ? '换个用户昵称试试。' : emptyRelationDescription }}
+            </p>
+          </div>
+
+          <div v-else class="grid gap-x-6 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
+            <article
+              v-for="item in filteredRelationList"
+              :key="item.userId"
+              class="rounded-2xl bg-white p-4 shadow-[0_8px_20px_rgba(15,23,42,0.06)] transition-transform duration-200 hover:-translate-y-1"
+            >
+              <div class="flex items-center gap-4">
+                <button
+                  class="relative h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-full bg-[#edf2f7]"
+                  @click="goToUserProfile(item.userId)"
+                >
+                  <img
+                    v-if="item.avatarUrl"
+                    :src="item.avatarUrl"
+                    :alt="item.username"
+                    class="h-full w-full object-cover"
+                    @error="handleImageError"
+                  />
+                  <div v-else class="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#18a8df] to-[#0f8fc5] text-2xl font-semibold text-white">
+                    {{ getNameInitial(item.username) }}
+                  </div>
+                </button>
+
+                <div class="min-w-0 flex-1">
+                  <button
+                    class="max-w-full truncate text-left text-base font-semibold text-[#18191c] transition hover:text-[#ff6b8f]"
+                    @click="goToUserProfile(item.userId)"
+                  >
+                    {{ item.username || '未命名用户' }}
+                  </button>
+                  <p class="mt-1 line-clamp-2 text-sm leading-6 text-[#6b7280]">
+                    {{ item.bio || '这个人很懒，什么都没写。' }}
+                  </p>
+
+                  <div class="mt-3 flex items-center gap-2">
+                    <button
+                      v-if="!isCurrentUser(item.userId)"
+                      class="inline-flex min-w-[100px] items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                      :class="getRelationButtonClass(item)"
+                      :disabled="relationFollowLoadingMap[item.userId]"
+                      @click="toggleRelationFollow(item)"
+                    >
+                      {{ relationFollowLoadingMap[item.userId] ? '处理中...' : getRelationButtonLabel(item) }}
+                    </button>
+                    <span v-else class="text-xs text-[#94a3b8]">这是你自己</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
     </div>
     <div
       v-if="showBatchTargetDialog"
@@ -619,16 +756,20 @@ import {
   deleteCollectionDirectory,
   batchOperateCollectionItems,
   clearInvalidCollectionItems,
-  uploadImage
+  uploadImage,
+  listFansUsers,
+  listFollowUsers
 } from '../api/user';
+import { followUser } from '../api/video';
 import { getUserId } from '../utils/auth';
 import HeaderNav from './HeaderNav.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { VideoCamera, Star } from '@element-plus/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
 
-const PROFILE_TAB_KEYS = ['videos', 'favorites'];
+const PROFILE_TAB_KEYS = ['videos', 'favorites', 'following', 'fans'];
 
 const userId = ref(route.params.userId || getUserId());
 const userInfo = ref(null);
@@ -638,11 +779,21 @@ const videoList = ref([]);
 const loading = ref(false);
 const pageNum = ref(1);
 const hasMore = ref(true);
+const relationKeyword = ref('');
+const relationLoading = ref(false);
+const followingUsers = ref([]);
+const fanUsers = ref([]);
+const relationLoadedMap = ref({
+  following: false,
+  fans: false
+});
+const relationFollowLoadingMap = ref({});
 
 const isSelf = computed(() => {
   const currentUserId = getUserId();
   return String(userId.value) === String(currentUserId);
 });
+const isRelationTab = computed(() => activeTab.value === 'following' || activeTab.value === 'fans');
 const favoriteCount = ref(0);
 const collectionDirectories = ref([]);
 const selectedDirectoryId = ref(null);
@@ -686,10 +837,48 @@ const batchTargetDirectories = computed(() => {
 const batchTargetDialogTitle = computed(() => {
   return batchDialogOperation.value === 'move' ? '移动到收藏夹' : '复制到收藏夹';
 });
+const currentRelationList = computed(() => {
+  return activeTab.value === 'fans' ? fanUsers.value : followingUsers.value;
+});
+const filteredRelationList = computed(() => {
+  const keyword = relationKeyword.value.trim().toLowerCase();
+  if (!keyword) {
+    return currentRelationList.value;
+  }
+  return currentRelationList.value.filter((item) => {
+    const username = String(item.username || '').toLowerCase();
+    return username.includes(keyword);
+  });
+});
+const followingSectionTitle = computed(() => {
+  return isSelf.value ? '我的关注' : `${userInfo.value?.username || 'TA'}的关注`;
+});
+const fansSectionTitle = computed(() => {
+  return isSelf.value ? '我的粉丝' : `${userInfo.value?.username || 'TA'}的粉丝`;
+});
+const relationTitle = computed(() => {
+  if (activeTab.value === 'fans') {
+    return isSelf.value ? '我的粉丝' : `${userInfo.value?.username || 'TA'}的粉丝`;
+  }
+  return isSelf.value ? '全部关注' : `${userInfo.value?.username || 'TA'}的关注`;
+});
+const relationTotalCount = computed(() => currentRelationList.value.length);
+const emptyRelationTitle = computed(() => {
+  if (activeTab.value === 'fans') {
+    return isSelf.value ? '你还没有粉丝' : 'TA还没有粉丝';
+  }
+  return isSelf.value ? '你还没有关注任何人' : 'TA还没有关注任何人';
+});
+const emptyRelationDescription = computed(() => {
+  if (activeTab.value === 'fans') {
+    return '等有人关注后，这里就会热闹起来。';
+  }
+  return '去发现感兴趣的创作者吧。';
+});
 
 const tabs = computed(() => [
-  { key: 'videos', label: '投稿', count: userInfo.value?.videoNum, icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' },
-  { key: 'favorites', label: '收藏', count: favoriteCount.value, icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' }
+  { key: 'videos', label: '投稿', count: userInfo.value?.videoNum, iconType: 'video', iconColor: '#00a1d6' },
+  { key: 'favorites', label: '收藏', count: favoriteCount.value, iconType: 'star', iconColor: '#f59e0b' }
 ]);
 
 const sortOptions = [
@@ -798,6 +987,33 @@ async function loadFavoriteVideos() {
     console.error('加载收藏视频失败:', error);
   } finally {
     favoriteLoading.value = false;
+  }
+}
+
+async function loadRelationList(type = activeTab.value, forceRefresh = false) {
+  if (!['following', 'fans'].includes(type)) {
+    return;
+  }
+  if (relationLoading.value) {
+    return;
+  }
+
+  try {
+    relationLoading.value = true;
+    const list = type === 'fans'
+      ? await listFansUsers(userId.value)
+      : await listFollowUsers(userId.value);
+    if (type === 'fans') {
+      fanUsers.value = Array.isArray(list) ? list : [];
+    } else {
+      followingUsers.value = Array.isArray(list) ? list : [];
+    }
+    relationLoadedMap.value[type] = true;
+  } catch (error) {
+    console.error('加载关系列表失败:', error);
+    ElMessage.error(error.message || '加载关系列表失败');
+  } finally {
+    relationLoading.value = false;
   }
 }
 
@@ -1111,23 +1327,138 @@ function handleSortChange(sortType) {
   loadUserVideos(true);
 }
 
-function goToRelationPage(type) {
-  const routeName = type === 'fans' ? 'user-fans' : 'user-following';
+function switchContentTab(tabKey) {
+  const nextQuery = { ...route.query };
+  if (tabKey === 'videos') {
+    delete nextQuery.tab;
+  } else {
+    nextQuery.tab = tabKey;
+  }
+  const currentTab = typeof route.query.tab === 'string' ? route.query.tab : undefined;
+  const nextTab = typeof nextQuery.tab === 'string' ? nextQuery.tab : undefined;
+  if (route.name === 'user-profile' && currentTab === nextTab) {
+    return;
+  }
   router.push({
-    name: routeName,
-    params: { userId: userId.value }
+    name: 'user-profile',
+    params: { userId: userId.value },
+    query: nextQuery
   });
+}
+
+// 监听路由变化，切换标签时重新加载数据
+watch(() => activeTab.value, (newTab) => {
+  if (['following', 'fans'].includes(newTab)) {
+    loadRelationList(newTab, true);
+  }
+});
+
+function isCurrentUser(targetUserId) {
+  return String(targetUserId) === String(getUserId() || '');
+}
+
+function getNameInitial(username) {
+  return String(username || 'U').charAt(0).toUpperCase();
+}
+
+function getRelationButtonLabel(item) {
+  if (activeTab.value === 'fans') {
+    return item.isFollow ? '已互粉' : '回关';
+  }
+  return item.isFollow ? '已关注' : '+ 关注';
+}
+
+function getRelationButtonClass(item) {
+  if (item.isFollow) {
+    return 'border-transparent bg-[#f3f4f6] text-[#8b95a1] hover:bg-[#e9edf2]';
+  }
+  if (activeTab.value === 'fans') {
+    return 'border-[#36a7ea] bg-white text-[#18a8df] hover:bg-[#f4fbff]';
+  }
+  return 'border-transparent bg-[#ffe8ef] text-[#ff6b8f] hover:bg-[#ffd8e5]';
+}
+
+function syncSelfFollowCount(delta) {
+  if (!isSelf.value || !userInfo.value) {
+    return;
+  }
+  userInfo.value.followNum = Math.max(0, Number(userInfo.value.followNum || 0) + delta);
+}
+
+async function toggleRelationFollow(item) {
+  if (!item?.userId || isCurrentUser(item.userId) || relationFollowLoadingMap.value[item.userId]) {
+    return;
+  }
+
+  const nextIsFollow = !item.isFollow;
+  relationFollowLoadingMap.value = {
+    ...relationFollowLoadingMap.value,
+    [item.userId]: true
+  };
+
+  try {
+    await followUser({
+      followeeId: item.userId,
+      operation: nextIsFollow ? 1 : 0
+    });
+
+    item.isFollow = nextIsFollow;
+    if (isSelf.value) {
+      syncSelfFollowCount(nextIsFollow ? 1 : -1);
+    }
+
+    ElMessage.success(nextIsFollow ? '关注成功' : '已取消关注');
+  } catch (error) {
+    console.error('关注操作失败:', error);
+    ElMessage.error(error.message || '关注操作失败');
+  } finally {
+    relationFollowLoadingMap.value = {
+      ...relationFollowLoadingMap.value,
+      [item.userId]: false
+    };
+  }
 }
 
 // 关注/取消关注
 async function handleFollow() {
-  // TODO: 实现关注功能
-  console.log('关注操作');
+  if (isSelf.value || !userInfo.value?.userId) {
+    return;
+  }
+
+  const nextIsFollow = !userInfo.value.isFollow;
+  try {
+    await followUser({
+      followeeId: userInfo.value.userId,
+      operation: nextIsFollow ? 1 : 0
+    });
+    userInfo.value.isFollow = nextIsFollow;
+    userInfo.value.fansNum = Math.max(0, Number(userInfo.value.fansNum || 0) + (nextIsFollow ? 1 : -1));
+    if (activeTab.value === 'fans') {
+      await loadRelationList('fans', true);
+    }
+    ElMessage.success(nextIsFollow ? '关注成功' : '已取消关注');
+  } catch (error) {
+    console.error('关注操作失败:', error);
+    ElMessage.error(error.message || '关注操作失败');
+  }
 }
 
 // 跳转到视频详情页
 function goToVideo(videoId) {
   router.push(`/video/${videoId}`);
+}
+
+function goToUserProfile(targetUserId) {
+  router.push({
+    name: 'user-profile',
+    params: { userId: targetUserId }
+  });
+}
+
+function handleImageError(event) {
+  if (event?.target) {
+    event.target.style.display = 'none';
+  }
 }
 
 // 格式化播放量
@@ -1161,10 +1492,20 @@ watch(() => route.params.userId, (newId) => {
   if (newId) {
     userId.value = newId;
     selectedDirectoryId.value = null;
+    relationKeyword.value = '';
+    followingUsers.value = [];
+    fanUsers.value = [];
+    relationLoadedMap.value = {
+      following: false,
+      fans: false
+    };
     exitBatchMode();
     loadUserInfo();
     loadUserVideos(true);
     loadCollectionDirectories();
+    if (['following', 'fans'].includes(activeTab.value)) {
+      loadRelationList(activeTab.value, true);
+    }
   }
 });
 
@@ -1175,6 +1516,9 @@ watch(
     if (resolveActiveTab(tab) !== 'favorites') {
       exitBatchMode();
     }
+    if (['following', 'fans'].includes(activeTab.value)) {
+      loadRelationList(activeTab.value);
+    }
   }
 );
 
@@ -1182,6 +1526,9 @@ onMounted(() => {
   loadUserInfo();
   loadUserVideos(true);
   loadCollectionDirectories();
+  if (['following', 'fans'].includes(activeTab.value)) {
+    loadRelationList(activeTab.value);
+  }
 });
 </script>
 

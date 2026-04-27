@@ -3,6 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.exception.ErrorParamException;
@@ -12,10 +13,14 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
-import com.syt.graduationproject.model.bo.VideoSourceBo;
+import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
-import com.syt.graduationproject.model.vo.ReportVo;
+import com.syt.graduationproject.model.vo.report.CommentReportInfoVo;
+import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.report.ReportInfoVo;
+import com.syt.graduationproject.model.vo.report.UserReportInfoVo;
+import com.syt.graduationproject.model.vo.report.VideoReportInfoVo;
 import com.syt.graduationproject.model.vo.VideoTagVo;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
@@ -26,6 +31,7 @@ import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +40,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +73,8 @@ public class ManagerServiceImpl implements ManagerService {
 
 	private final VideoStatsMapper videoStatsMapper;
 
+	private final UserStatsMapper userStatsMapper;
+
 	private final VideoPartitionMapper videoPartitionMapper;
 
 	private final VideoTagMapper videoTagMapper;
@@ -81,6 +90,8 @@ public class ManagerServiceImpl implements ManagerService {
 	private final MinioService minioService;
 
 	private final InteractRepository interactRepository;
+
+	private final VideoConverter videoConverter;
 
 	@Override
 	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
@@ -144,7 +155,7 @@ public class ManagerServiceImpl implements ManagerService {
 						.collect(Collectors.toMap(VideoPartitionPo::getId, partitionPo -> partitionPo));
 
 		Map<Long, List<VideoTagVo>> videoTagMap = queryVideoTagMap(videoIdList);
-		Map<Long, List<VideoSourceBo>> videoSourceMap = queryVideoSourceMap(videoIdList);
+		Map<Long, List<VideoSourceVo>> videoSourceMap = queryVideoSourceMap(videoIdList);
 
 		List<VideoAuditVo> records = auditRecordList.stream().map(auditRecordPo -> {
 			VideoPo videoPo = videoMap.get(auditRecordPo.getVideoId());
@@ -216,63 +227,337 @@ public class ManagerServiceImpl implements ManagerService {
 		return result;
 	}
 
-	private Map<Long, List<VideoSourceBo>> queryVideoSourceMap(List<Long> videoIdList) {
+	private Map<Long, List<VideoSourceVo>> queryVideoSourceMap(List<Long> videoIdList) {
 		if (videoIdList == null || videoIdList.isEmpty()) {
 			return Collections.emptyMap();
 		}
-		Map<Long, List<VideoSourceBo>> result = new HashMap<>();
+		Map<Long, List<VideoSourceVo>> result = new HashMap<>();
 		for (Long videoId : videoIdList) {
-			List<VideoSourceBo> sourceList = videoRepository.queryVideoSource(videoId, null, true);
+			List<VideoSourcePo> sourceList = videoRepository.queryVideoSource(videoId, null, true);
 			if (sourceList != null) {
-				for (VideoSourceBo sourceBo : sourceList) {
-					if (sourceBo != null && StringUtils.isNotBlank(sourceBo.getPlayUrl())) {
-						sourceBo.setPlayUrl(minioService.generateGetUrl(sourceBo.getPlayUrl(), 30));
+				for (VideoSourcePo sourcePo : sourceList) {
+					if (sourcePo != null && StringUtils.isNotBlank(sourcePo.getPlayUrl())) {
+						sourcePo.setPlayUrl(minioService.generateGetUrl(sourcePo.getPlayUrl(), 30));
 					}
 				}
 			}
-			result.put(videoId, sourceList == null ? Collections.emptyList() : sourceList);
+			result.put(videoId, sourceList == null ? Collections.emptyList() : videoConverter.toVideoSourceVoList(sourceList));
 		}
 		return result;
 	}
 
 	@Override
-	public PageVo<ReportVo> queryReportList(ManagerReportListRequest request) {
+	public PageVo<ManagerReportRecordVo> queryReportList(ManagerReportListRequest request) {
 		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
 		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
-		Integer targetType = request == null ? null : request.getTargetType();
-		Integer status = request == null || request.getStatus() == null
-				? ReportStatusEnum.WAITING_AUDIT.getCode()
-				: request.getStatus();
+		Integer reportType = request == null ? null : request.getReportType();
+		Integer status = request == null ? null :request.getStatus();
 
-		Page<ReportPo> page = new Page<>(pageNum, pageSize);
-		Page<ReportPo> result = reportMapper.selectPage(page,
-				new LambdaQueryWrapper<ReportPo>()
-						.eq(ReportPo::getStatus, status)
-						.eq(targetType != null, ReportPo::getTargetType, targetType)
-						.orderByDesc(ReportPo::getCreateTime));
+		Page<ReportPo> reportPoPage = interactRepository
+				.queryReportRecord(null, status, reportType, pageNum, pageSize);
+		if (CollectionUtils.isEmpty(reportPoPage.getRecords())) {
+			return PageVo.<ManagerReportRecordVo>builder()
+					.total(reportPoPage.getTotal())
+					.pageNum(pageNum)
+					.pageSize(pageSize)
+					.records(Collections.emptyList())
+					.build();
+		}
 
-		List<ReportVo> records = result.getRecords().stream()
-				.map(reportPo -> ReportVo.builder()
-						.reportId(reportPo.getId())
-						.reporterId(reportPo.getReporterId())
-						.targetType(reportPo.getTargetType())
-						.targetId(reportPo.getTargetId())
-						.reason(reportPo.getReason())
-						.detail(reportPo.getDetail())
-						.status(reportPo.getStatus())
-						.reviewerId(reportPo.getReviewerId())
-						.reviewNote(reportPo.getReviewNote())
-						.createTime(reportPo.getCreateTime())
-						.updateTime(reportPo.getUpdateTime())
-						.build())
+		Set<Long> userIds = new HashSet<>();
+		Set<Long> videoIds = new HashSet<>();
+		Set<Long> commentIds = new HashSet<>();
+		reportPoPage.getRecords().forEach(reportPo -> {
+			userIds.add(reportPo.getReporterId());
+			if (reportPo.getReviewerId() != null) {
+				userIds.add(reportPo.getReviewerId());
+			}
+			if (ReportTargetTypeEnum.USER.getCode().equals(reportPo.getReportType())) {
+				userIds.add(reportPo.getTargetId());
+			} else if (ReportTargetTypeEnum.VIDEO.getCode().equals(reportPo.getReportType())) {
+				videoIds.add(reportPo.getTargetId());
+			} else if (ReportTargetTypeEnum.COMMENT.getCode().equals(reportPo.getReportType())) {
+				commentIds.add(reportPo.getTargetId());
+			}
+		});
+
+		Map<Long, CommentPo> commentMap = queryCommentMap(commentIds);
+		Set<Long> rootCommentIds = commentMap.values().stream()
+				.map(CommentPo::getRootId)
+				.filter(rootId -> rootId != null && rootId > 0)
+				.collect(Collectors.toSet());
+		Map<Long, CommentPo> rootCommentMap = queryCommentMap(rootCommentIds);
+
+		commentMap.values().forEach(commentPo -> {
+			if (commentPo.getUserId() != null) {
+				userIds.add(commentPo.getUserId());
+			}
+			if (commentPo.getVideoId() != null) {
+				videoIds.add(commentPo.getVideoId());
+			}
+		});
+
+		Map<Long, VideoPo> videoMap = queryVideoMap(videoIds);
+		Set<Long> partitionIds = videoMap.values().stream()
+				.map(VideoPo::getPartitionId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		videoMap.values().forEach(videoPo -> {
+			if (videoPo.getUserId() != null) {
+				userIds.add(videoPo.getUserId());
+			}
+		});
+
+		Map<Long, UserPo> userMap = queryUserMap(userIds);
+		Map<Long, UserStatsPo> userStatsMap = queryUserStatsMap(userIds);
+		Map<Long, VideoStatsPo> videoStatsMap = queryVideoStatsMap(videoIds);
+		Map<Long, VideoPartitionPo> partitionMap = queryPartitionMap(partitionIds);
+		Map<Long, List<String>> videoTagNameMap = queryVideoTagNameMap(new ArrayList<>(videoIds));
+		Map<Long, List<VideoSourceVo>> videoSourceMap = queryVideoSourceMap(new ArrayList<>(videoIds));
+
+		Map<Long, UserPo> finalUserMap = userMap;
+		Map<Long, UserStatsPo> finalUserStatsMap = userStatsMap;
+		Map<Long, VideoPo> finalVideoMap = videoMap;
+		Map<Long, VideoStatsPo> finalVideoStatsMap = videoStatsMap;
+		Map<Long, VideoPartitionPo> finalPartitionMap = partitionMap;
+		Map<Long, List<String>> finalVideoTagNameMap = videoTagNameMap;
+		Map<Long, List<VideoSourceVo>> finalVideoSourceMap = videoSourceMap;
+		Map<Long, CommentPo> finalCommentMap = commentMap;
+		Map<Long, CommentPo> finalRootCommentMap = rootCommentMap;
+		List<ManagerReportRecordVo> records = reportPoPage.getRecords().stream()
+				.map(reportPo -> buildManagerReportRecord(reportPo, finalUserMap, finalUserStatsMap, finalVideoMap,
+						finalVideoStatsMap, finalPartitionMap, finalVideoTagNameMap, finalVideoSourceMap,
+						finalCommentMap, finalRootCommentMap))
 				.collect(Collectors.toList());
 
-		return PageVo.<ReportVo>builder()
-				.total(result.getTotal())
+		return PageVo.<ManagerReportRecordVo>builder()
+				.total(reportPoPage.getTotal())
 				.pageNum(pageNum)
 				.pageSize(pageSize)
 				.records(records)
 				.build();
+	}
+
+	private ManagerReportRecordVo buildManagerReportRecord(ReportPo reportPo,
+			Map<Long, UserPo> userMap,
+			Map<Long, UserStatsPo> userStatsMap,
+			Map<Long, VideoPo> videoMap,
+			Map<Long, VideoStatsPo> videoStatsMap,
+			Map<Long, VideoPartitionPo> partitionMap,
+			Map<Long, List<String>> videoTagNameMap,
+			Map<Long, List<VideoSourceVo>> videoSourceMap,
+			Map<Long, CommentPo> commentMap,
+			Map<Long, CommentPo> rootCommentMap) {
+		UserPo reporter = userMap.get(reportPo.getReporterId());
+		UserPo reviewer = reportPo.getReviewerId() != null ? userMap.get(reportPo.getReviewerId()) : null;
+		return ManagerReportRecordVo.builder()
+				.reportId(reportPo.getId())
+				.reporterId(reportPo.getReporterId())
+				.reporterName(reporter != null ? reporter.getUsername() : "未知用户")
+				.reporterAvatar(reporter != null ? reporter.getAvatarUrl() : null)
+				.reporterBio(reporter != null ? reporter.getBio() : null)
+				.reportType(reportPo.getReportType())
+				.reportInfo(buildReportInfo(reportPo, userMap, userStatsMap, videoMap, videoStatsMap, partitionMap,
+						videoTagNameMap, videoSourceMap, commentMap, rootCommentMap))
+				.reason(reportPo.getReason())
+				.detail(reportPo.getDetail())
+				.status(reportPo.getStatus())
+				.reviewerId(reportPo.getReviewerId())
+				.reviewerName(reviewer != null ? reviewer.getUsername() : null)
+				.reviewerAvatar(reviewer != null ? reviewer.getAvatarUrl() : null)
+				.reviewNote(reportPo.getReviewNote())
+				.createTime(reportPo.getCreateTime())
+				.updateTime(reportPo.getUpdateTime())
+				.build();
+	}
+
+	private ReportInfoVo buildReportInfo(ReportPo reportPo,
+			Map<Long, UserPo> userMap,
+			Map<Long, UserStatsPo> userStatsMap,
+			Map<Long, VideoPo> videoMap,
+			Map<Long, VideoStatsPo> videoStatsMap,
+			Map<Long, VideoPartitionPo> partitionMap,
+			Map<Long, List<String>> videoTagNameMap,
+			Map<Long, List<VideoSourceVo>> videoSourceMap,
+			Map<Long, CommentPo> commentMap,
+			Map<Long, CommentPo> rootCommentMap) {
+		if (ReportTargetTypeEnum.USER.getCode().equals(reportPo.getReportType())) {
+			return buildUserReportInfo(reportPo.getTargetId(), userMap, userStatsMap);
+		}
+		if (ReportTargetTypeEnum.VIDEO.getCode().equals(reportPo.getReportType())) {
+			return buildVideoReportInfo(reportPo.getTargetId(), videoMap, videoStatsMap, partitionMap,
+					videoTagNameMap, videoSourceMap, userMap);
+		}
+		if (ReportTargetTypeEnum.COMMENT.getCode().equals(reportPo.getReportType())) {
+			return buildCommentReportInfo(reportPo.getTargetId(), commentMap, rootCommentMap, videoMap, userMap);
+		}
+		return null;
+	}
+
+	private UserReportInfoVo buildUserReportInfo(Long userId,
+			Map<Long, UserPo> userMap,
+			Map<Long, UserStatsPo> userStatsMap) {
+		UserPo targetUser = userMap.get(userId);
+		UserStatsPo targetUserStats = userStatsMap.get(userId);
+		if (targetUser == null) {
+			return null;
+		}
+		UserReportInfoVo reportInfo = new UserReportInfoVo();
+		fillBaseUserReportInfo(reportInfo, targetUser);
+		reportInfo.setVideoNum(targetUserStats == null ? 0L : defaultLong(targetUserStats.getVideoNum()));
+		reportInfo.setFansNum(targetUserStats == null ? 0L : defaultLong(targetUserStats.getFansNum()));
+		reportInfo.setLikeNum(targetUserStats == null ? 0L : defaultLong(targetUserStats.getLikeNum()));
+		reportInfo.setPlayNum(targetUserStats == null ? 0L : defaultLong(targetUserStats.getPlayNum()));
+		reportInfo.setCreateTime(targetUser.getCreateTime());
+		return reportInfo;
+	}
+
+	private VideoReportInfoVo buildVideoReportInfo(Long videoId,
+			Map<Long, VideoPo> videoMap,
+			Map<Long, VideoStatsPo> videoStatsMap,
+			Map<Long, VideoPartitionPo> partitionMap,
+			Map<Long, List<String>> videoTagNameMap,
+			Map<Long, List<VideoSourceVo>> videoSourceMap,
+			Map<Long, UserPo> userMap) {
+		VideoPo video = videoMap.get(videoId);
+		if (video == null) {
+			return null;
+		}
+		UserPo uploader = userMap.get(video.getUserId());
+		VideoStatsPo videoStats = videoStatsMap.get(videoId);
+		VideoPartitionPo partitionPo = video.getPartitionId() == null ? null : partitionMap.get(video.getPartitionId());
+		VideoReportInfoVo reportInfo = new VideoReportInfoVo();
+		if (uploader != null) {
+			fillBaseUserReportInfo(reportInfo, uploader);
+		}
+		reportInfo.setVideoId(video.getId());
+		reportInfo.setTitle(video.getTitle());
+		reportInfo.setCoverUrl(video.getCoverUrl());
+		reportInfo.setDescription(video.getDescription());
+		reportInfo.setPartitionName(partitionPo == null ? null : partitionPo.getPartitionName());
+		reportInfo.setTagList(videoTagNameMap.getOrDefault(videoId, Collections.emptyList()));
+		reportInfo.setSourceList(videoSourceMap.getOrDefault(videoId, Collections.emptyList()));
+		reportInfo.setPlayCount(videoStats == null ? 0L : defaultLong(videoStats.getPlayCount()));
+		reportInfo.setLikeCount(videoStats == null ? 0L : defaultLong(videoStats.getLikeCount()));
+		reportInfo.setCollectCount(videoStats == null ? 0L : defaultLong(videoStats.getCollectCount()));
+		reportInfo.setCommentCount(videoStats == null ? 0L : defaultLong(videoStats.getCommentCount()));
+		reportInfo.setShareCount(videoStats == null ? 0L : defaultLong(videoStats.getShareCount()));
+		reportInfo.setCreateTime(video.getCreateTime() == null ? null : video.getCreateTime().toString());
+		return reportInfo;
+	}
+
+	private CommentReportInfoVo buildCommentReportInfo(Long commentId,
+			Map<Long, CommentPo> commentMap,
+			Map<Long, CommentPo> rootCommentMap,
+			Map<Long, VideoPo> videoMap,
+			Map<Long, UserPo> userMap) {
+		CommentPo commentPo = commentMap.get(commentId);
+		if (commentPo == null) {
+			return null;
+		}
+		UserPo commentAuthor = userMap.get(commentPo.getUserId());
+		CommentPo rootComment = commentPo.getRootId() != null ? rootCommentMap.get(commentPo.getRootId()) : null;
+		VideoPo relatedVideo = videoMap.get(commentPo.getVideoId());
+		CommentReportInfoVo reportInfo = new CommentReportInfoVo();
+		if (commentAuthor != null) {
+			fillBaseUserReportInfo(reportInfo, commentAuthor);
+		}
+		reportInfo.setCommentId(commentPo.getId());
+		reportInfo.setContent(commentPo.getContent());
+		reportInfo.setCreateTime(commentPo.getCreateTime());
+		reportInfo.setIsRootComment(commentPo.getRootId() == null || commentPo.getRootId() == 0);
+		reportInfo.setRootCommentContent(rootComment == null ? null : rootComment.getContent());
+		reportInfo.setVideoId(commentPo.getVideoId() == null ? null : String.valueOf(commentPo.getVideoId()));
+		reportInfo.setCoverUrl(relatedVideo == null ? null : relatedVideo.getCoverUrl());
+		reportInfo.setDescription(relatedVideo == null ? null : relatedVideo.getDescription());
+		reportInfo.setTitle(relatedVideo == null ? null : relatedVideo.getTitle());
+		return reportInfo;
+	}
+
+	private void fillBaseUserReportInfo(ReportInfoVo reportInfo, UserPo userPo) {
+		if (reportInfo == null || userPo == null) {
+			return;
+		}
+		reportInfo.setUserId(userPo.getId());
+		reportInfo.setUsername(userPo.getUsername());
+		reportInfo.setAvatarUrl(userPo.getAvatarUrl());
+		reportInfo.setBio(userPo.getBio());
+		reportInfo.setStatus(userPo.getStatus());
+	}
+
+	private Map<Long, UserPo> queryUserMap(Set<Long> userIds) {
+		if (userIds == null || userIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return userMapper.selectBatchIds(userIds).stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(UserPo::getId, userPo -> userPo, (left, right) -> left));
+	}
+
+	private Map<Long, UserStatsPo> queryUserStatsMap(Set<Long> userIds) {
+		if (userIds == null || userIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return userStatsMapper.selectList(new LambdaQueryWrapper<UserStatsPo>()
+						.in(UserStatsPo::getUserId, userIds))
+				.stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(UserStatsPo::getUserId, userStatsPo -> userStatsPo, (left, right) -> left));
+	}
+
+	private Map<Long, VideoPo> queryVideoMap(Set<Long> videoIds) {
+		if (videoIds == null || videoIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return videoMapper.selectBatchIds(videoIds).stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(VideoPo::getId, videoPo -> videoPo, (left, right) -> left));
+	}
+
+	private Map<Long, VideoStatsPo> queryVideoStatsMap(Set<Long> videoIds) {
+		if (videoIds == null || videoIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return videoStatsMapper.selectList(new LambdaQueryWrapper<VideoStatsPo>()
+						.in(VideoStatsPo::getVideoId, videoIds))
+				.stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(VideoStatsPo::getVideoId, videoStatsPo -> videoStatsPo, (left, right) -> left));
+	}
+
+	private Map<Long, CommentPo> queryCommentMap(Set<Long> commentIds) {
+		if (commentIds == null || commentIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return commentMapper.selectBatchIds(commentIds).stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(CommentPo::getId, commentPo -> commentPo, (left, right) -> left));
+	}
+
+	private Map<Long, VideoPartitionPo> queryPartitionMap(Set<Long> partitionIds) {
+		if (partitionIds == null || partitionIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return videoPartitionMapper.selectBatchIds(partitionIds).stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(VideoPartitionPo::getId, partitionPo -> partitionPo, (left, right) -> left));
+	}
+
+	private Map<Long, List<String>> queryVideoTagNameMap(List<Long> videoIdList) {
+		Map<Long, List<VideoTagVo>> videoTagMap = queryVideoTagMap(videoIdList);
+		if (videoTagMap.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		Map<Long, List<String>> result = new HashMap<>();
+		videoTagMap.forEach((videoId, tagList) -> result.put(videoId, tagList.stream()
+				.map(VideoTagVo::getTagName)
+				.filter(StringUtils::isNotBlank)
+				.collect(Collectors.toList())));
+		return result;
+	}
+
+	private Long defaultLong(Long value) {
+		return value == null ? 0L : value;
 	}
 
 	@Override
@@ -299,15 +584,15 @@ public class ManagerServiceImpl implements ManagerService {
 		if (!approved) {
 			return;
 		}
-		if (ReportTargetTypeEnum.USER.getCode().equals(reportPo.getTargetType())) {
+		if (ReportTargetTypeEnum.USER.getCode().equals(reportPo.getReportType())) {
 			banUser(reportPo.getTargetId());
 			return;
 		}
-		if (ReportTargetTypeEnum.VIDEO.getCode().equals(reportPo.getTargetType())) {
+		if (ReportTargetTypeEnum.VIDEO.getCode().equals(reportPo.getReportType())) {
 			banVideo(reportPo.getTargetId());
 			return;
 		}
-		if (ReportTargetTypeEnum.COMMENT.getCode().equals(reportPo.getTargetType())) {
+		if (ReportTargetTypeEnum.COMMENT.getCode().equals(reportPo.getReportType())) {
 			removeCommentByReport(reportPo.getTargetId());
 			return;
 		}

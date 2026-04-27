@@ -88,6 +88,14 @@
                 <el-icon :size="20"><Share /></el-icon>
                 <span>{{ formatCount(videoInfo.shareCount) }}</span>
               </button>
+
+              <button
+                class="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-200"
+                @click="handleReport"
+              >
+                <el-icon :size="20"><WarnTriangleFilled /></el-icon>
+                <span>举报</span>
+              </button>
             </div>
           </section>
 
@@ -372,6 +380,56 @@
         </div>
       </div>
     </div>
+
+    <div
+      v-if="reportDialog.visible"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4"
+      @click.self="closeReportDialog"
+    >
+      <div class="w-full max-w-3xl rounded-xl bg-white px-8 py-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-xl font-semibold text-slate-900">举报视频</h3>
+          <button class="text-slate-400 transition hover:text-slate-600" @click="closeReportDialog">×</button>
+        </div>
+
+        <p class="mb-3 text-sm text-slate-500">请选择举报原因</p>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label
+            v-for="option in reportReasonOptions"
+            :key="option"
+            class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-[#00a1d6]"
+          >
+            <input v-model="reportDialog.reason" type="radio" :value="option" class="accent-[#00a1d6]" />
+            <span>{{ option }}</span>
+          </label>
+        </div>
+
+        <div class="mt-4">
+          <p class="mb-1 text-sm text-slate-500">详细描述 <span class="text-rose-500">*</span></p>
+          <textarea
+            v-model="reportDialog.detail"
+            maxlength="400"
+            rows="4"
+            placeholder="请填写举报详细信息，方便我们更好地处理"
+            class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00a1d6] focus:outline-none"
+          ></textarea>
+          <p class="mt-1 text-right text-xs text-slate-400">{{ reportDialog.detail.length }}/400</p>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-3">
+          <button class="rounded-lg border border-slate-200 px-6 py-2 text-sm text-slate-600 transition hover:bg-slate-50" @click="closeReportDialog">
+            取消
+          </button>
+          <button
+            class="rounded-lg bg-[#00a1d6] px-6 py-2 text-sm text-white transition hover:bg-[#00b5e5] disabled:cursor-not-allowed disabled:bg-slate-300"
+            :disabled="reportDialog.submitting"
+            @click="submitReport"
+          >
+            {{ reportDialog.submitting ? '提交中...' : '提交' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -388,7 +446,8 @@ import {
   Share,
   Star,
   Timer,
-  View
+  View,
+  WarnTriangleFilled
 } from '@element-plus/icons-vue';
 import HeaderNav from './HeaderNav.vue';
 import AppVideoPlayer from './common/AppVideoPlayer.vue';
@@ -401,6 +460,7 @@ import {
   likeComment,
   likeVideo,
   queryVideoDirectoryRelations,
+  reportVideo,
   reportVideoProgress,
   submitVideoComment
 } from '../api/video';
@@ -447,6 +507,25 @@ const coinDialog = reactive({
   amount: 2,
   alsoLike: true
 });
+
+const reportDialog = reactive({
+  visible: false,
+  submitting: false,
+  reason: '',
+  detail: ''
+});
+
+const reportReasonOptions = [
+  '色情低俗',
+  '违法犯罪',
+  '赌博诈骗',
+  '血腥暴力',
+  '人身攻击',
+  '侵犯隐私',
+  '垃圾广告',
+  '侵权',
+  '其他'
+];
 
 const coinOptions = [
   { amount: 1 },
@@ -818,6 +897,48 @@ function handleShare() {
 function handleReply() {
   if (!ensureLoggedIn('登录后可参与评论回复')) return;
   ElMessage.info('当前版本先支持一级评论，楼中楼回复后续可以继续补');
+}
+
+function handleReport() {
+  if (!ensureLoggedIn('登录后可举报视频')) return;
+  reportDialog.visible = true;
+  reportDialog.reason = '';
+  reportDialog.detail = '';
+}
+
+function closeReportDialog() {
+  if (reportDialog.submitting) return;
+  reportDialog.visible = false;
+  reportDialog.reason = '';
+  reportDialog.detail = '';
+}
+
+async function submitReport() {
+  if (!reportDialog.reason.trim()) {
+    ElMessage.warning('请选择举报原因');
+    return;
+  }
+  if (!reportDialog.detail.trim()) {
+    ElMessage.warning('请填写详细描述');
+    return;
+  }
+  
+  reportDialog.submitting = true;
+  try {
+    await reportVideo({
+      targetType: 2,
+      targetId: currentVideoId.value,
+      reason: reportDialog.reason,
+      detail: reportDialog.detail
+    });
+    closeReportDialog();
+    ElMessage.success('举报提交成功，我们会尽快处理');
+  } catch (error) {
+    console.error('举报失败:', error);
+    ElMessage.error(error.message || '举报提交失败');
+  } finally {
+    reportDialog.submitting = false;
+  }
 }
 
 function goToUserProfile() {

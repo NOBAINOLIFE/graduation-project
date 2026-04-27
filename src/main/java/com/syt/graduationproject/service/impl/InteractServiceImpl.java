@@ -11,6 +11,7 @@ import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.VideoRepository;
@@ -884,7 +885,7 @@ public class InteractServiceImpl implements InteractService {
 
         ReportPo reportPo = ReportPo.builder()
                 .reporterId(reporterId)
-                .targetType(targetType)
+                .reportType(targetType)
                 .targetId(targetId)
                 .reason(request.getReason())
                 .detail(request.getDetail())
@@ -1277,7 +1278,8 @@ public class InteractServiceImpl implements InteractService {
     /**
      * 查询当前用户的举报信息
      */
-    public List<ReportVo> listMyReports() {
+    @Override
+    public List<ManagerReportRecordVo> listMyReports() {
         Long myId = UserHolderUtil.getUser().getUserId();
         LambdaQueryWrapper<ReportPo> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ReportPo::getReporterId, myId)
@@ -1286,10 +1288,9 @@ public class InteractServiceImpl implements InteractService {
         if (reportList == null || reportList.isEmpty()) {
             return Collections.emptyList();
         }
-        return reportList.stream().map(po -> ReportVo.builder()
+        return reportList.stream().map(po -> ManagerReportRecordVo.builder()
                 .reportId(po.getId())
-                .targetType(po.getTargetType())
-                .targetId(po.getTargetId())
+                .reportType(po.getReportType())
                 .reason(po.getReason())
                 .detail(po.getDetail())
                 .status(po.getStatus())

@@ -2,6 +2,7 @@ package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.syt.graduationproject.config.KafkaConfig;
+import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.VideoPartitionMapper;
@@ -9,7 +10,7 @@ import com.syt.graduationproject.mapper.VideoTagMapper;
 import com.syt.graduationproject.mapper.VideoTagRelMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
-import com.syt.graduationproject.model.bo.VideoSourceBo;
+import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
@@ -80,6 +81,7 @@ public class VideoServiceImpl implements VideoService {
     private final SearchRepository searchRepository;
 
     private final SearchConverter searchConverter;
+    private final VideoConverter videoConverter;
 
     /**
      * 查询用户视频数
@@ -115,13 +117,13 @@ public class VideoServiceImpl implements VideoService {
                 .build();
 
         // 查询视频播放源
-        List<VideoSourceBo> videoSourceList = videoRepository.queryVideoSource(videoId, null, true);
-        for (VideoSourceBo sourceBo : videoSourceList) {
-            if (StringUtils.isNotBlank(sourceBo.getPlayUrl())) {
-                sourceBo.setPlayUrl(minioService.generateGetUrl(sourceBo.getPlayUrl(), 30));
+        List<VideoSourcePo> videoSourceList = videoRepository.queryVideoSource(videoId, null, true);
+        for (VideoSourcePo sourcePo : videoSourceList) {
+            if (StringUtils.isNotBlank(sourcePo.getPlayUrl())) {
+                sourcePo.setPlayUrl(minioService.generateGetUrl(sourcePo.getPlayUrl(), 30));
             }
         }
-        videoPlayDetailVo.setVideoSourceList(videoSourceList);
+        videoPlayDetailVo.setVideoSourceList(videoConverter.toVideoSourceVoList(videoSourceList));
 
         // 查询用户播放记录
         if (myId != null) {

@@ -1,110 +1,475 @@
 <template>
-  <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-slate-200">
+  <section class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div class="mb-5 border-b border-slate-200">
+      <nav class="-mb-px flex gap-6">
+        <button
+          v-for="tab in tabs"
+          :key="tab.type"
+          class="border-b-2 px-4 py-3 text-sm font-medium transition"
+          :class="activeTab === tab.type ? 'border-[#00a1d6] text-[#00a1d6]' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'"
+          @click="switchTab(tab.type)"
+        >
+          {{ tab.label }}
+          <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs">{{ tabCounts[tab.type] || 0 }}</span>
+        </button>
+      </nav>
+    </div>
+
     <div class="mb-5 flex flex-wrap items-center gap-3">
-      <h2 class="text-lg font-semibold">举报管理</h2>
-      <select v-model.number="filters.status" class="rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-[#00a1d6] focus:outline-none">
+      <select
+        v-model.number="filters.status"
+        class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:border-[#00a1d6] focus:outline-none"
+      >
+        <option :value="null">全部状态</option>
         <option :value="0">待审核</option>
         <option :value="1">已通过</option>
         <option :value="2">已驳回</option>
       </select>
-      <select v-model.number="filters.targetType" class="rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-[#00a1d6] focus:outline-none">
-        <option :value="0">全部类型</option>
-        <option :value="1">用户</option>
-        <option :value="2">视频</option>
-      </select>
-      <button
-        class="rounded bg-[#00a1d6] px-4 py-1.5 text-sm text-white hover:bg-[#00b5e5]"
-        :disabled="loading"
-        @click="reloadFirstPage"
-      >
-        {{ loading ? '加载中...' : '查询' }}
-      </button>
+      <span class="text-xs text-slate-400">切换类型或状态后会自动刷新列表</span>
     </div>
 
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="border-b border-slate-200 text-left text-slate-500">
-            <th class="py-2 pr-3">举报ID</th>
-            <th class="py-2 pr-3">举报人</th>
-            <th class="py-2 pr-3">目标</th>
-            <th class="py-2 pr-3">原因</th>
-            <th class="py-2 pr-3">状态</th>
-            <th class="py-2 pr-3">创建时间</th>
-            <th class="py-2">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in records" :key="item.reportId" class="border-b border-slate-100 align-top">
-            <td class="py-3 pr-3">{{ item.reportId }}</td>
-            <td class="py-3 pr-3">{{ item.reporterId }}</td>
-            <td class="py-3 pr-3">{{ targetText(item.targetType) }}: {{ item.targetId }}</td>
-            <td class="py-3 pr-3">
-              <p class="font-medium text-slate-900">{{ item.reason || '-' }}</p>
-              <p class="max-w-[280px] text-xs text-slate-500">{{ item.detail || '-' }}</p>
-            </td>
-            <td class="py-3 pr-3">{{ statusText(item.status) }}</td>
-            <td class="py-3 pr-3">{{ formatTime(item.createTime) }}</td>
-            <td class="py-3">
-              <div class="flex min-w-[300px] flex-col gap-2">
-                <input
-                  v-model.trim="reviewNotes[item.reportId]"
-                  class="rounded border border-slate-200 px-2 py-1 text-xs focus:border-[#00a1d6] focus:outline-none"
-                  placeholder="审核备注（可选）"
+    <div class="space-y-4">
+      <article
+        v-for="item in records"
+        :key="item.reportId"
+        class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
+      >
+        <div class="border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+          <div class="flex flex-wrap items-center gap-3 text-sm">
+            <span class="rounded-full bg-white px-2.5 py-1 font-medium text-slate-700 ring-1 ring-slate-200">
+              {{ getReportTypeLabel(item.reportType) }}
+            </span>
+            <span class="rounded-full px-2.5 py-1 text-xs font-medium" :class="getStatusClass(item.status)">
+              {{ statusText(item.status) }}
+            </span>
+            <span class="text-slate-500">举报单号：{{ item.reportId }}</span>
+            <span class="text-slate-500">创建时间：{{ formatTime(item.createTime) }}</span>
+            <span class="text-slate-500">更新时间：{{ formatTime(item.updateTime) }}</span>
+          </div>
+        </div>
+
+        <div class="grid gap-4 p-5 xl:grid-cols-[280px_minmax(0,1fr)_240px]">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">举报人</p>
+            <div class="flex items-center gap-3">
+              <img
+                v-if="item.reporterAvatar"
+                :src="item.reporterAvatar"
+                :alt="item.reporterName || '举报人头像'"
+                class="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+              />
+              <div
+                v-else
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#00a1d6] to-[#0088b3] text-base font-medium text-white"
+              >
+                {{ getInitial(item.reporterName, 'U') }}
+              </div>
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-slate-900">{{ item.reporterName || '未知用户' }}</p>
+                <p class="text-xs text-slate-500">用户 ID：{{ item.reporterId || '-' }}</p>
+              </div>
+            </div>
+            <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reporterBio || '暂无个人简介' }}</p>
+
+            <div class="mt-4 space-y-2 text-sm text-slate-600">
+              <p><span class="text-slate-500">举报原因：</span><span class="font-medium text-slate-900">{{ item.reason || '-' }}</span></p>
+              <p class="leading-6"><span class="text-slate-500">举报详情：</span>{{ item.detail || '-' }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div v-if="item.reportType === 1" class="rounded-2xl border border-slate-200 p-4">
+              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">被举报用户</p>
+              <div class="flex items-start gap-4">
+                <img
+                  v-if="item.reportInfo?.avatarUrl"
+                  :src="item.reportInfo.avatarUrl"
+                  :alt="item.reportInfo.username || '用户头像'"
+                  class="h-16 w-16 rounded-full object-cover ring-1 ring-slate-200"
                 />
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    class="rounded bg-emerald-500 px-3 py-1 text-xs text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-                    :disabled="operatingId === item.reportId"
-                    @click="submitReview(item.reportId, 1)"
-                  >通过</button>
-                  <button
-                    class="rounded bg-rose-500 px-3 py-1 text-xs text-white hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-                    :disabled="operatingId === item.reportId"
-                    @click="submitReview(item.reportId, 0)"
-                  >驳回</button>
-                  <button
-                    class="rounded border border-amber-400 px-3 py-1 text-xs text-amber-600 hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-300"
-                    :disabled="operatingId === item.reportId"
-                    @click="banTarget(item)"
-                  >封禁目标</button>
-                  <button
-                    class="rounded border border-sky-400 px-3 py-1 text-xs text-sky-600 hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-300"
-                    :disabled="operatingId === item.reportId"
-                    @click="unbanTarget(item)"
-                  >解禁目标</button>
+                <div
+                  v-else
+                  class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-200 text-lg font-medium text-slate-600"
+                >
+                  {{ getInitial(item.reportInfo?.username, 'U') }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="text-base font-semibold text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
+                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      {{ userStatusText(item.reportInfo?.status) }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-sm text-slate-500">用户 ID：{{ item.reportInfo?.userId || '-' }}</p>
+                  <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
                 </div>
               </div>
-            </td>
-          </tr>
-          <tr v-if="!records.length && !loading">
-            <td colspan="7" class="py-8 text-center text-slate-400">暂无数据</td>
-          </tr>
-        </tbody>
-      </table>
+
+              <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-xl bg-slate-50 p-3">
+                  <p class="text-xs text-slate-400">投稿数</p>
+                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.videoNum) }}</p>
+                </div>
+                <div class="rounded-xl bg-slate-50 p-3">
+                  <p class="text-xs text-slate-400">粉丝数</p>
+                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.fansNum) }}</p>
+                </div>
+                <div class="rounded-xl bg-slate-50 p-3">
+                  <p class="text-xs text-slate-400">获赞数</p>
+                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.likeNum) }}</p>
+                </div>
+                <div class="rounded-xl bg-slate-50 p-3">
+                  <p class="text-xs text-slate-400">总播放</p>
+                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.playNum) }}</p>
+                </div>
+              </div>
+
+              <p class="mt-3 text-xs text-slate-500">注册时间：{{ formatTime(item.reportInfo?.createTime) }}</p>
+            </div>
+
+            <div v-else-if="item.reportType === 2" class="space-y-4">
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">被举报视频</p>
+                <div class="flex flex-col gap-4 lg:flex-row">
+                  <img
+                    v-if="item.reportInfo?.coverUrl"
+                    :src="item.reportInfo.coverUrl"
+                    :alt="item.reportInfo?.title || '视频封面'"
+                    class="h-44 w-full rounded-2xl object-cover ring-1 ring-slate-200 lg:w-72"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-base font-semibold text-slate-900">{{ item.reportInfo?.title || '未知视频' }}</p>
+                    <p class="mt-1 text-sm text-slate-500">视频 ID：{{ item.reportInfo?.videoId || '-' }}</p>
+                    <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.description || '暂无视频简介' }}</p>
+
+                    <div class="mt-4 flex flex-wrap gap-2">
+                      <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                        分区：{{ item.reportInfo?.partitionName || '-' }}
+                      </span>
+                      <span
+                        v-for="tag in item.reportInfo?.tagList || []"
+                        :key="tag"
+                        class="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-600"
+                      >
+                        {{ tag }}
+                      </span>
+                      <span v-if="!(item.reportInfo?.tagList || []).length" class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
+                        暂无标签
+                      </span>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                      <div class="rounded-xl bg-slate-50 p-3">
+                        <p class="text-xs text-slate-400">播放</p>
+                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.playCount) }}</p>
+                      </div>
+                      <div class="rounded-xl bg-slate-50 p-3">
+                        <p class="text-xs text-slate-400">点赞</p>
+                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.likeCount) }}</p>
+                      </div>
+                      <div class="rounded-xl bg-slate-50 p-3">
+                        <p class="text-xs text-slate-400">收藏</p>
+                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.collectCount) }}</p>
+                      </div>
+                      <div class="rounded-xl bg-slate-50 p-3">
+                        <p class="text-xs text-slate-400">评论</p>
+                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.commentCount) }}</p>
+                      </div>
+                      <div class="rounded-xl bg-slate-50 p-3">
+                        <p class="text-xs text-slate-400">分享</p>
+                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.shareCount) }}</p>
+                      </div>
+                    </div>
+
+                    <p class="mt-3 text-xs text-slate-500">投稿时间：{{ formatTime(item.reportInfo?.createTime) }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">视频作者</p>
+                <div class="flex items-center gap-3">
+                  <img
+                    v-if="item.reportInfo?.avatarUrl"
+                    :src="item.reportInfo.avatarUrl"
+                    :alt="item.reportInfo?.username || '作者头像'"
+                    class="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+                  />
+                  <div
+                    v-else
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-base font-medium text-slate-600"
+                  >
+                    {{ getInitial(item.reportInfo?.username, 'U') }}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="truncate text-sm font-medium text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
+                      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {{ userStatusText(item.reportInfo?.status) }}
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-500">用户 ID：{{ item.reportInfo?.userId || '-' }}</p>
+                  </div>
+                </div>
+                <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">视频源</p>
+                <div v-if="item.reportInfo?.sourceList?.length" class="space-y-2">
+                  <div
+                    v-for="source in item.reportInfo.sourceList"
+                    :key="`${source.resolution}-${source.playUrl}`"
+                    class="rounded-xl bg-slate-50 px-3 py-2"
+                  >
+                    <p class="text-sm font-medium text-slate-800">{{ source.resolution || '未知清晰度' }}</p>
+                    <a
+                      v-if="source.playUrl"
+                      :href="source.playUrl"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="mt-1 block break-all text-xs text-sky-600 hover:text-sky-700"
+                    >
+                      {{ source.playUrl }}
+                    </a>
+                    <p v-else class="mt-1 text-xs text-slate-500">无播放地址</p>
+                  </div>
+                </div>
+                <p v-else class="text-sm text-slate-500">暂无可用视频源</p>
+              </div>
+            </div>
+
+            <div v-else-if="item.reportType === 3" class="space-y-4">
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">评论作者</p>
+                <div class="flex items-center gap-3">
+                  <img
+                    v-if="item.reportInfo?.avatarUrl"
+                    :src="item.reportInfo.avatarUrl"
+                    :alt="item.reportInfo?.username || '评论作者头像'"
+                    class="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+                  />
+                  <div
+                    v-else
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-base font-medium text-slate-600"
+                  >
+                    {{ getInitial(item.reportInfo?.username, 'U') }}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="truncate text-sm font-medium text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
+                      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {{ userStatusText(item.reportInfo?.status) }}
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-500">用户 ID：{{ item.reportInfo?.userId || '-' }}</p>
+                  </div>
+                </div>
+                <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">被举报评论</p>
+                <div class="rounded-2xl bg-slate-50 p-4">
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span>评论 ID：{{ item.reportInfo?.commentId || '-' }}</span>
+                    <span>发布时间：{{ formatTime(item.reportInfo?.createTime) }}</span>
+                    <span class="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                      {{ item.reportInfo?.isRootComment ? '根评论' : '回复评论' }}
+                    </span>
+                  </div>
+                  <p class="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                    {{ item.reportInfo?.content || '评论内容为空' }}
+                  </p>
+                  <div v-if="item.reportInfo?.rootCommentContent" class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2">
+                    <p class="text-xs text-slate-400">根评论内容</p>
+                    <p class="mt-1 text-sm leading-6 text-slate-600">{{ item.reportInfo.rootCommentContent }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">关联视频</p>
+                <div class="flex flex-col gap-4 lg:flex-row">
+                  <img
+                    v-if="item.reportInfo?.coverUrl"
+                    :src="item.reportInfo.coverUrl"
+                    :alt="item.reportInfo?.title || '关联视频封面'"
+                    class="h-32 w-full rounded-2xl object-cover ring-1 ring-slate-200 lg:w-60"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-base font-semibold text-slate-900">{{ item.reportInfo?.title || '未知视频' }}</p>
+                    <p class="mt-1 text-sm text-slate-500">视频 ID：{{ item.reportInfo?.videoId || '-' }}</p>
+                    <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.description || '暂无视频简介' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+              暂无可展示的举报目标信息
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-4">
+            <div v-if="item.status === 0" class="rounded-2xl border border-slate-200 p-4">
+              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">审核操作</p>
+              <div class="flex flex-col gap-2">
+                <button
+                  class="rounded-lg bg-emerald-500 px-4 py-2 text-sm text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  :disabled="operatingId === item.reportId"
+                  @click="openReviewDialog(item, 1)"
+                >
+                  通过举报
+                </button>
+                <button
+                  class="rounded-lg bg-rose-500 px-4 py-2 text-sm text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  :disabled="operatingId === item.reportId"
+                  @click="openReviewDialog(item, 0)"
+                >
+                  驳回举报
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="rounded-2xl border border-slate-200 p-4">
+              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">审核结果</p>
+              <div class="flex items-center gap-3">
+                <img
+                  v-if="item.reviewerAvatar"
+                  :src="item.reviewerAvatar"
+                  :alt="item.reviewerName || '管理员头像'"
+                  class="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+                />
+                <div
+                  v-else
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-medium text-slate-600"
+                >
+                  {{ getInitial(item.reviewerName, 'A') }}
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium text-slate-900">{{ item.reviewerName || '未知管理员' }}</p>
+                  <p class="text-xs text-slate-500">管理员 ID：{{ item.reviewerId || '-' }}</p>
+                </div>
+              </div>
+              <p class="mt-3 text-xs text-slate-500">审核时间：{{ formatTime(item.updateTime) }}</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.reviewNote || '未填写审核备注' }}</p>
+            </div>
+
+            <div v-if="item.reportType !== 3" class="rounded-2xl border border-slate-200 p-4">
+              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">手动处置</p>
+              <div class="flex flex-col gap-2">
+                <button
+                  class="rounded-lg border border-amber-400 px-3 py-2 text-sm text-amber-600 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-300"
+                  :disabled="operatingId === item.reportId"
+                  @click="banTarget(item)"
+                >
+                  {{ item.reportType === 1 ? '封禁用户' : '封禁视频' }}
+                </button>
+                <button
+                  class="rounded-lg border border-sky-400 px-3 py-2 text-sm text-sky-600 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-300"
+                  :disabled="operatingId === item.reportId"
+                  @click="unbanTarget(item)"
+                >
+                  {{ item.reportType === 1 ? '解禁用户' : '解禁视频' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div v-if="!records.length && !loading" class="py-12 text-center text-slate-400">
+        <svg class="mx-auto mb-3 h-12 w-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p>暂无{{ getCurrentTabLabel() }}数据</p>
+      </div>
     </div>
 
-    <div class="mt-4 flex items-center justify-between text-sm text-slate-500">
+    <div class="mt-5 flex items-center justify-between text-sm text-slate-500">
       <p>共 {{ pagination.total }} 条</p>
       <div class="flex items-center gap-2">
         <button
-          class="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+          class="rounded-lg border border-slate-200 px-3 py-1.5 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
           :disabled="pagination.pageNum <= 1 || loading"
           @click="changePage(pagination.pageNum - 1)"
-        >上一页</button>
+        >
+          上一页
+        </button>
         <span>第 {{ pagination.pageNum }} / {{ totalPages }} 页</span>
         <button
-          class="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+          class="rounded-lg border border-slate-200 px-3 py-1.5 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
           :disabled="pagination.pageNum >= totalPages || loading"
           @click="changePage(pagination.pageNum + 1)"
-        >下一页</button>
+        >
+          下一页
+        </button>
       </div>
     </div>
   </section>
+
+  <div
+    v-if="reviewDialog.visible"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+    @click.self="closeReviewDialog"
+  >
+    <div class="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
+      <div class="mb-4 flex items-center justify-between">
+        <h3 class="text-xl font-semibold text-slate-900">
+          {{ reviewDialog.operation === 1 ? '通过举报' : '驳回举报' }}
+        </h3>
+        <button class="text-slate-400 transition hover:text-slate-600" @click="closeReviewDialog">×</button>
+      </div>
+
+      <div class="mb-4 rounded-2xl bg-slate-50 p-4">
+        <p class="text-sm text-slate-700">
+          <span class="text-slate-500">举报人：</span>{{ reviewDialog.currentItem?.reporterName || '-' }}
+        </p>
+        <p class="mt-2 text-sm text-slate-700">
+          <span class="text-slate-500">举报目标：</span>{{ buildReviewTargetText(reviewDialog.currentItem) }}
+        </p>
+        <p class="mt-2 text-sm text-slate-700">
+          <span class="text-slate-500">举报原因：</span>{{ reviewDialog.currentItem?.reason || '-' }}
+        </p>
+        <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+          <span class="text-slate-500">举报详情：</span>{{ reviewDialog.currentItem?.detail || '-' }}
+        </p>
+      </div>
+
+      <p class="mb-3 text-sm text-slate-500">请填写审核备注（可选）</p>
+      <textarea
+        v-model="reviewDialog.note"
+        maxlength="200"
+        rows="3"
+        placeholder="请输入审核备注，方便后续追溯"
+        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00a1d6] focus:outline-none"
+      ></textarea>
+      <p class="mt-1 text-right text-xs text-slate-400">{{ reviewDialog.note.length }}/200</p>
+
+      <div class="mt-5 flex justify-end gap-3">
+        <button
+          class="rounded-lg border border-slate-200 px-6 py-2 text-sm text-slate-600 transition hover:bg-slate-50"
+          @click="closeReviewDialog"
+        >
+          取消
+        </button>
+        <button
+          class="rounded-lg px-6 py-2 text-sm text-white transition disabled:cursor-not-allowed disabled:bg-slate-300"
+          :class="reviewDialog.operation === 1 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'"
+          :disabled="operatingId === reviewDialog.currentItem?.reportId"
+          @click="confirmReview"
+        >
+          {{ operatingId === reviewDialog.currentItem?.reportId ? '提交中...' : '确定' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { ElMessage } from 'element-plus';
 import {
   banUser,
   banVideo,
@@ -114,9 +479,16 @@ import {
   unbanVideo
 } from '../../api/manager';
 
+const tabs = [
+  { type: 2, label: '视频举报' },
+  { type: 1, label: '用户举报' },
+  { type: 3, label: '评论举报' }
+];
+
+const activeTab = ref(2);
+
 const filters = reactive({
-  status: 0,
-  targetType: 0
+  status: 0
 });
 
 const pagination = reactive({
@@ -128,17 +500,45 @@ const pagination = reactive({
 const loading = ref(false);
 const operatingId = ref(null);
 const records = ref([]);
-const reviewNotes = ref({});
+const tabCounts = reactive({
+  1: 0,
+  2: 0,
+  3: 0
+});
+
+const reviewDialog = reactive({
+  visible: false,
+  operation: 1,
+  note: '',
+  currentItem: null
+});
 
 const totalPages = computed(() => {
   const pages = Math.ceil((pagination.total || 0) / pagination.pageSize);
   return pages > 0 ? pages : 1;
 });
 
-function targetText(type) {
-  if (type === 1) return '用户';
-  if (type === 2) return '视频';
-  return `类型${type}`;
+function getCurrentTabLabel() {
+  const tab = tabs.find(entry => entry.type === activeTab.value);
+  return tab ? tab.label : '举报';
+}
+
+function getInitial(name, fallback) {
+  return (name || fallback || '?').slice(0, 1);
+}
+
+function getReportTypeLabel(type) {
+  if (type === 1) return '用户举报';
+  if (type === 2) return '视频举报';
+  if (type === 3) return '评论举报';
+  return '未知类型';
+}
+
+function userStatusText(status) {
+  if (status === 0) return '正常';
+  if (status === 1) return '已封禁';
+  if (status === 2) return '已删除';
+  return status === null || status === undefined ? '未知状态' : `状态${status}`;
 }
 
 function statusText(status) {
@@ -148,34 +548,100 @@ function statusText(status) {
   return `状态${status}`;
 }
 
+function getStatusClass(status) {
+  if (status === 0) return 'bg-amber-50 text-amber-600';
+  if (status === 1) return 'bg-emerald-50 text-emerald-600';
+  if (status === 2) return 'bg-rose-50 text-rose-600';
+  return 'bg-slate-100 text-slate-600';
+}
+
 function formatTime(time) {
   if (!time) return '-';
   return String(time).replace('T', ' ');
 }
 
-async function fetchList() {
+function formatCount(value) {
+  const num = Number(value || 0);
+  return Number.isFinite(num) ? num.toLocaleString('zh-CN') : '0';
+}
+
+function buildReviewTargetText(item) {
+  const info = item?.reportInfo || {};
+  if (!item) return '-';
+  if (item.reportType === 1) {
+    return `${info.username || '未知用户'} (ID: ${info.userId || '-'})`;
+  }
+  if (item.reportType === 2) {
+    return `${info.title || '未知视频'} (ID: ${info.videoId || '-'})`;
+  }
+  if (item.reportType === 3) {
+    return `评论 ID: ${info.commentId || '-'}${info.title ? `，关联视频：${info.title}` : ''}`;
+  }
+  return '-';
+}
+
+function getBanTargetId(item) {
+  const info = item?.reportInfo || {};
+  if (item?.reportType === 1) return info.userId;
+  if (item?.reportType === 2) return info.videoId;
+  return null;
+}
+
+async function refreshTabCounts() {
   try {
-    loading.value = true;
+    const responses = await Promise.all(
+      tabs.map(tab =>
+        queryReportList({
+          status: filters.status,
+          reportType: tab.type,
+          pageNum: 1,
+          pageSize: 1
+        }).catch(() => ({ total: 0 }))
+      )
+    );
+    tabs.forEach((tab, index) => {
+      tabCounts[tab.type] = Number(responses[index]?.total || 0);
+    });
+  } catch (error) {
+    console.error('加载举报统计失败:', error);
+  }
+}
+
+async function fetchList(options = {}) {
+  const { silent = false } = options;
+  try {
+    if (!silent) {
+      loading.value = true;
+    }
     const data = await queryReportList({
       status: filters.status,
-      targetType: filters.targetType || null,
+      reportType: activeTab.value,
       pageNum: pagination.pageNum,
       pageSize: pagination.pageSize
     });
     records.value = data?.records || [];
-    pagination.total = data?.total || 0;
-    pagination.pageNum = data?.pageNum || pagination.pageNum;
-    pagination.pageSize = data?.pageSize || pagination.pageSize;
+    pagination.total = Number(data?.total || 0);
+    pagination.pageNum = Number(data?.pageNum || pagination.pageNum);
+    pagination.pageSize = Number(data?.pageSize || pagination.pageSize);
   } catch (error) {
-    alert(error.message || '加载失败');
+    ElMessage.error(error.message || '加载失败');
   } finally {
-    loading.value = false;
+    if (!silent) {
+      loading.value = false;
+    }
   }
+}
+
+function switchTab(type) {
+  if (activeTab.value === type) return;
+  activeTab.value = type;
+  reloadFirstPage();
 }
 
 function reloadFirstPage() {
   pagination.pageNum = 1;
   fetchList();
+  refreshTabCounts();
 }
 
 function changePage(page) {
@@ -183,18 +649,36 @@ function changePage(page) {
   fetchList();
 }
 
-async function submitReview(reportId, operation) {
+function openReviewDialog(item, operation) {
+  reviewDialog.visible = true;
+  reviewDialog.operation = operation;
+  reviewDialog.note = '';
+  reviewDialog.currentItem = item;
+}
+
+function closeReviewDialog() {
+  if (operatingId.value === reviewDialog.currentItem?.reportId) return;
+  reviewDialog.visible = false;
+  reviewDialog.note = '';
+  reviewDialog.currentItem = null;
+}
+
+async function confirmReview() {
+  if (!reviewDialog.currentItem) return;
+
+  operatingId.value = reviewDialog.currentItem.reportId;
   try {
-    operatingId.value = reportId;
     await reviewReport({
-      reportId,
-      operation,
-      reviewNote: reviewNotes.value[reportId] || ''
+      reportId: reviewDialog.currentItem.reportId,
+      operation: reviewDialog.operation,
+      reviewNote: reviewDialog.note || ''
     });
-    alert(operation === 1 ? '举报审核通过' : '举报已驳回');
+    closeReviewDialog();
+    ElMessage.success(reviewDialog.operation === 1 ? '举报审核通过' : '举报已驳回');
     await fetchList();
+    await refreshTabCounts();
   } catch (error) {
-    alert(error.message || '操作失败');
+    ElMessage.error(error.message || '操作失败');
   } finally {
     operatingId.value = null;
   }
@@ -202,18 +686,24 @@ async function submitReview(reportId, operation) {
 
 async function banTarget(item) {
   try {
-    operatingId.value = item.reportId;
-    if (item.targetType === 1) {
-      await banUser(item.targetId);
-      alert('用户封禁成功');
-    } else if (item.targetType === 2) {
-      await banVideo(item.targetId);
-      alert('视频封禁成功');
-    } else {
-      throw new Error('未知目标类型');
+    const targetId = getBanTargetId(item);
+    if (!targetId) {
+      throw new Error('未找到可封禁的目标');
     }
+    operatingId.value = item.reportId;
+    if (item.reportType === 1) {
+      await banUser(targetId);
+      ElMessage.success('用户封禁成功');
+    } else if (item.reportType === 2) {
+      await banVideo(targetId);
+      ElMessage.success('视频封禁成功');
+    } else {
+      throw new Error('当前目标类型不支持手动封禁');
+    }
+    await fetchList();
+    await refreshTabCounts();
   } catch (error) {
-    alert(error.message || '封禁失败');
+    ElMessage.error(error.message || '封禁失败');
   } finally {
     operatingId.value = null;
   }
@@ -221,23 +711,38 @@ async function banTarget(item) {
 
 async function unbanTarget(item) {
   try {
-    operatingId.value = item.reportId;
-    if (item.targetType === 1) {
-      await unbanUser(item.targetId);
-      alert('用户解禁成功');
-    } else if (item.targetType === 2) {
-      await unbanVideo(item.targetId);
-      alert('视频解禁成功');
-    } else {
-      throw new Error('未知目标类型');
+    const targetId = getBanTargetId(item);
+    if (!targetId) {
+      throw new Error('未找到可解禁的目标');
     }
+    operatingId.value = item.reportId;
+    if (item.reportType === 1) {
+      await unbanUser(targetId);
+      ElMessage.success('用户解禁成功');
+    } else if (item.reportType === 2) {
+      await unbanVideo(targetId);
+      ElMessage.success('视频解禁成功');
+    } else {
+      throw new Error('当前目标类型不支持手动解禁');
+    }
+    await fetchList();
+    await refreshTabCounts();
   } catch (error) {
-    alert(error.message || '解禁失败');
+    ElMessage.error(error.message || '解禁失败');
   } finally {
     operatingId.value = null;
   }
 }
 
-onMounted(fetchList);
-</script>
+watch(
+  () => filters.status,
+  () => {
+    reloadFirstPage();
+  }
+);
 
+onMounted(async () => {
+  await fetchList();
+  await refreshTabCounts();
+});
+</script>

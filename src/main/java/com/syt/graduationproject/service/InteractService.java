@@ -14,6 +14,7 @@ import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
 import com.syt.graduationproject.model.request.TripleActionRequest;
 import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.WebSocketSession;
@@ -147,7 +148,7 @@ public interface InteractService {
     /**
      * 查询当前用户的举报信息
      */
-    List<ReportVo> listMyReports();
+    List<ManagerReportRecordVo> listMyReports();
 
     List<SearchVideoVo> listCollectionItems(Long directoryId, Integer sortType);
 

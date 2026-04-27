@@ -1,4 +1,4 @@
-package com.syt.graduationproject.model.bo;
+package com.syt.graduationproject.model.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VideoSourceBo {
+public class VideoSourceVo {
 
     private String resolution;
 

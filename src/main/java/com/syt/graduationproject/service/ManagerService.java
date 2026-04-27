@@ -5,14 +5,14 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
-import com.syt.graduationproject.model.vo.ReportVo;
+import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.vo.PageVo;
 
 public interface ManagerService {
 
 	PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request);
 
-	PageVo<ReportVo> queryReportList(ManagerReportListRequest request);
+	PageVo<ManagerReportRecordVo> queryReportList(ManagerReportListRequest request);
 
 	void reviewReport(ManagerReviewReportRequest request);
 

@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import HomePage from '../components/HomePage.vue';
 import SearchPage from '../components/SearchPage.vue';
 import UserProfilePage from '../components/UserProfilePage.vue';
-import UserRelationPage from '../components/UserRelationPage.vue';
 import CreatorCenter from '../components/CreatorCenter.vue';
 import VideoSubmitPage from '../components/VideoSubmitPage.vue';
 import VideoPlayerPage from '../components/VideoPlayerPage.vue';
@@ -34,14 +33,20 @@ const router = createRouter({
     {
       path: '/user/:userId/following',
       name: 'user-following',
-      component: UserRelationPage,
-      meta: { requiresUserAuth: true }
+      redirect: to => ({
+        name: 'user-profile',
+        params: { userId: to.params.userId },
+        query: { ...to.query, tab: 'following' }
+      })
     },
     {
       path: '/user/:userId/fans',
       name: 'user-fans',
-      component: UserRelationPage,
-      meta: { requiresUserAuth: true }
+      redirect: to => ({
+        name: 'user-profile',
+        params: { userId: to.params.userId },
+        query: { ...to.query, tab: 'fans' }
+      })
     },
     {
       path: '/user/:userId',
@@ -153,4 +158,3 @@ router.beforeEach((to, from) => {
 });
 
 export default router;
-

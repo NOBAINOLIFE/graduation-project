@@ -3,7 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
-import com.syt.graduationproject.model.bo.VideoSourceBo;
+import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.po.VideoPo;
 import com.syt.graduationproject.model.po.VideoSourcePo;
 import com.syt.graduationproject.repository.VideoRepository;
@@ -71,11 +71,11 @@ public class TranscodeServiceImpl implements TranscodeService {
             videoRepository.updateVideoStatus(videoId, videoPo.getStatus(), VideoStatusEnum.TRANSCODING.getCode());
             log.info("视频状态更新为转码中，videoId:{}", videoId);
 
-            List<VideoSourceBo> sourceBos = videoRepository.queryVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode(), false);
-            if (sourceBos == null || sourceBos.isEmpty()) {
+            List<VideoSourcePo> sourcePoList = videoRepository.queryVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode(), false);
+            if (sourcePoList == null || sourcePoList.isEmpty()) {
                 throw new CustomException("原视频资源不存在");
             }
-            String sourceObjectName = sourceBos.get(0).getPlayUrl();
+            String sourceObjectName = sourcePoList.get(0).getPlayUrl();
             log.info("获取到原视频资源，sourceObjectName:{}", sourceObjectName);
 
             sourcePath = minioService.downloadObjectToTempFile(sourceObjectName, ".mp4");

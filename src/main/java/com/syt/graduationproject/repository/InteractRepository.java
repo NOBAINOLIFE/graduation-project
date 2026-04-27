@@ -1,8 +1,10 @@
 package com.syt.graduationproject.repository;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.model.po.CollectionDirectoryPo;
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
+import com.syt.graduationproject.model.po.ReportPo;
 
 import java.util.List;
 
@@ -75,4 +77,9 @@ public interface InteractRepository {
     int batchCollectVideo(Long userId, Long directoryId, List<Long> videoIdList);
 
     int batchCancelCollectVideo(Long userId, Long directoryId, List<Long> videoIdList);
+
+    /**
+     * 查询举报记录
+     */
+    Page<ReportPo> queryReportRecord(Long reporterId, Integer status, Integer reportType, Integer pageNum, Integer pageSize);
 }

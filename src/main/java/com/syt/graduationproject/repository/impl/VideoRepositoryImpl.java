@@ -8,7 +8,6 @@ import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.mapper.*;
-import com.syt.graduationproject.model.bo.VideoSourceBo;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -108,12 +107,13 @@ public class VideoRepositoryImpl implements VideoRepository {
         queryWrapper.lambda()
                 .eq(UserVideoHistoryPo::getUserId, userId)
                 .eq(UserVideoHistoryPo::getIsDeleted, NOT_DELETED)
-                .orderByDesc(UserVideoHistoryPo::getUpdateTime, UserVideoHistoryPo::getId);
+                .orderByDesc(UserVideoHistoryPo::getUpdateTime)
+                .orderByDesc(UserVideoHistoryPo::getId);
         return userVideoHistoryMapper.selectPage(page, queryWrapper).getRecords();
     }
 
     @Override
-    public List<VideoSourceBo> queryVideoSource(Long videoId, Integer resolution, boolean withoutOriginal) {
+    public List<VideoSourcePo> queryVideoSource(Long videoId, Integer resolution, boolean withoutOriginal) {
         LambdaQueryWrapper<VideoSourcePo> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(VideoSourcePo::getVideoId, videoId)
                 .eq(VideoSourcePo::getIsDeleted, NOT_DELETED);
@@ -125,7 +125,7 @@ public class VideoRepositoryImpl implements VideoRepository {
         }
         queryWrapper.orderByDesc(VideoSourcePo::getResolutionCode)
                 .orderByAsc(VideoSourcePo::getId);
-        return videoConverter.toVideoSourceBoList(videoSourceMapper.selectList(queryWrapper));
+        return videoSourceMapper.selectList(queryWrapper);
     }
 
     @Override

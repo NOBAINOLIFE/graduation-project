@@ -17,9 +17,9 @@ public class ManagerReportListRequest {
     private Integer status;
 
     /**
-     * 举报目标类型，1-user 2-video
+     * 举报目标类型，1-user 2-video 3-comment
      */
-    private Integer targetType;
+    private Integer reportType;
 
     private Integer pageNum;
 

@@ -188,7 +188,11 @@ function goToMyVideos() {
 function goToFollowers() {
   const userId = getUserId();
   if (userId) {
-    router.push(`/user/${userId}/fans`);
+    router.push({
+      name: 'user-profile',
+      params: { userId },
+      query: { tab: 'fans' }
+    });
   }
   showMenu.value = false;
 }
@@ -197,7 +201,11 @@ function goToFollowers() {
 function goToFollowing() {
   const userId = getUserId();
   if (userId) {
-    router.push(`/user/${userId}/following`);
+    router.push({
+      name: 'user-profile',
+      params: { userId },
+      query: { tab: 'following' }
+    });
   }
   showMenu.value = false;
 }

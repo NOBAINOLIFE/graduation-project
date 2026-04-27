@@ -2,14 +2,9 @@ package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.syt.graduationproject.mapper.CollectionDirectoryMapper;
-import com.syt.graduationproject.mapper.CollectionItemMapper;
-import com.syt.graduationproject.mapper.FollowRecordMapper;
-import com.syt.graduationproject.mapper.UserStatsMapper;
-import com.syt.graduationproject.model.po.CollectionDirectoryPo;
-import com.syt.graduationproject.model.po.CollectionItemPo;
-import com.syt.graduationproject.model.po.FollowRecordPo;
-import com.syt.graduationproject.model.po.UserStatsPo;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.syt.graduationproject.mapper.*;
+import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
@@ -17,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 
@@ -31,6 +27,8 @@ public class InteractRepositoryImpl implements InteractRepository {
     private final CollectionItemMapper collectionItemMapper;
 
     private final CollectionDirectoryMapper collectionDirectoryMapper;
+
+    private final ReportMapper reportMapper;
 
     /**
      * 查询两者关注关系
@@ -189,5 +187,16 @@ public class InteractRepositoryImpl implements InteractRepository {
     @Override
     public int batchCancelCollectVideo(Long userId, Long directoryId, List<Long> videoIdList) {
         return collectionItemMapper.batchCancelCollectVideo(userId, directoryId, videoIdList);
+    }
+
+    @Override
+    public Page<ReportPo> queryReportRecord(Long reporterId, Integer status, Integer reportType, Integer pageNum, Integer pageSize) {
+        Page<ReportPo> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<ReportPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(Objects.nonNull(reporterId), ReportPo::getReporterId, reporterId)
+                .eq(Objects.nonNull(status), ReportPo::getStatus, status)
+                .eq(Objects.nonNull(reportType), ReportPo::getReportType, reportType)
+                .orderByDesc(ReportPo::getCreateTime);
+        return reportMapper.selectPage(page, queryWrapper);
     }
 }
