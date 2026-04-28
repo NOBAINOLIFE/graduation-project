@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import {createRouter, createWebHistory} from 'vue-router';
 import HomePage from '../components/HomePage.vue';
 import SearchPage from '../components/SearchPage.vue';
 import UserProfilePage from '../components/UserProfilePage.vue';
@@ -6,6 +6,7 @@ import CreatorCenter from '../components/CreatorCenter.vue';
 import VideoSubmitPage from '../components/VideoSubmitPage.vue';
 import VideoPlayerPage from '../components/VideoPlayerPage.vue';
 import UserHistoryPage from '../components/UserHistoryPage.vue';
+import MessageCenterPage from '../components/MessageCenterPage.vue';
 import ManagerPage from '../components/manager/ManagerPage.vue';
 import ManagerLoginPage from '../components/manager/ManagerLoginPage.vue';
 import {
@@ -63,6 +64,12 @@ const router = createRouter({
       path: '/history',
       name: 'user-history',
       component: UserHistoryPage,
+      meta: { requiresUserAuth: true }
+    },
+    {
+      path: '/messages/:userId?',
+      name: 'messages',
+      component: MessageCenterPage,
       meta: { requiresUserAuth: true }
     },
     {
@@ -150,8 +157,7 @@ router.beforeEach((to, from) => {
   }
 
   if (to.meta.guestOnly && token && isAdmin()) {
-    const target = typeof to.query.redirect === 'string' ? to.query.redirect : '/manager';
-    return target;
+    return typeof to.query.redirect === 'string' ? to.query.redirect : '/manager';
   }
 
   return true;

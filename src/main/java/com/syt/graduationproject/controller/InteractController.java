@@ -5,6 +5,8 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.Page.CommentPageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
@@ -77,6 +79,31 @@ public class InteractController {
                                       @RequestParam(value = "upToMsgId", required = false) Long upToMsgId) {
         Long myId = UserHolderUtil.getUser().getUserId();
         return Response.success(interactService.markChatRead(myId, withUserId, upToMsgId));
+    }
+
+    /**
+     * 回复我的
+     */
+    @GetMapping("/message/replies")
+    public Response<List<ReplyMessageVo>> replyMessages() {
+        return Response.success(interactService.queryReplyMessages());
+    }
+
+    /**
+     * 收到的赞摘要
+     */
+    @GetMapping("/message/likes")
+    public Response<List<LikeReceivedSummaryVo>> likeMessages() {
+        return Response.success(interactService.queryLikeReceivedSummaries());
+    }
+
+    /**
+     * 收到的赞详情
+     */
+    @GetMapping("/message/likes/detail")
+    public Response<LikeReceivedDetailVo> likeMessageDetail(@RequestParam("targetType") String targetType,
+                                                            @RequestParam("targetId") Long targetId) {
+        return Response.success(interactService.queryLikeReceivedDetail(targetType, targetId));
     }
 
     /**
@@ -168,18 +195,33 @@ public class InteractController {
      * 查询评论列表
      */
     @GetMapping("/comment/list")
-    public Response<PageVo<CommentVo>> queryCommentList(@RequestParam("videoId") Long videoId,
-                                                        @RequestParam(value = "sortType") Integer sortType,
-                                                        @RequestParam(value = "pageNum", required = false) Integer pageNum,
-                                                        @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+    public Response<CommentPageVo> queryCommentList(CommentListRequest request) {
         try {
-            return Response.success(interactService.listVideoComments(videoId, sortType, pageNum, pageSize));
+            return Response.success(interactService.listVideoComments(request));
         } catch (CustomException e) {
-            log.warn("查询评论列表失败，videoId：{}，原因：{}", videoId, e.getMessage());
+            log.warn("查询评论列表失败，CommentListRequest：{}，原因：{}", request, e.getMessage());
             return Response.fail(e.getMessage());
         } catch (Exception e) {
-            log.error("查询评论列表失败，videoId：{}", videoId, e);
+            log.error("查询评论列表失败，CommentListRequest：{}", request, e);
             return Response.fail("查询评论列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询某条主评论下的回复列表
+     */
+    @GetMapping("/comment/replies")
+    public Response<PageVo<CommentVo>> queryCommentReplies(@RequestParam("rootCommentId") Long rootCommentId,
+                                                           @RequestParam(value = "pageNum", required = false) Integer pageNum,
+                                                           @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        try {
+            return Response.success(interactService.listCommentReplies(rootCommentId, pageNum, pageSize));
+        } catch (CustomException e) {
+            log.warn("查询评论回复列表失败，rootCommentId：{}，原因：{}", rootCommentId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询评论回复列表失败，rootCommentId：{}", rootCommentId, e);
+            return Response.fail("查询评论回复列表失败，系统异常");
         }
     }
 

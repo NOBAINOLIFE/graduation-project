@@ -4,7 +4,7 @@ import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.request.SearchUserRequest;
 import com.syt.graduationproject.model.request.SearchVideoRequest;
-import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.SearchUserVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.repository.SearchRepository;

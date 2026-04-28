@@ -17,7 +17,7 @@ import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.CommentReportInfoVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
-import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.report.ReportInfoVo;
 import com.syt.graduationproject.model.vo.report.UserReportInfoVo;
 import com.syt.graduationproject.model.vo.report.VideoReportInfoVo;
@@ -315,19 +315,10 @@ public class ManagerServiceImpl implements ManagerService {
 		Map<Long, List<String>> videoTagNameMap = queryVideoTagNameMap(new ArrayList<>(videoIds));
 		Map<Long, List<VideoSourceVo>> videoSourceMap = queryVideoSourceMap(new ArrayList<>(videoIds));
 
-		Map<Long, UserPo> finalUserMap = userMap;
-		Map<Long, UserStatsPo> finalUserStatsMap = userStatsMap;
-		Map<Long, VideoPo> finalVideoMap = videoMap;
-		Map<Long, VideoStatsPo> finalVideoStatsMap = videoStatsMap;
-		Map<Long, VideoPartitionPo> finalPartitionMap = partitionMap;
-		Map<Long, List<String>> finalVideoTagNameMap = videoTagNameMap;
-		Map<Long, List<VideoSourceVo>> finalVideoSourceMap = videoSourceMap;
-		Map<Long, CommentPo> finalCommentMap = commentMap;
-		Map<Long, CommentPo> finalRootCommentMap = rootCommentMap;
-		List<ManagerReportRecordVo> records = reportPoPage.getRecords().stream()
-				.map(reportPo -> buildManagerReportRecord(reportPo, finalUserMap, finalUserStatsMap, finalVideoMap,
-						finalVideoStatsMap, finalPartitionMap, finalVideoTagNameMap, finalVideoSourceMap,
-						finalCommentMap, finalRootCommentMap))
+        List<ManagerReportRecordVo> records = reportPoPage.getRecords().stream()
+				.map(reportPo -> buildManagerReportRecord(reportPo, userMap, userStatsMap, videoMap,
+                        videoStatsMap, partitionMap, videoTagNameMap, videoSourceMap,
+                        commentMap, rootCommentMap))
 				.collect(Collectors.toList());
 
 		return PageVo.<ManagerReportRecordVo>builder()

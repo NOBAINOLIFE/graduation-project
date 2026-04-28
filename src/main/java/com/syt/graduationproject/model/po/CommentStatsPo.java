@@ -28,6 +28,11 @@ public class CommentStatsPo {
     private Long id;
 
     /**
+     * 视频ID
+     */
+    @TableField(value = "video_id")
+    private Long videoId;
+    /**
      * 评论ID
      */
     @TableField(value = "comment_id")
@@ -44,6 +49,12 @@ public class CommentStatsPo {
      */
     @TableField(value = "reply_count")
     private Long replyCount;
+
+    /**
+     * 评论热度分 = like_count * 1 + reply_count * 3 + 10
+     */
+    @TableField(value = "hot_score")
+    private Long hotScore;
 
     /**
      * 创建时间

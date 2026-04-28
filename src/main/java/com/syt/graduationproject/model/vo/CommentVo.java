@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -37,7 +38,11 @@ public class CommentVo {
 
     private Long replyCount;
 
+    private Long hotScore;
+
     private Boolean isLike;
+
+    private List<CommentVo> replyPreviewList;
 
     private LocalDateTime createTime;
 }

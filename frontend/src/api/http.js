@@ -6,7 +6,8 @@ function shouldRedirectToLogin(message) {
   if (!message) return false;
   return (
     message.includes('未登录') ||
-    message.includes('失效')
+    message.includes('失效') ||
+    message.includes('令牌错误')
   );
 }
 
@@ -23,8 +24,10 @@ export async function request(path, { method = 'GET', json, formData, params } =
   // 根据路径判断使用哪种token
   // 管理后台接口使用admin_token
   // 普通用户接口使用user_token
+  // 登录和注册接口不携带token
+  const isAuthRequest = path === '/graduation-project/user/login' || path === '/graduation-project/user/register';
   const isAdminApi = path.includes('/manager/') || path.includes('/admin/');
-  const token = isAdminApi ? getAdminToken() : getToken();
+  const token = isAuthRequest ? null : (isAdminApi ? getAdminToken() : getToken());
   
   if (token) headers.token = token;
 

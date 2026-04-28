@@ -47,10 +47,22 @@ export function searchUsers(payload) {
   });
 }
 
-export function getVideoComments(videoId, { sortType = 1, pageNum = 1, pageSize = 10 } = {}) {
+export function getVideoComments(videoId, { sortType = 1, cursor = null, pageSize = 20 } = {}) {
   return request('/graduation-project/interact/comment/list', {
     method: 'GET',
-    params: { videoId, sortType, pageNum, pageSize }
+    params: {
+      videoId,
+      sortType,
+      pageSize,
+      ...(cursor && typeof cursor === 'object' ? cursor : {})
+    }
+  });
+}
+
+export function getCommentReplies(rootCommentId, { pageNum = 1, pageSize = 10 } = {}) {
+  return request('/graduation-project/interact/comment/replies', {
+    method: 'GET',
+    params: { rootCommentId, pageNum, pageSize }
   });
 }
 

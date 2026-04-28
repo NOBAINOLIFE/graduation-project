@@ -6,7 +6,7 @@ import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
-import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 
 public interface ManagerService {
 

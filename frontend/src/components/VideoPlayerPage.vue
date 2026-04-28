@@ -5,34 +5,24 @@
     <main class="max-w-7xl mx-auto px-4 py-6">
       <div class="flex flex-col gap-6 lg:flex-row">
         <div class="min-w-0 flex-1">
-          <section class="mb-4 rounded-2xl bg-white p-5 shadow-sm">
-            <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-              <span class="rounded-full bg-[#eef7ff] px-3 py-1 font-medium text-[#00a1d6]">
-                {{ videoInfo.partitionName || '视频' }}
-              </span>
+          <section class="mb-4">
+            <h1 class="text-2xl leading-9 text-gray-900">
+              {{ videoInfo.title || '视频加载中...' }}
+            </h1>
+            <div class="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-500">
               <span class="flex items-center gap-1">
                 <el-icon><View /></el-icon>
                 {{ formatCount(videoInfo.playCount) }} 播放
               </span>
               <span class="flex items-center gap-1">
-                <el-icon><ChatDotRound /></el-icon>
-                {{ formatCount(videoInfo.commentCount) }} 评论
-              </span>
-              <span class="flex items-center gap-1">
                 <el-icon><Clock /></el-icon>
                 {{ formatDate(videoInfo.createTime) }}
               </span>
-              <span v-if="videoInfo.duration" class="flex items-center gap-1">
-                <el-icon><Timer /></el-icon>
-                {{ formatDuration(videoInfo.duration) }}
-              </span>
             </div>
-            <h1 class="mt-3 text-2xl font-bold leading-9 text-gray-900">
-              {{ videoInfo.title || '视频加载中...' }}
-            </h1>
+
           </section>
 
-          <section class="overflow-hidden bg-black shadow-[0_30px_70px_rgba(15,23,42,0.18)]">
+          <section class="overflow-hidden bg-black">
             <div class="relative aspect-video">
               <AppVideoPlayer
                 ref="appVideoPlayerRef"
@@ -49,7 +39,7 @@
             </div>
           </section>
 
-          <section class="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+          <section class="mt-4">
             <div class="flex flex-wrap items-center gap-3">
               <button
                 class="flex items-center gap-2 rounded-full px-4 py-2 transition-colors"
@@ -99,9 +89,8 @@
             </div>
           </section>
 
-          <section v-if="videoInfo.description || videoInfo.tagList.length > 0" class="mt-4 rounded-2xl bg-white p-5 shadow-sm">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">简介</h2>
-            <p v-if="videoInfo.description" class="whitespace-pre-line text-sm leading-7 text-gray-600">
+          <section v-if="videoInfo.description || videoInfo.tagList.length > 0" class="mt-4">
+            <p v-if="videoInfo.description" class="whitespace-pre-line text-xm leading-7 text-gray-800">
               {{ videoInfo.description }}
             </p>
 
@@ -109,7 +98,7 @@
               <span
                 v-for="tag in videoInfo.tagList"
                 :key="tag"
-                class="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-500"
+                class="rounded-full bg-gray-200 px-3 py-1 text-sm font-medium text-gray-600"
               >
                 {{ tag }}
               </span>
@@ -119,9 +108,9 @@
           <section class="mt-4 rounded-2xl bg-white p-5 shadow-sm">
             <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
               <h2 class="text-lg font-bold text-gray-900">
-                评论 {{ commentTotal > 0 ? `(${commentTotal})` : '' }}
+                评论 {{ commentTotal > 0 ? `${commentTotal}` : '' }}
               </h2>
-              <el-radio-group v-model="commentSort" size="small">
+              <el-radio-group v-model="commentSort" size="medium">
                 <el-radio-button label="hot">最热</el-radio-button>
                 <el-radio-button label="new">最新</el-radio-button>
               </el-radio-group>
@@ -175,22 +164,19 @@
               <article
                 v-for="comment in comments"
                 :key="comment.commentId"
-                class="rounded-2xl border border-gray-100 p-4 transition-colors hover:border-[#d6eef8]"
+                class="transition-colors hover:border-[#d6eef8]"
               >
                 <div class="flex gap-3">
-                  <el-avatar :size="42" :src="comment.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
+                  <el-avatar :size="50" :src="comment.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
                     {{ (comment.username || 'U').slice(0, 1) }}
                   </el-avatar>
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span class="font-medium text-gray-800">{{ comment.username || '未知用户' }}</span>
+                      <span class="font-medium text-gray-500 text-xm">{{ comment.username || '未知用户' }}</span>
                       <span class="text-xs text-gray-400">{{ formatDate(comment.createTime) }}</span>
-                      <span v-if="comment.replyCount" class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                        {{ comment.replyCount }} 条回复
-                      </span>
                     </div>
-                    <p class="mt-2 whitespace-pre-line break-words text-sm leading-7 text-gray-700">
-                      <template v-if="comment.replyUsername">回复 @{{ comment.replyUsername }}：</template>{{ comment.content }}
+                    <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
+                      <template v-if="shouldShowReplyTarget(comment)">回复 <span class="text-[#00a1d6]">@{{ comment.replyUsername }}</span>：</template>{{ comment.content }}
                     </p>
                     <div class="mt-3 flex items-center gap-4 text-sm text-gray-500">
                       <button
@@ -201,19 +187,182 @@
                         <el-icon><CaretTop /></el-icon>
                         <span>{{ formatCount(comment.likeCount) }}</span>
                       </button>
-                      <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply">
+                      <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment)">
                         回复
                       </button>
+                    </div>
+
+                    <div
+                      v-if="!isReplyExpanded(comment.commentId) && !isReplyComposerVisible(comment.commentId) && comment.replyCount > 0"
+                      class="mt-4 rounded-2xl bg-[#f7fbfd] p-4"
+                    >
+                      <div
+                        v-for="reply in comment.replyPreviewList || []"
+                        :key="`preview-${reply.commentId}`"
+                      >
+                        <div class="flex gap-3">
+                          <el-avatar :size="34" :src="reply.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
+                            {{ (reply.username || 'U').slice(0, 1) }}
+                          </el-avatar>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span class="text-sm font-medium text-gray-500">{{ reply.username || '未知用户' }}</span>
+                              <span class="text-xs text-gray-400">{{ formatDate(reply.createTime) }}</span>
+                            </div>
+                            <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
+                              <template v-if="shouldShowReplyTarget(reply)">回复 <span class="text-[#00a1d6]">@{{ reply.replyUsername }}</span>：</template>{{ reply.content }}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        class="mt-1 text-sm text-[#00a1d6] transition-colors hover:text-[#0090c0]"
+                        @click="loadCommentReplies(comment)"
+                      >
+                        共{{ comment.replyCount }}条回复，点击查看
+                      </button>
+                    </div>
+
+                    <div
+                      v-if="isReplyComposerVisible(comment.commentId) || isReplyExpanded(comment.commentId)"
+                      class="mt-4 rounded-2xl bg-[#f7fbfd] p-4"
+                    >
+
+                      <div
+                        v-if="isReplyExpanded(comment.commentId) && replyStateMap[comment.commentId]?.loading && replyStateMap[comment.commentId]?.records.length === 0"
+                        class="space-y-3"
+                      >
+                        <div v-for="index in 2" :key="`${comment.commentId}-reply-loading-${index}`" class="rounded-xl bg-white p-3">
+                          <div class="h-3 w-24 rounded bg-gray-200"></div>
+                          <div class="mt-2 h-3 w-full rounded bg-gray-100"></div>
+                        </div>
+                      </div>
+
+                      <div v-else-if="isReplyExpanded(comment.commentId) && replyStateMap[comment.commentId]?.records.length" class="space-y-3">
+                        <article
+                          v-for="reply in replyStateMap[comment.commentId].records"
+                          :key="reply.commentId"
+                        >
+                          <div class="flex gap-3">
+                            <el-avatar :size="34" :src="reply.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
+                              {{ (reply.username || 'U').slice(0, 1) }}
+                            </el-avatar>
+                            <div class="min-w-0 flex-1">
+                              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span class="text-sm font-medium text-gray-500">{{ reply.username || '未知用户' }}</span>
+                                <span class="text-xs text-gray-400">{{ formatDate(reply.createTime) }}</span>
+                              </div>
+                              <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
+                                <template v-if="shouldShowReplyTarget(reply)">回复 <span class="text-[#00a1d6]">@{{ reply.replyUsername }}</span>：</template>{{ reply.content }}
+                              </p>
+                              <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                                <button
+                                  class="flex items-center gap-1 transition-colors hover:text-[#00a1d6]"
+                                  :class="reply.isLike ? 'text-[#00a1d6]' : ''"
+                                  @click="handleLikeComment(reply)"
+                                >
+                                  <el-icon><CaretTop /></el-icon>
+                                  <span>{{ formatCount(reply.likeCount) }}</span>
+                                </button>
+                                <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment, reply)">
+                                  回复
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      </div>
+
+                      <div
+                        v-else-if="isReplyExpanded(comment.commentId) && !replyStateMap[comment.commentId]?.loading"
+                        class="rounded-2xl bg-white px-4 py-5 text-center text-sm text-gray-400"
+                      >
+                        暂无回复，来发第一条吧
+                      </div>
+
+                      <div
+                        v-if="isReplyExpanded(comment.commentId)"
+                        class="reply-pagination mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600"
+                      >
+                        <span class="reply-pagination__summary">共{{ getReplyTotalPages(comment) }}页</span>
+                        <div
+                          v-if="getReplyTotalPages(comment) > 1"
+                          class="reply-pagination__pages flex flex-wrap items-center gap-1"
+                        >
+                          <button
+                            v-for="item in getReplyPaginationItems(comment)"
+                            :key="`${comment.commentId}-${item.type}-${item.value}`"
+                            :disabled="item.type === 'ellipsis' || item.value === getReplyCurrentPage(comment)"
+                            class="reply-pagination__item"
+                            :class="{
+                              'reply-pagination__item--active': item.value === getReplyCurrentPage(comment),
+                              'reply-pagination__item--ellipsis': item.type === 'ellipsis'
+                            }"
+                            @click="item.type === 'page' && changeReplyPage(comment, item.value)"
+                          >
+                            {{ item.label }}
+                          </button>
+                          <button
+                            v-if="getReplyCurrentPage(comment) < getReplyTotalPages(comment)"
+                            class="reply-pagination__next"
+                            @click="changeReplyPage(comment, getReplyCurrentPage(comment) + 1)"
+                          >
+                            下一页
+                          </button>
+                        </div>
+                        <button
+                          class="reply-pagination__collapse"
+                          @click="toggleReplyExpand(comment)"
+                        >
+                          收起
+                        </button>
+                      </div>
+
+                      <div v-if="isReplyComposerVisible(comment.commentId)" class="mt-4 border-t border-[#eaf0f4] pt-4">
+                        <div class="mb-2 flex items-center justify-between gap-3">
+                          <p class="text-sm text-gray-500">
+                            {{ getReplyComposerLabel(comment) }}
+                          </p>
+                          <button class="text-sm text-gray-400 transition-colors hover:text-gray-600" @click="cancelReply(comment)">
+                            取消
+                          </button>
+                        </div>
+                        <el-input
+                          v-model="replyStateMap[comment.commentId].draft"
+                          type="textarea"
+                          :rows="2"
+                          maxlength="500"
+                          show-word-limit
+                          :placeholder="getReplyPlaceholder(comment)"
+                        />
+                        <div class="mt-3 flex justify-end">
+                          <el-button
+                            type="primary"
+                            size="small"
+                            :loading="replyStateMap[comment.commentId].submitting"
+                            :disabled="!replyStateMap[comment.commentId].draft.trim()"
+                            @click="submitReply(comment)"
+                          >
+                            发布回复
+                          </el-button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </article>
             </div>
 
-            <div v-if="hasMoreComments" class="mt-6 text-center">
-              <el-button :loading="commentLoading" @click="loadComments(true)">
-                加载更多评论
-              </el-button>
+            <div
+              v-if="hasMoreComments"
+              ref="commentLoadTriggerRef"
+              class="mt-6 flex items-center justify-center py-4 text-sm text-gray-400"
+            >
+              {{ commentLoading ? '正在加载更多评论...' : '滚动到底部自动加载更多评论' }}
+            </div>
+            <div v-else-if="comments.length > 0" class="mt-6 py-4 text-center text-sm text-gray-400">
+              已经看到全部评论了
             </div>
           </section>
         </div>
@@ -434,7 +583,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import {
@@ -455,6 +604,7 @@ import {
   coinVideo,
   collectVideo,
   followUser,
+  getCommentReplies,
   getVideoComments,
   getVideoDetail,
   likeComment,
@@ -486,11 +636,15 @@ const commentSort = ref('hot');
 const commentContent = ref('');
 const comments = ref([]);
 const commentTotal = ref(0);
-const commentPageNum = ref(1);
-const commentPageSize = 10;
-const hasMoreComments = ref(false);
+const commentPageSize = 20;
+const nextCommentCursor = ref(null);
+const hasMoreComments = ref(true);
 const lastReportedTime = ref(0);
 const reportInFlight = ref(false);
+const replyStateMap = reactive({});
+const commentLoadTriggerRef = ref(null);
+
+let commentLoadObserver = null;
 
 const collectDialog = reactive({
   visible: false,
@@ -606,6 +760,240 @@ function normalizeVideoDetail(data) {
   };
 }
 
+function disconnectCommentLoadObserver() {
+  if (commentLoadObserver) {
+    commentLoadObserver.disconnect();
+    commentLoadObserver = null;
+  }
+}
+
+function setupCommentLoadObserver() {
+  disconnectCommentLoadObserver();
+  if (typeof window === 'undefined' || !commentLoadTriggerRef.value) {
+    return;
+  }
+  commentLoadObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0];
+    if (!entry?.isIntersecting) {
+      return;
+    }
+    if (commentLoading.value || !hasMoreComments.value) {
+      return;
+    }
+    loadComments(true);
+  }, {
+    root: null,
+    rootMargin: '180px 0px',
+    threshold: 0
+  });
+  commentLoadObserver.observe(commentLoadTriggerRef.value);
+}
+
+function clearReplyStates() {
+  Object.keys(replyStateMap).forEach((key) => {
+    delete replyStateMap[key];
+  });
+}
+
+function createReplyState(comment) {
+  return {
+    expanded: false,
+    loaded: false,
+    loading: false,
+    records: [],
+    total: Number(comment?.replyCount || 0),
+    pageNum: 1,
+    pageSize: 10,
+    draft: '',
+    submitting: false,
+    showComposer: false,
+    parentId: Number(comment?.commentId || 0),
+    replyUserId: Number(comment?.userId || 0),
+    replyUsername: comment?.username || ''
+  };
+}
+
+function ensureReplyState(comment) {
+  const commentId = Number(comment?.commentId || 0);
+  if (!commentId) {
+    return null;
+  }
+  if (!replyStateMap[commentId]) {
+    replyStateMap[commentId] = createReplyState(comment);
+  }
+  replyStateMap[commentId].total = Number(comment?.replyCount || 0);
+  return replyStateMap[commentId];
+}
+
+function resetReplyComposer(comment) {
+  const state = ensureReplyState(comment);
+  if (!state) {
+    return;
+  }
+  state.draft = '';
+  state.showComposer = false;
+  state.parentId = Number(comment.commentId || 0);
+  state.replyUserId = Number(comment.userId || 0);
+  state.replyUsername = comment.username || '';
+}
+
+function isReplyExpanded(commentId) {
+  return Boolean(replyStateMap[commentId]?.expanded);
+}
+
+function isReplyComposerVisible(commentId) {
+  return Boolean(replyStateMap[commentId]?.showComposer);
+}
+
+function getReplyPlaceholder(comment) {
+  const state = ensureReplyState(comment);
+  if (!state) {
+    return '写下你的回复';
+  }
+  if (Number(state.parentId || 0) === Number(comment?.commentId || 0)) {
+    return '写下你的回复';
+  }
+  if (!state.replyUsername) {
+    return '写下你的回复';
+  }
+  return `回复 @${state.replyUsername}`;
+}
+
+function getReplyComposerLabel(comment) {
+  const state = ensureReplyState(comment);
+  if (!state) {
+    return '写下你的回复';
+  }
+  if (Number(state.parentId || 0) === Number(comment?.commentId || 0)) {
+    return '正在回复该评论';
+  }
+  return `正在回复 @${state.replyUsername || ''}`.trim();
+}
+
+function shouldShowReplyTarget(comment) {
+  if (!comment?.replyUsername) {
+    return false;
+  }
+  const rootId = Number(comment.rootId || 0);
+  const parentId = Number(comment.parentId || 0);
+  return rootId > 0 && parentId > 0 && parentId !== rootId;
+}
+
+function getReplyCurrentPage(comment) {
+  return Number(ensureReplyState(comment)?.pageNum || 1);
+}
+
+function getReplyTotalPages(comment) {
+  const state = ensureReplyState(comment);
+  if (!state) {
+    return 1;
+  }
+  const total = Number(state.total || comment?.replyCount || 0);
+  const pageSize = Number(state.pageSize || 10);
+  return Math.max(1, Math.ceil(total / pageSize));
+}
+
+function getReplyPaginationItems(comment) {
+  const totalPages = getReplyTotalPages(comment);
+  const currentPage = getReplyCurrentPage(comment);
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => ({
+      type: 'page',
+      value: index + 1,
+      label: `${index + 1}`
+    }));
+  }
+
+  const pages = [];
+  const addPage = (value) => {
+    pages.push({ type: 'page', value, label: `${value}` });
+  };
+  const addEllipsis = (key) => {
+    pages.push({ type: 'ellipsis', value: key, label: '...' });
+  };
+
+  if (currentPage <= 3) {
+    addPage(1);
+    addPage(2);
+    addPage(3);
+    addPage(4);
+    addPage(5);
+    addEllipsis(`tail-${totalPages}`);
+    addPage(totalPages);
+    return pages;
+  }
+
+  if (currentPage >= totalPages - 2) {
+    addPage(1);
+    addEllipsis(`head-${totalPages}`);
+    for (let page = totalPages - 4; page <= totalPages; page += 1) {
+      addPage(page);
+    }
+    return pages;
+  }
+
+  addPage(1);
+  addEllipsis(`before-${currentPage}`);
+  for (let page = currentPage - 1; page <= currentPage + 1; page += 1) {
+    addPage(page);
+  }
+  addEllipsis(`after-${currentPage}`);
+  addPage(totalPages);
+  return pages;
+}
+
+async function loadCommentReplies(comment, pageNum = 1, forceRefresh = false) {
+  const state = ensureReplyState(comment);
+  if (!state || state.loading) {
+    return;
+  }
+  const targetPage = Number(pageNum || 1);
+  if (!forceRefresh && state.loaded && state.pageNum === targetPage) {
+    state.expanded = true;
+    return;
+  }
+
+  state.loading = true;
+  state.expanded = true;
+  try {
+    const result = await getCommentReplies(comment.commentId, {
+      pageNum: targetPage,
+      pageSize: state.pageSize
+    });
+    const records = Array.isArray(result?.records) ? result.records : [];
+    state.records = records;
+    state.total = Number(result?.total || comment.replyCount || 0);
+    state.pageNum = Number(result?.pageNum || targetPage);
+    state.pageSize = Number(result?.pageSize || state.pageSize || 10);
+    state.loaded = true;
+  } catch (error) {
+    console.error('加载回复失败:', error);
+    ElMessage.error(error.message || '加载回复失败');
+  } finally {
+    state.loading = false;
+  }
+}
+
+async function toggleReplyExpand(comment) {
+  const state = ensureReplyState(comment);
+  if (!state) {
+    return;
+  }
+  if (state.expanded) {
+    state.expanded = false;
+    return;
+  }
+  await loadCommentReplies(comment);
+}
+
+async function changeReplyPage(comment, pageNum) {
+  const targetPage = Number(pageNum || 1);
+  if (targetPage < 1 || targetPage === getReplyCurrentPage(comment)) {
+    return;
+  }
+  await loadCommentReplies(comment, targetPage);
+}
+
 async function loadVideoDetail() {
   if (!currentVideoId.value) return;
   loading.value = true;
@@ -622,26 +1010,42 @@ async function loadVideoDetail() {
 }
 
 async function loadComments(isLoadMore = false) {
-  if (!currentVideoId.value) return;
+  if (!currentVideoId.value || commentLoading.value) return;
+  if (isLoadMore && !hasMoreComments.value) return;
   commentLoading.value = true;
   try {
-    const nextPage = isLoadMore ? commentPageNum.value + 1 : 1;
     const result = await getVideoComments(currentVideoId.value, {
       sortType: commentSort.value === 'hot' ? 1 : 2,
-      pageNum: nextPage,
+      cursor: isLoadMore ? nextCommentCursor.value : null,
       pageSize: commentPageSize
     });
     const records = Array.isArray(result?.records) ? result.records : [];
+    if (!isLoadMore) {
+      clearReplyStates();
+    }
     comments.value = isLoadMore ? [...comments.value, ...records] : records;
     commentTotal.value = Number(result?.total || 0);
-    commentPageNum.value = Number(result?.pageNum || nextPage);
-    hasMoreComments.value = comments.value.length < commentTotal.value;
+    nextCommentCursor.value = buildCommentCursor(result);
+    hasMoreComments.value = !Boolean(result?.isEnd);
+    await nextTick();
+    setupCommentLoadObserver();
   } catch (error) {
     console.error('加载评论失败:', error);
     ElMessage.error(error.message || '加载评论失败');
   } finally {
     commentLoading.value = false;
   }
+}
+
+function buildCommentCursor(result) {
+  if (!result || result.isEnd || !result.lastCreateTime || !result.lastCommentId) {
+    return null;
+  }
+  return {
+    lastHotScore: result.lastHotScore ?? null,
+    lastCreateTime: result.lastCreateTime,
+    lastCommentId: result.lastCommentId
+  };
 }
 
 async function submitComment() {
@@ -667,6 +1071,55 @@ async function submitComment() {
     ElMessage.error(error.message || '评论发布失败');
   } finally {
     commentSubmitting.value = false;
+  }
+}
+
+async function startReply(comment, targetReply = null) {
+  if (!ensureLoggedIn('登录后可参与评论回复')) return;
+  const state = ensureReplyState(comment);
+  if (!state) {
+    return;
+  }
+  state.expanded = true;
+  state.showComposer = true;
+  state.parentId = Number(targetReply?.commentId || comment.commentId || 0);
+  state.replyUserId = Number(targetReply?.userId || comment.userId || 0);
+  state.replyUsername = targetReply?.username || comment.username || '';
+  if (!state.loaded && Number(comment.replyCount || 0) > 0) {
+    await loadCommentReplies(comment);
+  }
+}
+
+function cancelReply(comment) {
+  resetReplyComposer(comment);
+}
+
+async function submitReply(comment) {
+  if (!ensureLoggedIn('登录后可参与评论回复')) return;
+  const state = ensureReplyState(comment);
+  const content = state?.draft?.trim();
+  if (!state || !content) {
+    return;
+  }
+
+  state.submitting = true;
+  try {
+    await submitVideoComment({
+      videoId: currentVideoId.value,
+      rootId: Number(comment.commentId || 0),
+      parentId: Number(state.parentId || comment.commentId || 0),
+      replyUserId: Number(state.replyUserId || comment.userId || 0),
+      content
+    });
+    comment.replyCount = Number(comment.replyCount || 0) + 1;
+    resetReplyComposer(comment);
+    await loadCommentReplies(comment, 1, true);
+    ElMessage.success('回复发布成功');
+  } catch (error) {
+    console.error('提交回复失败:', error);
+    ElMessage.error(error.message || '回复发布失败');
+  } finally {
+    state.submitting = false;
   }
 }
 
@@ -894,9 +1347,8 @@ function handleShare() {
   ElMessage.info(url);
 }
 
-function handleReply() {
-  if (!ensureLoggedIn('登录后可参与评论回复')) return;
-  ElMessage.info('当前版本先支持一级评论，楼中楼回复后续可以继续补');
+async function handleReply(comment, targetReply = null) {
+  await startReply(comment, targetReply);
 }
 
 function handleReport() {
@@ -922,7 +1374,7 @@ async function submitReport() {
     ElMessage.warning('请填写详细描述');
     return;
   }
-  
+
   reportDialog.submitting = true;
   try {
     await reportVideo({
@@ -1043,7 +1495,7 @@ function syncViewerAuth(event) {
   const wasLoggedIn = viewerLoggedIn.value;
   viewerLoggedIn.value = event?.detail?.isLoggedIn ?? isUserLoggedIn();
   currentUsername.value = event?.detail?.username ?? getUsername();
-  
+
   // 如果从游客状态变为登录状态，重新加载页面以获取用户相关数据
   if (!wasLoggedIn && viewerLoggedIn.value) {
     loadPage();
@@ -1072,8 +1524,8 @@ function handleCommentFocus() {
 async function loadPage() {
   comments.value = [];
   commentTotal.value = 0;
-  hasMoreComments.value = false;
-  commentPageNum.value = 1;
+  hasMoreComments.value = true;
+  nextCommentCursor.value = null;
   videoInfo.value = createDefaultVideoInfo();
   await loadVideoDetail();
   await loadComments(false);
@@ -1081,6 +1533,12 @@ async function loadPage() {
 
 watch(commentSort, () => {
   loadComments(false);
+});
+
+watch(commentLoadTriggerRef, () => {
+  nextTick(() => {
+    setupCommentLoadObserver();
+  });
 });
 
 watch(
@@ -1102,6 +1560,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   flushProgressBeforeLeave();
+  disconnectCommentLoadObserver();
   window.removeEventListener(USER_AUTH_CHANGE_EVENT, syncViewerAuth);
 });
 </script>
@@ -1132,5 +1591,42 @@ onBeforeUnmount(() => {
   box-shadow:
     inset 0 2px 4px rgba(255, 255, 255, 0.8),
     0 10px 18px rgba(148, 163, 184, 0.22);
+}
+
+.reply-pagination__item,
+.reply-pagination__next,
+.reply-pagination__collapse {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #374151;
+  line-height: 1.5;
+  transition: color 0.2s ease;
+}
+
+.reply-pagination__item:hover,
+.reply-pagination__next:hover,
+.reply-pagination__collapse:hover {
+  color: #00a1d6;
+}
+
+.reply-pagination__item--active {
+  color: #00a1d6;
+  cursor: default;
+}
+
+.reply-pagination__item--ellipsis {
+  cursor: default;
+  color: #9ca3af;
+}
+
+.reply-pagination__item:disabled,
+.reply-pagination__next:disabled,
+.reply-pagination__collapse:disabled {
+  cursor: default;
+}
+
+.reply-pagination__summary {
+  color: #1f2937;
 }
 </style>

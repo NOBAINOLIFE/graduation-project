@@ -50,7 +50,11 @@
     <!-- 标记已读（把对方 -> 我 的消息，id<=upToMsgId 的置为 READ） -->
     <update id="markRead">
         update tb_private_message
-        set status = #{readStatus}, read_time = #{readTime}, update_time = #{readTime}
+        set status = #{readStatus},
+            delivered_time = ifnull(delivered_time, #{readTime}),
+            acked_time = ifnull(acked_time, #{readTime}),
+            read_time = #{readTime},
+            update_time = #{readTime}
         where from_user_id = #{withUserId}
           and to_user_id = #{myId}
         <if test="upToMsgId != null">
@@ -62,7 +66,11 @@
     <!-- 按消息ID批量标记已读（用于离线消息上线推送后批量更新） -->
     <update id="markReadByIds">
         update tb_private_message
-        set status = #{readStatus}, read_time = #{readTime}, update_time = #{readTime}
+        set status = #{readStatus},
+            delivered_time = ifnull(delivered_time, #{readTime}),
+            acked_time = ifnull(acked_time, #{readTime}),
+            read_time = #{readTime},
+            update_time = #{readTime}
         where to_user_id = #{myId}
           and id in
           <foreach collection="ids" item="id" open="(" separator="," close=")">
@@ -70,16 +78,38 @@
           </foreach>
     </update>
 
-    <!-- 按消息ID批量标记已投递（仅允许 SAVED -> DELIVERED，避免覆盖 ACKED/READ） -->
+    <!-- 按消息ID批量标记已投递。
+         如果消息已经被 ACKED/READ，则只补写 delivered_time，不回退状态。 -->
     <update id="markDeliveredByIds">
         update tb_private_message
-        set status = #{deliveredStatus}, delivered_time = #{deliveredTime}, update_time = #{deliveredTime}
+        set status = case
+                         when status = #{savedStatus} then #{deliveredStatus}
+                         else status
+                     end,
+            delivered_time = ifnull(delivered_time, #{deliveredTime}),
+            update_time = #{deliveredTime}
         where to_user_id = #{myId}
-          and status = #{savedStatus}
           and id in
           <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id}
           </foreach>
+          and status &lt;&gt; 3
+    </update>
+
+    <!-- 标记接收确认。
+         如果消息已经被 READ，则只补写 acked_time / delivered_time，不回退状态。 -->
+    <update id="markAcked">
+        update tb_private_message
+        set status = case
+                         when status in (#{savedStatus}, #{deliveredStatus}) then #{ackedStatus}
+                         else status
+                     end,
+            delivered_time = ifnull(delivered_time, #{ackedTime}),
+            acked_time = ifnull(acked_time, #{ackedTime}),
+            update_time = #{ackedTime}
+        where id = #{serverMsgId}
+          and to_user_id = #{myId}
+          and status &lt;&gt; #{failStatus}
     </update>
 
 </mapper>

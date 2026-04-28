@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +30,12 @@ public class InteractRepositoryImpl implements InteractRepository {
     private final CollectionDirectoryMapper collectionDirectoryMapper;
 
     private final ReportMapper reportMapper;
+
+    private final Long ROOT_COMMENT_ROOT_ID = 0L;
+
+    private final CommentMapper commentMapper;
+
+    private final CommentStatsMapper commentStatsMapper;
 
     /**
      * 查询两者关注关系
@@ -198,5 +205,23 @@ public class InteractRepositoryImpl implements InteractRepository {
                 .eq(Objects.nonNull(reportType), ReportPo::getReportType, reportType)
                 .orderByDesc(ReportPo::getCreateTime);
         return reportMapper.selectPage(page, queryWrapper);
+    }
+
+    @Override
+    public List<CommentStatsPo> queryRootCommentStatsByHot(Long videoId, Long lastHotScore,
+                                                           LocalDateTime lastCreateTime, Long lastCommentId,
+                                                           Integer pageSize) {
+        // 多查一行记录来确定是否是最后一页
+        return commentStatsMapper.queryRootCommentStatsByHot(videoId, lastHotScore, lastCreateTime,
+                lastCommentId, pageSize + 1);
+    }
+
+    @Override
+    public Long queryTotalRootCommentNum(Long videoId) {
+        LambdaQueryWrapper<CommentPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(CommentPo::getVideoId, videoId)
+                .eq(CommentPo::getRootId, ROOT_COMMENT_ROOT_ID)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED);
+        return commentMapper.selectCount(queryWrapper);
     }
 }

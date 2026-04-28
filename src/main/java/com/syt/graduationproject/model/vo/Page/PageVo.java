@@ -1,14 +1,15 @@
-package com.syt.graduationproject.model.vo;
+package com.syt.graduationproject.model.vo.Page;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class PageVo<T> {
@@ -18,6 +19,8 @@ public class PageVo<T> {
     private Integer pageNum;
 
     private Integer pageSize;
+
+    private Boolean isEnd;
 
     private List<T> records;
 }

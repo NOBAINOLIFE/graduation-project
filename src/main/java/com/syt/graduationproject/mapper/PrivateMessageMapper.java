@@ -63,4 +63,16 @@ public interface PrivateMessageMapper extends BaseMapper<PrivateMessagePo> {
                            @Param("deliveredStatus") Integer deliveredStatus,
                            @Param("deliveredTime") LocalDateTime deliveredTime,
                            @Param("savedStatus") Integer savedStatus);
+
+    /**
+     * 标记接收确认。
+     * 允许在消息已经 READ 的情况下补写 acked_time / delivered_time，而不回退状态。
+     */
+    int markAcked(@Param("myId") Long myId,
+                  @Param("serverMsgId") Long serverMsgId,
+                  @Param("ackedStatus") Integer ackedStatus,
+                  @Param("ackedTime") LocalDateTime ackedTime,
+                  @Param("savedStatus") Integer savedStatus,
+                  @Param("deliveredStatus") Integer deliveredStatus,
+                  @Param("failStatus") Integer failStatus);
 }

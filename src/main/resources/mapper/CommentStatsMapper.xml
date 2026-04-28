@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.syt.graduationproject.mapper.CommentStatsMapper">
+
+    <select id="queryRootCommentStatsByHot" resultType="com.syt.graduationproject.model.po.CommentStatsPo">
+        SELECT
+        s.id,
+        s.video_id,
+        s.comment_id,
+        s.like_count,
+        s.reply_count,
+        s.hot_score,
+        s.create_time,
+        s.update_time
+        FROM tb_comment_stats s
+        INNER JOIN tb_comment c ON c.id = s.comment_id
+        WHERE s.video_id = #{videoId}
+        AND c.root_id = 0
+        AND c.is_deleted = 0
+
+        <if test="lastHotScore != null and lastCreateTime != null and lastCommentId != null">
+            AND (
+            s.hot_score &lt; #{lastHotScore}
+            OR (
+            s.hot_score = #{lastHotScore}
+            AND s.create_time &lt; #{lastCreateTime}
+            )
+            OR (
+            s.hot_score = #{lastHotScore}
+            AND s.create_time = #{lastCreateTime}
+            AND s.comment_id &lt; #{lastCommentId}
+            )
+            )
+        </if>
+
+        ORDER BY
+        s.hot_score DESC,
+        s.create_time DESC,
+        s.comment_id DESC
+
+        LIMIT #{pageSize}
+    </select>
+
+</mapper>

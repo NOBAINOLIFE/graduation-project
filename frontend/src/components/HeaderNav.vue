@@ -58,10 +58,16 @@
         </template>
 
         <div class="flex flex-col items-center gap-1 cursor-pointer group" @click="goToMessage">
-          <div class="w-6 h-6 flex items-center justify-center">
+          <div class="relative flex h-6 w-6 items-center justify-center">
             <svg class="w-5 h-5 text-gray-600 group-hover:text-[#00a1d6] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
             </svg>
+            <span
+              v-if="isLoggedIn && unreadTotal > 0"
+              class="absolute -right-2 -top-2 min-w-[18px] rounded-full bg-[#fb7299] px-1 text-center text-[10px] leading-[18px] text-white"
+            >
+              {{ unreadBadge }}
+            </span>
           </div>
           <span class="text-xs text-gray-600 group-hover:text-[#00a1d6] transition-colors">消息</span>
         </div>
@@ -113,6 +119,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { getChatUnreadTotal } from '../api/chat';
 import {
   getUserId,
   isUserLoggedIn,
@@ -121,6 +128,7 @@ import {
   SHOW_LOGIN_MODAL_ONCE_KEY,
   USER_AUTH_CHANGE_EVENT
 } from '../utils/auth';
+import { CHAT_UNREAD_CHANGE_EVENT } from '../utils/chat';
 import UserMenu from './UserMenu.vue';
 import LoginModal from './LoginModal.vue';
 
@@ -129,7 +137,9 @@ const router = useRouter();
 const searchKeyword = ref('');
 const showLoginModal = ref(false);
 const isLoggedIn = ref(isUserLoggedIn());
+const unreadTotal = ref(0);
 const isSearchPage = computed(() => route.path === '/search');
+const unreadBadge = computed(() => (unreadTotal.value > 99 ? '99+' : String(unreadTotal.value)));
 
 function goHome() {
   router.push('/');
@@ -192,15 +202,39 @@ function goToCollection() {
 
 function goToMessage() {
   if (!ensureLoggedIn('登录后可查看消息')) return;
-  console.log('跳转到消息页');
+  router.push({
+    name: 'messages',
+    query: { tab: 'chat' }
+  });
 }
 
 function syncLoginStatus(event) {
   isLoggedIn.value = event?.detail?.isLoggedIn ?? isUserLoggedIn();
+  if (!isLoggedIn.value) {
+    unreadTotal.value = 0;
+    return;
+  }
+  refreshUnreadTotal();
 }
 
 function handleShowLoginModal() {
   showLoginModal.value = true;
+}
+
+async function refreshUnreadTotal() {
+  if (!isUserLoggedIn()) {
+    unreadTotal.value = 0;
+    return;
+  }
+  try {
+    unreadTotal.value = Number(await getChatUnreadTotal()) || 0;
+  } catch (error) {
+    console.error('加载未读消息数失败:', error);
+  }
+}
+
+function handleUnreadChanged(event) {
+  unreadTotal.value = Number(event?.detail?.total || 0);
 }
 
 onMounted(() => {
@@ -212,11 +246,14 @@ onMounted(() => {
   }
   window.addEventListener(USER_AUTH_CHANGE_EVENT, syncLoginStatus);
   window.addEventListener(SHOW_LOGIN_MODAL_EVENT, handleShowLoginModal);
+  window.addEventListener(CHAT_UNREAD_CHANGE_EVENT, handleUnreadChanged);
+  refreshUnreadTotal();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener(USER_AUTH_CHANGE_EVENT, syncLoginStatus);
   window.removeEventListener(SHOW_LOGIN_MODAL_EVENT, handleShowLoginModal);
+  window.removeEventListener(CHAT_UNREAD_CHANGE_EVENT, handleUnreadChanged);
 });
 
 watch(

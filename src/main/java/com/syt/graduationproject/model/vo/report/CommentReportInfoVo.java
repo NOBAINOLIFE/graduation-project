@@ -1,11 +1,13 @@
 package com.syt.graduationproject.model.vo.report;
 
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CommentReportInfoVo extends ReportInfoVo {

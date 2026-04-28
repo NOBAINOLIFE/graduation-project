@@ -2,7 +2,6 @@ package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.*;
@@ -11,6 +10,8 @@ import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.Page.CommentPageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.websocket.*;
 import com.syt.graduationproject.repository.InteractRepository;
@@ -267,16 +268,24 @@ public class InteractServiceImpl implements InteractService {
 
         // 2. 为每一条新评论初始化统计行
         CommentStatsPo commentStatsPo = CommentStatsPo.builder()
+                .videoId(request.getVideoId())
                 .commentId(comment.getId())
                 .likeCount(0L)
                 .replyCount(0L)
+                .hotScore(10L)
                 .build();
         commentStatsMapper.insert(commentStatsPo);
 
         // 3. 维护层级计数逻辑
         if (comment.getRootId() != 0) {
-            // 如果是回复（子评论），给它的“根评论”回复数 +1
+            // 根评论维护整棵回复树的总回复数
             commentStatsMapper.incrReplyCount(comment.getRootId());
+            // 被直接回复的子评论维护自己的 direct reply_count，用于热度计算
+            if (comment.getParentId() != null
+                    && comment.getParentId() > 0
+                    && !Objects.equals(comment.getParentId(), comment.getRootId())) {
+                commentStatsMapper.updateReplyCount(comment.getParentId(), 1);
+            }
         }
 
         // 4. 更新视频维度的总评论数
@@ -425,6 +434,13 @@ public class InteractServiceImpl implements InteractService {
         }
 
         Long toUserId = request.getToUserId();
+        if (Objects.equals(fromUserId, toUserId)) {
+            throw new CustomException("不能给自己发送私信");
+        }
+        UserPo targetUser = userMapper.selectById(toUserId);
+        if (targetUser == null) {
+            throw new CustomException("接收方用户不存在");
+        }
         if (hasMutualBlock(fromUserId, toUserId)) {
             throw new CustomException("由于隐私设置，无法发送私信");
         }
@@ -525,20 +541,18 @@ public class InteractServiceImpl implements InteractService {
         if (serverMsgId == null) {
             return;
         }
-        // 只有接收方才能 ack（userId == toUserId）
-        PrivateMessagePo update = PrivateMessagePo.builder()
-                .status(PrivateMessageStatusEnum.ACKED.getCode())
-                .ackedTime(LocalDateTime.now())
-                .updateTime(LocalDateTime.now())
-                .build();
-        privateMessageMapper.update(update,
-                new LambdaQueryWrapper<PrivateMessagePo>()
-                        .eq(PrivateMessagePo::getId, serverMsgId)
-                        .eq(PrivateMessagePo::getToUserId, userId)
-                        // 仅允许 SAVED/DELIVERED -> ACKED，避免 READ 被回退为 ACKED
-                        .in(PrivateMessagePo::getStatus,
-                                PrivateMessageStatusEnum.SAVED.getCode(),
-                                PrivateMessageStatusEnum.DELIVERED.getCode()));
+        LocalDateTime ackedTime = LocalDateTime.now();
+        // 只有接收方才能 ack（userId == toUserId）。
+        // 如果消息已经 READ，也只补齐 acked_time / delivered_time，不回退状态。
+        privateMessageMapper.markAcked(
+                userId,
+                serverMsgId,
+                PrivateMessageStatusEnum.ACKED.getCode(),
+                ackedTime,
+                PrivateMessageStatusEnum.SAVED.getCode(),
+                PrivateMessageStatusEnum.DELIVERED.getCode(),
+                PrivateMessageStatusEnum.FAIL.getCode()
+        );
     }
 
     @Override
@@ -645,9 +659,26 @@ public class InteractServiceImpl implements InteractService {
         if (sessions == null || sessions.isEmpty()) {
             return sessions;
         }
-        return sessions.stream()
+        List<ChatSessionVo> visibleSessions = sessions.stream()
                 .filter(item -> !hasMutualBlock(myId, item.getWithUserId()))
                 .collect(Collectors.toList());
+        if (visibleSessions.isEmpty()) {
+            return visibleSessions;
+        }
+
+        Map<Long, UserPo> userMap = queryUserMap(visibleSessions.stream()
+                .map(ChatSessionVo::getWithUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList()));
+        visibleSessions.forEach(item -> {
+            UserPo userPo = userMap.get(item.getWithUserId());
+            if (userPo != null) {
+                item.setWithUsername(userPo.getUsername());
+                item.setWithAvatarUrl(userPo.getAvatarUrl());
+            }
+        });
+        return visibleSessions;
     }
 
     @Override
@@ -676,6 +707,252 @@ public class InteractServiceImpl implements InteractService {
             broadcastToUser(withUserId, readEvent);
         }
         return rows;
+    }
+
+    @Override
+    public List<ReplyMessageVo> queryReplyMessages() {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        List<CommentPo> replyComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
+                .eq(CommentPo::getReplyUserId, myId)
+                .ne(CommentPo::getUserId, myId)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(CommentPo::getCreateTime)
+                .orderByDesc(CommentPo::getId)
+                .last("limit 100"));
+        if (CollectionUtils.isEmpty(replyComments)) {
+            return Collections.emptyList();
+        }
+
+        Set<Long> replierUserIds = replyComments.stream()
+                .map(CommentPo::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> originalCommentIds = replyComments.stream()
+                .map(CommentPo::getParentId)
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.toSet());
+        Set<Long> videoIds = replyComments.stream()
+                .map(CommentPo::getVideoId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, UserPo> userMap = replierUserIds.isEmpty()
+                ? Collections.emptyMap()
+                : userMapper.selectBatchIds(replierUserIds).stream()
+                .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
+        Map<Long, CommentPo> originalCommentMap = originalCommentIds.isEmpty()
+                ? Collections.emptyMap()
+                : commentMapper.selectBatchIds(originalCommentIds).stream()
+                .collect(Collectors.toMap(CommentPo::getId, item -> item, (left, right) -> left));
+        Map<Long, VideoPo> videoMap = videoIds.isEmpty()
+                ? Collections.emptyMap()
+                : videoMapper.selectBatchIds(videoIds).stream()
+                .collect(Collectors.toMap(VideoPo::getId, item -> item, (left, right) -> left));
+
+        return replyComments.stream().map(comment -> {
+            UserPo replier = userMap.get(comment.getUserId());
+            CommentPo originalComment = originalCommentMap.get(comment.getParentId());
+            VideoPo videoPo = videoMap.get(comment.getVideoId());
+            return ReplyMessageVo.builder()
+                    .replyCommentId(comment.getId())
+                    .replierUserId(comment.getUserId())
+                    .replierUsername(replier == null ? "未知用户" : replier.getUsername())
+                    .replierAvatarUrl(replier == null ? null : replier.getAvatarUrl())
+                    .replyContent(comment.getContent())
+                    .originalCommentId(originalComment == null ? comment.getParentId() : originalComment.getId())
+                    .originalCommentContent(originalComment == null ? "" : originalComment.getContent())
+                    .videoId(comment.getVideoId())
+                    .videoTitle(videoPo == null ? "" : videoPo.getTitle())
+                    .createTime(comment.getCreateTime())
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<LikeReceivedSummaryVo> queryLikeReceivedSummaries() {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        List<LikeReceivedSummaryVo> summaryList = new ArrayList<>();
+
+        List<CommentPo> myComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
+                .eq(CommentPo::getUserId, myId)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED));
+        if (CollectionUtils.isNotEmpty(myComments)) {
+            Map<Long, CommentPo> commentMap = myComments.stream()
+                    .collect(Collectors.toMap(CommentPo::getId, item -> item, (left, right) -> left));
+            List<Long> commentIds = myComments.stream().map(CommentPo::getId).collect(Collectors.toList());
+            List<LikeCommentPo> likeCommentPos = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
+                    .in(LikeCommentPo::getCommentId, commentIds)
+                    .ne(LikeCommentPo::getUserId, myId)
+                    .orderByDesc(LikeCommentPo::getCreateTime)
+                    .orderByDesc(LikeCommentPo::getId));
+            if (CollectionUtils.isNotEmpty(likeCommentPos)) {
+                Set<Long> userIds = likeCommentPos.stream().map(LikeCommentPo::getUserId).collect(Collectors.toSet());
+                Set<Long> videoIds = myComments.stream().map(CommentPo::getVideoId).filter(Objects::nonNull).collect(Collectors.toSet());
+                Map<Long, UserPo> userMap = userIds.isEmpty()
+                        ? Collections.emptyMap()
+                        : userMapper.selectBatchIds(userIds).stream()
+                        .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
+                Map<Long, VideoPo> videoMap = videoIds.isEmpty()
+                        ? Collections.emptyMap()
+                        : videoMapper.selectBatchIds(videoIds).stream()
+                        .collect(Collectors.toMap(VideoPo::getId, item -> item, (left, right) -> left));
+
+                Map<Long, List<LikeCommentPo>> groupedLikeComments = likeCommentPos.stream()
+                        .collect(Collectors.groupingBy(LikeCommentPo::getCommentId, LinkedHashMap::new, Collectors.toList()));
+                groupedLikeComments.forEach((commentId, likes) -> {
+                    CommentPo commentPo = commentMap.get(commentId);
+                    if (commentPo == null || CollectionUtils.isEmpty(likes)) {
+                        return;
+                    }
+                    VideoPo videoPo = videoMap.get(commentPo.getVideoId());
+                    summaryList.add(LikeReceivedSummaryVo.builder()
+                            .targetType("comment")
+                            .targetId(commentId)
+                            .commentId(commentId)
+                            .commentContent(commentPo.getContent())
+                            .videoId(commentPo.getVideoId())
+                            .videoTitle(videoPo == null ? "" : videoPo.getTitle())
+                            .videoCoverUrl(videoPo == null ? null : videoPo.getCoverUrl())
+                            .totalCount((long) likes.size())
+                            .previewUsernames(extractPreviewUsernames(likes.stream()
+                                    .map(LikeCommentPo::getUserId)
+                                    .collect(Collectors.toList()), userMap))
+                            .latestLikeTime(likes.get(0).getCreateTime())
+                            .build());
+                });
+            }
+        }
+
+        List<VideoPo> myVideos = videoMapper.selectList(new LambdaQueryWrapper<VideoPo>()
+                .eq(VideoPo::getUserId, myId));
+        if (CollectionUtils.isNotEmpty(myVideos)) {
+            Map<Long, VideoPo> videoMap = myVideos.stream()
+                    .collect(Collectors.toMap(VideoPo::getId, item -> item, (left, right) -> left));
+            List<Long> videoIds = myVideos.stream().map(VideoPo::getId).collect(Collectors.toList());
+            List<LikeVideoPo> likeVideoPos = likeVideoMapper.selectList(new LambdaQueryWrapper<LikeVideoPo>()
+                    .in(LikeVideoPo::getVideoId, videoIds)
+                    .ne(LikeVideoPo::getUserId, myId)
+                    .orderByDesc(LikeVideoPo::getCreateTime)
+                    .orderByDesc(LikeVideoPo::getId));
+            if (CollectionUtils.isNotEmpty(likeVideoPos)) {
+                Set<Long> userIds = likeVideoPos.stream().map(LikeVideoPo::getUserId).collect(Collectors.toSet());
+                Map<Long, UserPo> userMap = userIds.isEmpty()
+                        ? Collections.emptyMap()
+                        : userMapper.selectBatchIds(userIds).stream()
+                        .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
+
+                Map<Long, List<LikeVideoPo>> groupedLikeVideos = likeVideoPos.stream()
+                        .collect(Collectors.groupingBy(LikeVideoPo::getVideoId, LinkedHashMap::new, Collectors.toList()));
+                groupedLikeVideos.forEach((videoId, likes) -> {
+                    VideoPo videoPo = videoMap.get(videoId);
+                    if (videoPo == null || CollectionUtils.isEmpty(likes)) {
+                        return;
+                    }
+                    summaryList.add(LikeReceivedSummaryVo.builder()
+                            .targetType("video")
+                            .targetId(videoId)
+                            .videoId(videoId)
+                            .videoTitle(videoPo.getTitle())
+                            .videoCoverUrl(videoPo.getCoverUrl())
+                            .totalCount((long) likes.size())
+                            .previewUsernames(extractPreviewUsernames(likes.stream()
+                                    .map(LikeVideoPo::getUserId)
+                                    .collect(Collectors.toList()), userMap))
+                            .latestLikeTime(likes.get(0).getCreateTime())
+                            .build());
+                });
+            }
+        }
+
+        summaryList.sort((left, right) -> {
+            LocalDateTime rightTime = right.getLatestLikeTime();
+            LocalDateTime leftTime = left.getLatestLikeTime();
+            if (rightTime == null && leftTime == null) {
+                return 0;
+            }
+            if (rightTime == null) {
+                return -1;
+            }
+            if (leftTime == null) {
+                return 1;
+            }
+            return rightTime.compareTo(leftTime);
+        });
+        return summaryList;
+    }
+
+    @Override
+    public LikeReceivedDetailVo queryLikeReceivedDetail(String targetType, Long targetId) {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        if (targetId == null || targetType == null) {
+            throw new CustomException("点赞消息参数不完整");
+        }
+
+        String normalizedType = targetType.trim().toLowerCase();
+        if ("comment".equals(normalizedType)) {
+            CommentPo commentPo = commentMapper.selectById(targetId);
+            if (commentPo == null || !Objects.equals(commentPo.getUserId(), myId) || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
+                throw new CustomException("评论不存在或无权限查看");
+            }
+            List<LikeCommentPo> recentLikes = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
+                    .eq(LikeCommentPo::getCommentId, targetId)
+                    .ne(LikeCommentPo::getUserId, myId)
+                    .orderByDesc(LikeCommentPo::getCreateTime)
+                    .orderByDesc(LikeCommentPo::getId)
+                    .last("limit 20"));
+            long totalCount = likeCommentMapper.selectCount(new LambdaQueryWrapper<LikeCommentPo>()
+                    .eq(LikeCommentPo::getCommentId, targetId)
+                    .ne(LikeCommentPo::getUserId, myId));
+            Map<Long, UserPo> userMap = queryUserMap(recentLikes.stream()
+                    .map(LikeCommentPo::getUserId)
+                    .collect(Collectors.toList()));
+            VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
+            return LikeReceivedDetailVo.builder()
+                    .targetType("comment")
+                    .targetId(targetId)
+                    .commentId(targetId)
+                    .commentContent(commentPo.getContent())
+                    .videoId(commentPo.getVideoId())
+                    .videoTitle(videoPo == null ? "" : videoPo.getTitle())
+                    .videoCoverUrl(videoPo == null ? null : videoPo.getCoverUrl())
+                    .totalCount(totalCount)
+                    .recentUsers(recentLikes.stream()
+                            .map(item -> buildLikeUserVo(item.getUserId(), item.getCreateTime(), userMap))
+                            .collect(Collectors.toList()))
+                    .build();
+        }
+
+        if ("video".equals(normalizedType)) {
+            VideoPo videoPo = videoMapper.selectById(targetId);
+            if (videoPo == null || !Objects.equals(videoPo.getUserId(), myId)) {
+                throw new CustomException("视频不存在或无权限查看");
+            }
+            List<LikeVideoPo> recentLikes = likeVideoMapper.selectList(new LambdaQueryWrapper<LikeVideoPo>()
+                    .eq(LikeVideoPo::getVideoId, targetId)
+                    .ne(LikeVideoPo::getUserId, myId)
+                    .orderByDesc(LikeVideoPo::getCreateTime)
+                    .orderByDesc(LikeVideoPo::getId)
+                    .last("limit 20"));
+            long totalCount = likeVideoMapper.selectCount(new LambdaQueryWrapper<LikeVideoPo>()
+                    .eq(LikeVideoPo::getVideoId, targetId)
+                    .ne(LikeVideoPo::getUserId, myId));
+            Map<Long, UserPo> userMap = queryUserMap(recentLikes.stream()
+                    .map(LikeVideoPo::getUserId)
+                    .collect(Collectors.toList()));
+            return LikeReceivedDetailVo.builder()
+                    .targetType("video")
+                    .targetId(targetId)
+                    .videoId(targetId)
+                    .videoTitle(videoPo.getTitle())
+                    .videoCoverUrl(videoPo.getCoverUrl())
+                    .totalCount(totalCount)
+                    .recentUsers(recentLikes.stream()
+                            .map(item -> buildLikeUserVo(item.getUserId(), item.getCreateTime(), userMap))
+                            .collect(Collectors.toList()))
+                    .build();
+        }
+
+        throw new CustomException("点赞消息类型非法");
     }
 
     @Override
@@ -1405,6 +1682,35 @@ public class InteractServiceImpl implements InteractService {
                 .collect(Collectors.toSet());
     }
 
+    private List<String> extractPreviewUsernames(List<Long> userIds, Map<Long, UserPo> userMap) {
+        if (CollectionUtils.isEmpty(userIds)) {
+            return Collections.emptyList();
+        }
+        List<String> usernames = new ArrayList<>();
+        Set<Long> visited = new HashSet<>();
+        for (Long userId : userIds) {
+            if (userId == null || !visited.add(userId)) {
+                continue;
+            }
+            UserPo userPo = userMap.get(userId);
+            usernames.add(userPo == null ? "未知用户" : userPo.getUsername());
+            if (usernames.size() >= 2) {
+                break;
+            }
+        }
+        return usernames;
+    }
+
+    private LikeUserVo buildLikeUserVo(Long userId, LocalDateTime likeTime, Map<Long, UserPo> userMap) {
+        UserPo userPo = userMap.get(userId);
+        return LikeUserVo.builder()
+                .userId(userId)
+                .username(userPo == null ? "未知用户" : userPo.getUsername())
+                .avatarUrl(userPo == null ? null : userPo.getAvatarUrl())
+                .likeTime(likeTime)
+                .build();
+    }
+
     private Map<Long, UserPo> queryUserMap(List<Long> userIds) {
         if (CollectionUtils.isEmpty(userIds)) {
             return Collections.emptyMap();
@@ -1416,76 +1722,157 @@ public class InteractServiceImpl implements InteractService {
     }
 
     @Override
-    public PageVo<CommentVo> listVideoComments(Long videoId, Integer sortType, Integer pageNum, Integer pageSize) {
+    public CommentPageVo listVideoComments(CommentListRequest request) {
+        Long videoId = request.getVideoId();
         if (videoId == null) {
             throw new CustomException("视频ID不能为空");
         }
-        int safePageNum = pageNum == null || pageNum < 1 ? 1 : pageNum;
-        int safePageSize = pageSize == null ? 10 : Math.min(Math.max(pageSize, 1), 50);
+        int safePageSize = request.getPageSize() == null ? 20 : Math.min(Math.max(request.getPageSize(), 1), 50);
         VideoPo videoPo = videoMapper.selectById(videoId);
         if (videoPo == null || !Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
             throw new CustomException("视频不存在或未发布");
         }
 
         Long myId = getCurrentUserIdOrNull();
-        if (Objects.equals(sortType, 1)) {
-            return listHotComments(videoId, myId, safePageNum, safePageSize);
+        if (Objects.equals(request.getSortType(), 1)) {
+            return listHotComments(videoId, myId, request, safePageSize);
         }
-        Page<CommentPo> page = new Page<>(safePageNum, safePageSize);
-        LambdaQueryWrapper<CommentPo> wrapper = new LambdaQueryWrapper<CommentPo>()
-                .eq(CommentPo::getVideoId, videoId)
-                .eq(CommentPo::getRootId, 0L)
-                .eq(CommentPo::getIsDeleted, NOT_DELETED)
-                .orderByDesc(CommentPo::getCreateTime)
-                .orderByDesc(CommentPo::getId);
-        commentMapper.selectPage(page, wrapper);
-
-        return buildCommentPage(page.getRecords(), page.getTotal(), safePageNum, safePageSize, myId);
+        return listLatestComments(videoId, myId, request, safePageSize);
     }
 
-    private PageVo<CommentVo> listHotComments(Long videoId, Long currentUserId, Integer pageNum, Integer pageSize) {
-        List<CommentPo> allComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
+    private CommentPageVo listLatestComments(Long videoId, Long currentUserId, CommentListRequest request, Integer pageSize) {
+        LambdaQueryWrapper<CommentPo> queryWrapper = new LambdaQueryWrapper<CommentPo>()
                 .eq(CommentPo::getVideoId, videoId)
                 .eq(CommentPo::getRootId, 0L)
-                .eq(CommentPo::getIsDeleted, NOT_DELETED)
-                .orderByDesc(CommentPo::getCreateTime)
-                .orderByDesc(CommentPo::getId));
+                .eq(CommentPo::getIsDeleted, NOT_DELETED);
+        if (request.getLastCreateTime() != null && request.getLastCommentId() != null) {
+            queryWrapper.and(wrapper -> wrapper
+                    .lt(CommentPo::getCreateTime, request.getLastCreateTime())
+                    .or(inner -> inner
+                            .eq(CommentPo::getCreateTime, request.getLastCreateTime())
+                            .lt(CommentPo::getId, request.getLastCommentId())));
+        }
+        queryWrapper.orderByDesc(CommentPo::getCreateTime)
+                .orderByDesc(CommentPo::getId)
+                .last("LIMIT " + (pageSize + 1));
 
-        if (allComments == null || allComments.isEmpty()) {
+        List<CommentPo> comments = commentMapper.selectList(queryWrapper);
+        Long total = interactRepository.queryTotalRootCommentNum(videoId);
+        return buildLatestCommentPage(comments, total, pageSize, currentUserId);
+    }
+
+    @Override
+    public PageVo<CommentVo> listCommentReplies(Long rootCommentId, Integer pageNum, Integer pageSize) {
+        if (rootCommentId == null) {
+            throw new CustomException("主评论ID不能为空");
+        }
+        int safePageNum = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int safePageSize = pageSize == null ? 10 : Math.min(Math.max(pageSize, 1), 50);
+        CommentPo rootComment = commentMapper.selectById(rootCommentId);
+        if (rootComment == null || !Objects.equals(rootComment.getIsDeleted(), NOT_DELETED) || !Objects.equals(rootComment.getRootId(), 0L)) {
+            throw new CustomException("主评论不存在");
+        }
+
+        Long myId = getCurrentUserIdOrNull();
+        List<CommentPo> replyComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
+                .eq(CommentPo::getRootId, rootCommentId)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED)
+                .orderByAsc(CommentPo::getCreateTime)
+                .orderByAsc(CommentPo::getId));
+
+        if (CollectionUtils.isEmpty(replyComments)) {
             return PageVo.<CommentVo>builder()
                     .total(0L)
-                    .pageNum(pageNum)
-                    .pageSize(pageSize)
+                    .pageNum(safePageNum)
+                    .pageSize(safePageSize)
+                    .isEnd(true)
                     .records(Collections.emptyList())
                     .build();
         }
 
-        List<Long> commentIds = allComments.stream().map(CommentPo::getId).collect(Collectors.toList());
-        Map<Long, CommentStatsPo> commentStatsMap = queryCommentStatsMap(commentIds);
-        allComments.sort((left, right) -> {
-            long rightLikeCount = getCommentLikeCount(commentStatsMap, right.getId());
-            long leftLikeCount = getCommentLikeCount(commentStatsMap, left.getId());
-            int likeCompare = Long.compare(rightLikeCount, leftLikeCount);
-            if (likeCompare != 0) {
-                return likeCompare;
-            }
-            int timeCompare = right.getCreateTime().compareTo(left.getCreateTime());
-            if (timeCompare != 0) {
-                return timeCompare;
-            }
-            return right.getId().compareTo(left.getId());
-        });
-
-        int fromIndex = Math.min((pageNum - 1) * pageSize, allComments.size());
-        int toIndex = Math.min(fromIndex + pageSize, allComments.size());
+        int fromIndex = Math.min((safePageNum - 1) * safePageSize, replyComments.size());
+        int toIndex = Math.min(fromIndex + safePageSize, replyComments.size());
         List<CommentPo> pageRecords = fromIndex >= toIndex
                 ? Collections.emptyList()
-                : new ArrayList<>(allComments.subList(fromIndex, toIndex));
-        return buildCommentPage(pageRecords, (long) allComments.size(), pageNum, pageSize, currentUserId);
+                : new ArrayList<>(replyComments.subList(fromIndex, toIndex));
+        PageVo<CommentVo> pageVo = buildCommentPage(pageRecords, (long) replyComments.size(), safePageNum, safePageSize, myId);
+        pageVo.setIsEnd(toIndex >= replyComments.size());
+        return pageVo;
+    }
+
+    private CommentPageVo listHotComments(Long videoId, Long currentUserId, CommentListRequest request, Integer pageSize) {
+        List<CommentStatsPo> statsList = interactRepository.queryRootCommentStatsByHot(
+                videoId,
+                request.getLastHotScore(),
+                request.getLastCreateTime(),
+                request.getLastCommentId(),
+                pageSize
+        );
+        Long total = interactRepository.queryTotalRootCommentNum(videoId);
+        if (CollectionUtils.isEmpty(statsList)) {
+            return CommentPageVo.builder()
+                    .total(total == null ? 0L : total)
+                    .pageSize(pageSize)
+                    .isEnd(true)
+                    .records(Collections.emptyList())
+                    .build();
+        }
+
+        boolean isEnd = statsList.size() <= pageSize;
+        List<CommentStatsPo> pageStats = isEnd ? statsList : new ArrayList<>(statsList.subList(0, pageSize));
+        List<Long> commentIds = pageStats.stream().map(CommentStatsPo::getCommentId).collect(Collectors.toList());
+        Map<Long, CommentPo> commentMap = commentMapper.selectBatchIds(commentIds).stream()
+                .collect(Collectors.toMap(CommentPo::getId, item -> item, (left, right) -> left));
+        List<CommentPo> orderedComments = commentIds.stream()
+                .map(commentMap::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        PageVo<CommentVo> commentPage = buildCommentPage(orderedComments, total, null, pageSize, currentUserId);
+        CommentPageVo pageVo = CommentPageVo.builder()
+                .total(commentPage.getTotal())
+                .pageNum(commentPage.getPageNum())
+                .pageSize(commentPage.getPageSize())
+                .records(commentPage.getRecords())
+                .build();
+        pageVo.setIsEnd(isEnd);
+        if (!isEnd && CollectionUtils.isNotEmpty(pageStats)) {
+            CommentStatsPo lastStats = pageStats.get(pageStats.size() - 1);
+            pageVo.setLastHotScore(lastStats.getHotScore());
+            pageVo.setLastCreateTime(lastStats.getCreateTime());
+            pageVo.setLastCommentId(lastStats.getCommentId());
+        }
+        return pageVo;
+    }
+
+    private CommentPageVo buildLatestCommentPage(List<CommentPo> queriedComments, Long total, Integer pageSize, Long currentUserId) {
+        if (CollectionUtils.isEmpty(queriedComments)) {
+            return CommentPageVo.builder()
+                    .total(total == null ? 0L : total)
+                    .pageSize(pageSize)
+                    .isEnd(true)
+                    .records(Collections.emptyList())
+                    .build();
+        }
+        boolean isEnd = queriedComments.size() <= pageSize;
+        List<CommentPo> pageRecords = isEnd ? queriedComments : new ArrayList<>(queriedComments.subList(0, pageSize));
+        PageVo<CommentVo> commentPage = buildCommentPage(pageRecords, total, null, pageSize, currentUserId);
+        CommentPageVo pageVo = CommentPageVo.builder()
+                .total(commentPage.getTotal())
+                .pageNum(commentPage.getPageNum())
+                .pageSize(commentPage.getPageSize())
+                .records(commentPage.getRecords())
+                .build();
+        pageVo.setIsEnd(isEnd);
+        if (!isEnd && CollectionUtils.isNotEmpty(pageRecords)) {
+            CommentPo lastComment = pageRecords.get(pageRecords.size() - 1);
+            pageVo.setLastCreateTime(lastComment.getCreateTime());
+            pageVo.setLastCommentId(lastComment.getId());
+        }
+        return pageVo;
     }
 
     private PageVo<CommentVo> buildCommentPage(List<CommentPo> commentList, Long total, Integer pageNum, Integer pageSize, Long currentUserId) {
-        if (commentList == null || commentList.isEmpty()) {
+        if (CollectionUtils.isEmpty(commentList)) {
             return PageVo.<CommentVo>builder()
                     .total(total == null ? 0L : total)
                     .pageNum(pageNum)
@@ -1501,19 +1888,15 @@ public class InteractServiceImpl implements InteractService {
             if (comment.getUserId() != null) {
                 relatedUserIds.add(comment.getUserId());
             }
-
             if (comment.getReplyUserId() != null && comment.getReplyUserId() > 0) {
                 relatedUserIds.add(comment.getReplyUserId());
             }
         }
 
-        Map<Long, UserPo> userMap;
-        if (!relatedUserIds.isEmpty()) {
-            userMap = userMapper.selectBatchIds(relatedUserIds).stream()
-                    .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
-        } else {
-            userMap = Collections.emptyMap();
-        }
+        Map<Long, UserPo> userMap = relatedUserIds.isEmpty()
+                ? Collections.emptyMap()
+                : userMapper.selectBatchIds(relatedUserIds).stream()
+                .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
 
         Set<Long> likedCommentIdSet = queryLikedCommentIdSet(currentUserId, commentIds);
         List<CommentVo> records = commentList.stream().map(comment -> {
@@ -1523,8 +1906,8 @@ public class InteractServiceImpl implements InteractService {
             return CommentVo.builder()
                     .commentId(comment.getId())
                     .userId(comment.getUserId())
-                    .username(userPo.getUsername())
-                    .avatarUrl(userPo.getAvatarUrl())
+                    .username(userPo == null ? "未知用户" : userPo.getUsername())
+                    .avatarUrl(userPo == null ? null : userPo.getAvatarUrl())
                     .content(comment.getContent())
                     .rootId(comment.getRootId())
                     .parentId(comment.getParentId())
@@ -1533,10 +1916,13 @@ public class InteractServiceImpl implements InteractService {
                     .replyUserAvatarUrl(replyUserPo == null ? null : replyUserPo.getAvatarUrl())
                     .likeCount(statsPo == null || statsPo.getLikeCount() == null ? 0L : statsPo.getLikeCount())
                     .replyCount(statsPo == null || statsPo.getReplyCount() == null ? 0L : statsPo.getReplyCount())
+                    .hotScore(statsPo == null || statsPo.getHotScore() == null ? 10L : statsPo.getHotScore())
                     .isLike(likedCommentIdSet.contains(comment.getId()))
                     .createTime(comment.getCreateTime())
                     .build();
         }).collect(Collectors.toList());
+
+        attachReplyPreviewList(commentList, records, currentUserId);
 
         return PageVo.<CommentVo>builder()
                 .total(total == null ? 0L : total)
@@ -1546,18 +1932,58 @@ public class InteractServiceImpl implements InteractService {
                 .build();
     }
 
+    private void attachReplyPreviewList(List<CommentPo> sourceComments, List<CommentVo> builtRecords, Long currentUserId) {
+        if (CollectionUtils.isEmpty(sourceComments) || CollectionUtils.isEmpty(builtRecords)) {
+            return;
+        }
+        boolean allRootComments = sourceComments.stream().allMatch(item -> Objects.equals(item.getRootId(), 0L));
+        if (!allRootComments) {
+            return;
+        }
+
+        List<Long> rootCommentIds = sourceComments.stream().map(CommentPo::getId).collect(Collectors.toList());
+        List<CommentPo> directReplies = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
+                .in(CommentPo::getRootId, rootCommentIds)
+                .in(CommentPo::getParentId, rootCommentIds)
+                .eq(CommentPo::getIsDeleted, NOT_DELETED));
+        if (CollectionUtils.isEmpty(directReplies)) {
+            return;
+        }
+
+        Map<Long, CommentStatsPo> replyStatsMap = queryCommentStatsMap(directReplies.stream().map(CommentPo::getId).collect(Collectors.toList()));
+        Map<Long, List<CommentPo>> replyGroupMap = directReplies.stream().collect(Collectors.groupingBy(CommentPo::getRootId));
+        Map<Long, List<CommentVo>> previewMap = new HashMap<>();
+        replyGroupMap.forEach((rootId, replies) -> {
+            List<CommentPo> topReplies = replies.stream()
+                    .sorted((left, right) -> {
+                        long rightHotScore = getCommentHotScore(replyStatsMap, right.getId());
+                        long leftHotScore = getCommentHotScore(replyStatsMap, left.getId());
+                        int hotCompare = Long.compare(rightHotScore, leftHotScore);
+                        if (hotCompare != 0) {
+                            return hotCompare;
+                        }
+                        return right.getId().compareTo(left.getId());
+                    })
+                    .limit(2)
+                    .sorted(Comparator.comparing(CommentPo::getCreateTime).thenComparing(CommentPo::getId))
+                    .collect(Collectors.toList());
+            List<CommentVo> previewList = buildCommentPage(topReplies, (long) topReplies.size(), null, topReplies.size(), currentUserId).getRecords();
+            previewMap.put(rootId, previewList);
+        });
+        builtRecords.forEach(item -> item.setReplyPreviewList(previewMap.getOrDefault(item.getCommentId(), Collections.emptyList())));
+    }
+
     private Map<Long, CommentStatsPo> queryCommentStatsMap(List<Long> commentIds) {
-        if (commentIds == null || commentIds.isEmpty()) {
+        if (CollectionUtils.isEmpty(commentIds)) {
             return Collections.emptyMap();
         }
         List<CommentStatsPo> statsList = commentStatsMapper.selectList(new LambdaQueryWrapper<CommentStatsPo>()
                 .in(CommentStatsPo::getCommentId, commentIds));
-        return statsList.stream()
-                .collect(Collectors.toMap(CommentStatsPo::getCommentId, item -> item, (left, right) -> left));
+        return statsList.stream().collect(Collectors.toMap(CommentStatsPo::getCommentId, item -> item, (left, right) -> left));
     }
 
     private Set<Long> queryLikedCommentIdSet(Long currentUserId, List<Long> commentIds) {
-        if (currentUserId == null || commentIds == null || commentIds.isEmpty()) {
+        if (currentUserId == null || CollectionUtils.isEmpty(commentIds)) {
             return Collections.emptySet();
         }
 
@@ -1567,9 +1993,9 @@ public class InteractServiceImpl implements InteractService {
         return likeCommentPos.stream().map(LikeCommentPo::getCommentId).collect(Collectors.toSet());
     }
 
-    private long getCommentLikeCount(Map<Long, CommentStatsPo> commentStatsMap, Long commentId) {
+    private long getCommentHotScore(Map<Long, CommentStatsPo> commentStatsMap, Long commentId) {
         CommentStatsPo statsPo = commentStatsMap.get(commentId);
-        return statsPo == null || statsPo.getLikeCount() == null ? 0L : statsPo.getLikeCount();
+        return statsPo == null || statsPo.getHotScore() == null ? 10L : statsPo.getHotScore();
     }
 
     private Long getCurrentUserIdOrNull() {

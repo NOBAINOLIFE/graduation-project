@@ -2,12 +2,14 @@ package com.syt.graduationproject.model.vo.report;
 
 import com.syt.graduationproject.model.vo.VideoSourceVo;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
 
 @EqualsAndHashCode(callSuper = true)
 @Data
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class VideoReportInfoVo extends ReportInfoVo {

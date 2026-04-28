@@ -42,7 +42,10 @@
             >
               {{ userInfo?.isFollow ? '已关注' : '+ 关注' }}
             </button>
-            <button class="px-6 py-2 bg-white/20 backdrop-blur text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30 text-sm">
+            <button
+              class="px-6 py-2 bg-white/20 backdrop-blur text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30 text-sm"
+              @click="goToPrivateChat"
+            >
               发消息
             </button>
           </div>
@@ -1441,6 +1444,17 @@ async function handleFollow() {
     console.error('关注操作失败:', error);
     ElMessage.error(error.message || '关注操作失败');
   }
+}
+
+function goToPrivateChat() {
+  if (isSelf.value || !userInfo.value?.userId) {
+    return;
+  }
+  router.push({
+    name: 'messages',
+    params: { userId: userInfo.value.userId },
+    query: { tab: 'chat' }
+  });
 }
 
 // 跳转到视频详情页

@@ -9,7 +9,7 @@ import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
-import com.syt.graduationproject.model.vo.PageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.service.ManagerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

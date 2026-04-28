@@ -22,6 +22,16 @@ public class ChatSessionVo {
     private Long withUserId;
 
     /**
+     * 对方用户名
+     */
+    private String withUsername;
+
+    /**
+     * 对方头像
+     */
+    private String withAvatarUrl;
+
+    /**
      * 最后一条消息ID
      */
     private Long lastMsgId;

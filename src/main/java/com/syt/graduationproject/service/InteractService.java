@@ -8,12 +8,15 @@ import com.syt.graduationproject.model.request.CollectionBatchOperateRequest;
 import com.syt.graduationproject.model.request.CollectionDirectoryCreateRequest;
 import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
 import com.syt.graduationproject.model.request.CoinVideoRequest;
+import com.syt.graduationproject.model.request.CommentListRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
 import com.syt.graduationproject.model.request.TripleActionRequest;
 import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.Page.CommentPageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.websocket.PrivateChatSendRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -110,6 +113,12 @@ public interface InteractService {
      */
     int markChatRead(Long myId, Long withUserId, Long upToMsgId);
 
+    List<ReplyMessageVo> queryReplyMessages();
+
+    List<LikeReceivedSummaryVo> queryLikeReceivedSummaries();
+
+    LikeReceivedDetailVo queryLikeReceivedDetail(String targetType, Long targetId);
+
     List<UserSimpleInfoVo> queryFansList(Long userId);
 
     List<UserSimpleInfoVo> queryFollowList(Long userId);
@@ -154,5 +163,7 @@ public interface InteractService {
 
     void deleteCollectionDirectory(Long directoryId);
 
-    PageVo<CommentVo> listVideoComments(Long videoId, Integer sortType, Integer pageNum, Integer pageSize);
+    CommentPageVo listVideoComments(CommentListRequest request);
+
+    PageVo<CommentVo> listCommentReplies(Long rootCommentId, Integer pageNum, Integer pageSize);
 }

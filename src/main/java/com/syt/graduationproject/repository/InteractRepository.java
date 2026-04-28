@@ -1,11 +1,9 @@
 package com.syt.graduationproject.repository;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.syt.graduationproject.model.po.CollectionDirectoryPo;
-import com.syt.graduationproject.model.po.CollectionItemPo;
-import com.syt.graduationproject.model.po.FollowRecordPo;
-import com.syt.graduationproject.model.po.ReportPo;
+import com.syt.graduationproject.model.po.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface InteractRepository {
@@ -82,4 +80,15 @@ public interface InteractRepository {
      * 查询举报记录
      */
     Page<ReportPo> queryReportRecord(Long reporterId, Integer status, Integer reportType, Integer pageNum, Integer pageSize);
+
+    /**
+     * 按热度游标分页查询根评论统计数据
+     */
+    List<CommentStatsPo> queryRootCommentStatsByHot(Long videoId, Long lastHotScore, LocalDateTime lastCreateTime,
+                                                    Long lastCommentId, Integer pageSize);
+
+    /**
+     * 统计总根评论数
+     */
+    Long queryTotalRootCommentNum(Long videoId);
 }
