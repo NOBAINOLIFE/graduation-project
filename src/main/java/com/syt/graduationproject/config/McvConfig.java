@@ -16,9 +16,7 @@ public class McvConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 添加登录拦截器
-        registry.addInterceptor(loginCheckInterceptor)
-                .excludePathPatterns("/v3/api-docs")
-                .order(0);
+        registry.addInterceptor(loginCheckInterceptor);
     }
 
     /**
@@ -31,6 +29,7 @@ public class McvConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 允许的请求方式
                 .allowedHeaders("*") // 允许的 Header
+                .exposedHeaders("x-access-token")
                 .allowCredentials(true) // 是否允许发送 Cookie
                 .maxAge(3600);
     }

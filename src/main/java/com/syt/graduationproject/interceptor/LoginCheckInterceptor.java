@@ -9,16 +9,20 @@ import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static com.syt.graduationproject.constant.UserConstant.ADMIN_PERMISSION;
 import static com.syt.graduationproject.constant.UserConstant.ROLE_CODE;
@@ -34,10 +38,13 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     private final StringRedisTemplate stringRedisTemplate;
 
     private static final String JWT_HTTP_HEADER = "token";
+    private static final String REFRESHED_TOKEN_HEADER = "x-access-token";
+    private static final long REFRESH_THRESHOLD_MILLIS = 30 * 60 * 1000L;
+    private static final long PREVIOUS_TOKEN_GRACE_MILLIS = 5 * 60 * 1000L;
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
-                             Object handler) throws Exception {
+    public boolean preHandle(HttpServletRequest request, @NotNull HttpServletResponse response,
+                             @NotNull Object handler) throws Exception {
         String uri = request.getRequestURI();
 
         // 放行预检请求
@@ -60,7 +67,8 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
 
         // 有 token：解析 token
         try {
-            UserDto userDto = praseJwtToken(jwtToken);
+            Claims claims = JwtUtil.parseJwtToken(jwtToken);
+            UserDto userDto = buildUserDto(claims);
             // 校验token是否在Redis白名单
             if (!checkWhitelist(jwtToken, userDto.getUserId())) {
                 log.error("token未在白名单，疑似已登出或失效");
@@ -79,6 +87,7 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
                 return false;
             }
 
+            refreshTokenIfNecessary(response, jwtToken, claims, userDto.getUserId());
             UserHolderUtil.saveUser(userDto);
         } catch (Exception e) {
             log.error("解析JWT令牌失败", e);
@@ -89,13 +98,8 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     }
 
     @Override
-    public void postHandle(HttpServletRequest request, HttpServletResponse response,
-                           Object handler, ModelAndView modelAndView) {
-    }
-
-    @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
-                                Object handler, Exception ex) {
+    public void afterCompletion(@NotNull HttpServletRequest request, @NotNull HttpServletResponse response,
+                                @NotNull Object handler, Exception ex) {
         UserHolderUtil.removeUser();
     }
 
@@ -111,8 +115,7 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     /**
      * 解析 token
      */
-    private UserDto praseJwtToken(String jwtToken) {
-        Claims claims = JwtUtil.parseJwtToken(jwtToken);
+    private UserDto buildUserDto(Claims claims) {
         return UserDto.builder()
                 .userId(claims.get(USER_ID, Long.class))
                 .username(claims.get(USERNAME, String.class))
@@ -155,6 +158,63 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
      */
     private boolean checkWhitelist(String jwtToken, Long userId) {
         String whitelistToken = stringRedisTemplate.opsForValue().get(RedisKeyUtil.jwtWhitelistKey(userId));
-        return !StringUtils.isEmpty(whitelistToken) && whitelistToken.equals(jwtToken);
+        if (!StringUtils.isEmpty(whitelistToken) && whitelistToken.equals(jwtToken)) {
+            return true;
+        }
+        String previousToken = stringRedisTemplate.opsForValue().get(RedisKeyUtil.jwtPreviousWhitelistKey(userId));
+        return !StringUtils.isEmpty(previousToken) && previousToken.equals(jwtToken);
+    }
+
+    private void refreshTokenIfNecessary(HttpServletResponse response, String oldToken, Claims claims, Long userId) {
+        if (StringUtils.isBlank(oldToken) || claims == null || userId == null) {
+            return;
+        }
+
+        String whitelistKey = RedisKeyUtil.jwtWhitelistKey(userId);
+        String currentToken = stringRedisTemplate.opsForValue().get(whitelistKey);
+        if (StringUtils.isBlank(currentToken)) {
+            return;
+        }
+
+        if (!StringUtils.equals(oldToken, currentToken)) {
+            response.setHeader(REFRESHED_TOKEN_HEADER, currentToken);
+            return;
+        }
+
+        Date expiration = claims.getExpiration();
+        if (expiration == null) {
+            return;
+        }
+        long remainingMillis = expiration.getTime() - System.currentTimeMillis();
+        if (remainingMillis > REFRESH_THRESHOLD_MILLIS) {
+            return;
+        }
+
+        String newToken = generateRefreshedToken(claims);
+        stringRedisTemplate.opsForValue().set(
+                RedisKeyUtil.jwtPreviousWhitelistKey(userId),
+                oldToken,
+                PREVIOUS_TOKEN_GRACE_MILLIS,
+                TimeUnit.MILLISECONDS
+        );
+        stringRedisTemplate.opsForValue().set(
+                whitelistKey,
+                newToken,
+                JwtUtil.EXPIRATION,
+                TimeUnit.MILLISECONDS
+        );
+        response.setHeader(REFRESHED_TOKEN_HEADER, newToken);
+    }
+
+    private String generateRefreshedToken(Claims claims) {
+        Map<String, Object> claimMap = new HashMap<>();
+        claimMap.put(USER_ID, claims.get(USER_ID, Long.class));
+        claimMap.put(USERNAME, claims.get(USERNAME, String.class));
+        claimMap.put(ROLE_CODE, claims.get(ROLE_CODE, String.class));
+        Long roleId = claims.get(ROLE_ID, Long.class);
+        if (roleId != null) {
+            claimMap.put(ROLE_ID, roleId);
+        }
+        return JwtUtil.generateJwtToken(claimMap);
     }
 }

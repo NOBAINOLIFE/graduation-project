@@ -152,6 +152,7 @@ public class UserServiceImpl implements UserService {
         String roleCode = roleEnum == null ? RoleEnum.USER.getRoleCode() : roleEnum.getRoleCode();
         claimMap.put(USER_ID, userId);
         claimMap.put(USERNAME, userPo.getUsername());
+        claimMap.put(ROLE_ID, roleId);
         claimMap.put(ROLE_CODE, roleCode);
         String jwtToken = JwtUtil.generateJwtToken(claimMap);
         log.info("用户登录成功，用户ID：{}，用户名：{}，JWT令牌：{}", userId, userPo.getUsername(), jwtToken);
@@ -159,6 +160,7 @@ public class UserServiceImpl implements UserService {
         // 加入 Redis 白名单
         stringRedisTemplate.opsForValue()
                 .set(RedisKeyUtil.jwtWhitelistKey(userId), jwtToken, JwtUtil.EXPIRATION, TimeUnit.MILLISECONDS);
+        stringRedisTemplate.delete(RedisKeyUtil.jwtPreviousWhitelistKey(userId));
         interactService.claimDailyCoin(userId);
         return LoginVo.builder()
                 .userId(userId)
@@ -264,6 +266,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void logout(Long userId) {
         stringRedisTemplate.delete(RedisKeyUtil.jwtWhitelistKey(userId));
+        stringRedisTemplate.delete(RedisKeyUtil.jwtPreviousWhitelistKey(userId));
     }
 
     @Override

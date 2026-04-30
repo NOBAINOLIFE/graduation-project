@@ -1,6 +1,13 @@
-import { clearUserAuth, getAdminToken, getToken } from '../utils/auth';
+import {
+  clearUserAuth,
+  getAdminToken,
+  getToken,
+  updateAdminToken,
+  updateUserToken
+} from '../utils/auth';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const REFRESHED_TOKEN_HEADER = 'x-access-token';
 
 function shouldRedirectToLogin(message) {
   if (!message) return false;
@@ -56,6 +63,15 @@ export async function request(path, { method = 'GET', json, formData, params } =
     headers,
     body
   });
+
+  const refreshedToken = response.headers.get(REFRESHED_TOKEN_HEADER);
+  if (refreshedToken) {
+    if (isAdminApi) {
+      updateAdminToken(refreshedToken);
+    } else {
+      updateUserToken(refreshedToken);
+    }
+  }
 
   const payload = await response.json().catch(() => ({}));
   const failMessage = payload?.message || `HTTP ${response.status}`;

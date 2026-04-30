@@ -182,11 +182,12 @@
 <script setup>
 import { reactive, ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { getToken, clearUserAuth, isUserLoggedIn } from '../utils/auth';
+import { getToken, clearUserAuth, isUserLoggedIn, updateUserToken } from '../utils/auth';
 
 const router = useRouter();
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const CHUNK_SIZE = 5 * 1024 * 1024;
+const REFRESHED_TOKEN_HEADER = 'x-access-token';
 
 // 使用正确的token获取方式
 const token = ref(getToken());
@@ -232,6 +233,11 @@ async function request(path, { method = 'GET', json, formData } = {}) {
     body = formData;
   }
   const response = await fetch(`${API_BASE}${path}`, { method, headers, body });
+  const refreshedToken = response.headers.get(REFRESHED_TOKEN_HEADER);
+  if (refreshedToken) {
+    updateUserToken(refreshedToken);
+    token.value = refreshedToken;
+  }
   const payload = await response.json().catch(() => ({}));
   
   // 检查是否未登录或token失效

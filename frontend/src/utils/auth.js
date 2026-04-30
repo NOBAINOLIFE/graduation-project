@@ -1,5 +1,6 @@
 // 普通用户认证
 const USER_TOKEN_KEY = 'user_token';
+const USER_REFRESHED_AT_KEY = 'user_token_refreshed_at';
 const USER_ID_KEY = 'user_id';
 const USERNAME_KEY = 'username';
 export const USER_AUTH_CHANGE_EVENT = 'user-auth-changed';
@@ -8,6 +9,7 @@ export const SHOW_LOGIN_MODAL_ONCE_KEY = 'show-login-modal-once';
 
 // 管理员认证
 const ADMIN_TOKEN_KEY = 'admin_token';
+const ADMIN_REFRESHED_AT_KEY = 'admin_token_refreshed_at';
 const ADMIN_ROLE_KEY = 'admin_roleCode';
 const ADMIN_USER_ID_KEY = 'admin_userId';
 const ADMIN_USERNAME_KEY = 'admin_username';
@@ -33,6 +35,7 @@ export function isUserLoggedIn() {
  */
 export function saveUserLogin(loginData) {
   localStorage.setItem(USER_TOKEN_KEY, loginData?.token || '');
+  localStorage.setItem(USER_REFRESHED_AT_KEY, String(Date.now()));
   localStorage.setItem(USER_ID_KEY, String(loginData?.userId || ''));
   localStorage.setItem(USERNAME_KEY, loginData?.username || '');
   emitUserAuthChanged(true);
@@ -45,7 +48,14 @@ export function setUserAuth(token, userId, username) {
   localStorage.setItem(USER_TOKEN_KEY, token || '');
   localStorage.setItem(USER_ID_KEY, String(userId || ''));
   localStorage.setItem(USERNAME_KEY, username || '');
+  localStorage.setItem(USER_REFRESHED_AT_KEY, String(Date.now()));
   emitUserAuthChanged(Boolean(token));
+}
+
+export function updateUserToken(token) {
+  if (!token) return;
+  localStorage.setItem(USER_TOKEN_KEY, token);
+  localStorage.setItem(USER_REFRESHED_AT_KEY, String(Date.now()));
 }
 
 /**
@@ -68,6 +78,7 @@ export function getUsername() {
  */
 export function clearUserAuth() {
   localStorage.removeItem(USER_TOKEN_KEY);
+  localStorage.removeItem(USER_REFRESHED_AT_KEY);
   localStorage.removeItem(USER_ID_KEY);
   localStorage.removeItem(USERNAME_KEY);
   emitUserAuthChanged(false);
@@ -118,6 +129,7 @@ export function isAdmin() {
  */
 export function saveAdminLogin(loginData) {
   localStorage.setItem(ADMIN_TOKEN_KEY, loginData?.token || '');
+  localStorage.setItem(ADMIN_REFRESHED_AT_KEY, String(Date.now()));
   localStorage.setItem(ADMIN_ROLE_KEY, loginData?.roleCode || '');
   localStorage.setItem(ADMIN_USER_ID_KEY, String(loginData?.userId || ''));
   localStorage.setItem(ADMIN_USERNAME_KEY, loginData?.username || '');
@@ -128,9 +140,16 @@ export function saveAdminLogin(loginData) {
  */
 export function setAdminAuth(token, userId, username, roleCode) {
   localStorage.setItem(ADMIN_TOKEN_KEY, token || '');
+  localStorage.setItem(ADMIN_REFRESHED_AT_KEY, String(Date.now()));
   localStorage.setItem(ADMIN_ROLE_KEY, roleCode || '');
   localStorage.setItem(ADMIN_USER_ID_KEY, String(userId || ''));
   localStorage.setItem(ADMIN_USERNAME_KEY, username || '');
+}
+
+export function updateAdminToken(token) {
+  if (!token) return;
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  localStorage.setItem(ADMIN_REFRESHED_AT_KEY, String(Date.now()));
 }
 
 /**
@@ -153,6 +172,7 @@ export function getAdminUsername() {
  */
 export function clearAdminAuth() {
   localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_REFRESHED_AT_KEY);
   localStorage.removeItem(ADMIN_ROLE_KEY);
   localStorage.removeItem(ADMIN_USER_ID_KEY);
   localStorage.removeItem(ADMIN_USERNAME_KEY);

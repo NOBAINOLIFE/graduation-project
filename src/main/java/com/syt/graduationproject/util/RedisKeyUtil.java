@@ -30,6 +30,13 @@ public class RedisKeyUtil {
     }
 
     /**
+     * JWT 旧令牌短期兼容：jwt:whitelist:previous:{userId} -> token
+     */
+    public static String jwtPreviousWhitelistKey(Long userId) {
+        return "jwt:whitelist:previous:" + userId;
+    }
+
+    /**
      * 分片上传会话：video:upload:session:{videoId}:{uploadToken}
      */
     public static String videoUploadSessionKey(Long videoId, String uploadToken) {
