@@ -101,7 +101,14 @@ public class InteractServiceImpl implements InteractService {
      */
     private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
 
+    /**
+     * 分享去重缓存 TTL：缓存过期后回查数据库并重建
+     */
+    private static final Duration VIDEO_SHARE_DEDUP_TTL = Duration.ofDays(7);
+
     private final UserMapper userMapper;
+
+    private final VideoShareRecordMapper videoShareRecordMapper;
 
     private static final int OPERATION_ON = 1;
 
@@ -1467,6 +1474,53 @@ public class InteractServiceImpl implements InteractService {
                 .build());
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean shareVideo(Long videoId) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        if (videoId == null) {
+            throw new CustomException("视频ID不能为空");
+        }
+        VideoPo videoPo = videoMapper.selectById(videoId);
+        if (videoPo == null || !Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
+            throw new CustomException("视频不存在或不可分享");
+        }
+
+        String shareDedupKey = RedisKeyUtil.videoShareDedupKey(videoId, userId);
+        if (stringRedisTemplate.hasKey(shareDedupKey)) {
+            return false;
+        }
+
+        VideoShareRecordPo shareRecordPo = videoShareRecordMapper.selectOne(new LambdaQueryWrapper<VideoShareRecordPo>()
+                .eq(VideoShareRecordPo::getVideoId, videoId)
+                .eq(VideoShareRecordPo::getUserId, userId)
+                .last("limit 1"));
+        if (shareRecordPo != null) {
+            rebuildVideoShareDedupCache(shareDedupKey);
+            return false;
+        }
+
+        try {
+            videoShareRecordMapper.insert(VideoShareRecordPo.builder()
+                    .videoId(videoId)
+                    .userId(userId)
+                    .build());
+            int updated = videoStatsMapper.updateShareCount(videoId, 1);
+            if (updated <= 0) {
+                throw new CustomException("分享计数更新失败");
+            }
+            rebuildVideoShareDedupCache(shareDedupKey);
+            return true;
+        } catch (DuplicateKeyException e) {
+            rebuildVideoShareDedupCache(shareDedupKey);
+            return false;
+        }
+    }
+
+    private void rebuildVideoShareDedupCache(String shareDedupKey) {
+        stringRedisTemplate.opsForValue().set(shareDedupKey, "1", VIDEO_SHARE_DEDUP_TTL);
+    }
+
     private void cancelFollowIfPresent(Long followerId, Long followeeId) {
         FollowRecordPo followRecordPo = followRecordMapper.selectOne(new LambdaQueryWrapper<FollowRecordPo>()
                 .eq(FollowRecordPo::getFollowerId, followerId)
@@ -1800,6 +1854,146 @@ public class InteractServiceImpl implements InteractService {
         return pageVo;
     }
 
+    @Override
+    public PageVo<CreatorCommentManageVo> listCreatorComments(CreatorCommentQueryRequest request) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        int safePageNum = request == null || request.getPageNum() == null || request.getPageNum() < 1 ? 1 : request.getPageNum();
+        int safePageSize = request == null || request.getPageSize() == null ? 12 : Math.min(Math.max(request.getPageSize(), 1), 50);
+        long offset = (long) (safePageNum - 1) * safePageSize;
+        String keyword = request == null ? null : request.getKeyword();
+        Long videoId = request == null ? null : request.getVideoId();
+        Integer sortType = request == null ? null : request.getSortType();
+
+        if (videoId != null) {
+            VideoPo videoPo = videoMapper.selectById(videoId);
+            if (videoPo == null || !Objects.equals(videoPo.getUserId(), userId)) {
+                throw new CustomException("视频不存在或无权查看评论");
+            }
+        }
+
+        Long total = commentMapper.countCreatorComments(userId, keyword, videoId);
+        if (total == null || total <= 0) {
+            return PageVo.<CreatorCommentManageVo>builder()
+                    .total(0L)
+                    .pageNum(safePageNum)
+                    .pageSize(safePageSize)
+                    .isEnd(true)
+                    .records(Collections.emptyList())
+                    .build();
+        }
+
+        List<CommentPo> commentList = commentMapper.queryCreatorComments(userId, keyword, videoId, sortType, offset, safePageSize);
+        if (CollectionUtils.isEmpty(commentList)) {
+            return PageVo.<CreatorCommentManageVo>builder()
+                    .total(total)
+                    .pageNum(safePageNum)
+                    .pageSize(safePageSize)
+                    .isEnd(true)
+                    .records(Collections.emptyList())
+                    .build();
+        }
+
+        List<Long> commentIds = commentList.stream().map(CommentPo::getId).collect(Collectors.toList());
+        Map<Long, CommentStatsPo> commentStatsMap = queryCommentStatsMap(commentIds);
+
+        Set<Long> relatedUserIds = new HashSet<>();
+        Set<Long> relatedVideoIds = new HashSet<>();
+        for (CommentPo commentPo : commentList) {
+            relatedVideoIds.add(commentPo.getVideoId());
+            if (commentPo.getUserId() != null) {
+                relatedUserIds.add(commentPo.getUserId());
+            }
+            if (commentPo.getReplyUserId() != null && commentPo.getReplyUserId() > 0) {
+                relatedUserIds.add(commentPo.getReplyUserId());
+            }
+        }
+
+        Map<Long, UserPo> userMap = relatedUserIds.isEmpty()
+                ? Collections.emptyMap()
+                : userMapper.selectBatchIds(relatedUserIds).stream()
+                .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
+        Map<Long, VideoPo> videoMap = relatedVideoIds.isEmpty()
+                ? Collections.emptyMap()
+                : videoMapper.selectBatchIds(relatedVideoIds).stream()
+                .collect(Collectors.toMap(VideoPo::getId, item -> item, (left, right) -> left));
+
+        List<CreatorCommentManageVo> records = commentList.stream()
+                .map(comment -> {
+                    CommentStatsPo statsPo = commentStatsMap.get(comment.getId());
+                    UserPo commenter = userMap.get(comment.getUserId());
+                    UserPo replyUser = userMap.get(comment.getReplyUserId());
+                    VideoPo targetVideo = videoMap.get(comment.getVideoId());
+                    return CreatorCommentManageVo.builder()
+                            .commentId(comment.getId())
+                            .videoId(comment.getVideoId())
+                            .videoTitle(targetVideo == null ? "视频已失效" : targetVideo.getTitle())
+                            .videoCoverUrl(targetVideo == null ? null : targetVideo.getCoverUrl())
+                            .userId(comment.getUserId())
+                            .username(commenter == null ? "未知用户" : commenter.getUsername())
+                            .avatarUrl(commenter == null ? null : commenter.getAvatarUrl())
+                            .content(comment.getContent())
+                            .rootId(comment.getRootId())
+                            .parentId(comment.getParentId())
+                            .replyUserId(comment.getReplyUserId())
+                            .replyUsername(replyUser == null ? null : replyUser.getUsername())
+                            .likeCount(statsPo == null ? 0L : defaultLong(statsPo.getLikeCount()))
+                            .replyCount(statsPo == null ? 0L : defaultLong(statsPo.getReplyCount()))
+                            .isRootComment(Objects.equals(comment.getRootId(), 0L))
+                            .createTime(comment.getCreateTime())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return PageVo.<CreatorCommentManageVo>builder()
+                .total(total)
+                .pageNum(safePageNum)
+                .pageSize(safePageSize)
+                .isEnd(offset + commentList.size() >= total)
+                .records(records)
+                .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCreatorComment(Long commentId) {
+        Long currentUserId = UserHolderUtil.getUser().getUserId();
+        if (commentId == null) {
+            throw new CustomException("评论ID不能为空");
+        }
+
+        CommentPo commentPo = commentMapper.selectById(commentId);
+        if (commentPo == null || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
+            throw new CustomException("评论不存在");
+        }
+
+        VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
+        if (videoPo == null) {
+            throw new CustomException("评论对应的视频不存在");
+        }
+        boolean canDelete = Objects.equals(videoPo.getUserId(), currentUserId) || Objects.equals(commentPo.getUserId(), currentUserId);
+        if (!canDelete) {
+            throw new CustomException("无权限删除该评论");
+        }
+
+        if (Objects.equals(commentPo.getRootId(), 0L)) {
+            int removed = commentMapper.logicDeleteRootTree(commentPo.getId());
+            if (removed > 0) {
+                videoStatsMapper.updateCommentCount(commentPo.getVideoId(), -1);
+            }
+            return;
+        }
+
+        int removed = commentMapper.logicDeleteById(commentId);
+        if (removed > 0) {
+            commentStatsMapper.updateReplyCount(commentPo.getRootId(), -1);
+            if (commentPo.getParentId() != null
+                    && commentPo.getParentId() > 0
+                    && !Objects.equals(commentPo.getParentId(), commentPo.getRootId())) {
+                commentStatsMapper.updateReplyCount(commentPo.getParentId(), -1);
+            }
+        }
+    }
+
     private CommentPageVo listHotComments(Long videoId, Long currentUserId, CommentListRequest request, Integer pageSize) {
         List<CommentStatsPo> statsList = interactRepository.queryRootCommentStatsByHot(
                 videoId,
@@ -1996,6 +2190,10 @@ public class InteractServiceImpl implements InteractService {
     private long getCommentHotScore(Map<Long, CommentStatsPo> commentStatsMap, Long commentId) {
         CommentStatsPo statsPo = commentStatsMap.get(commentId);
         return statsPo == null || statsPo.getHotScore() == null ? 10L : statsPo.getHotScore();
+    }
+
+    private long defaultLong(Long value) {
+        return value == null ? 0L : value;
     }
 
     private Long getCurrentUserIdOrNull() {

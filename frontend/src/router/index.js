@@ -9,6 +9,9 @@ import UserHistoryPage from '../components/UserHistoryPage.vue';
 import MessageCenterPage from '../components/MessageCenterPage.vue';
 import ManagerPage from '../components/manager/ManagerPage.vue';
 import ManagerLoginPage from '../components/manager/ManagerLoginPage.vue';
+import CreatorContentPage from '../components/creator/CreatorContentPage.vue';
+import CreatorFansPage from '../components/creator/CreatorFansPage.vue';
+import CreatorCommentsPage from '../components/creator/CreatorCommentsPage.vue';
 import {
   clearAdminAuth,
   getAdminToken,
@@ -87,24 +90,19 @@ const router = createRouter({
           component: VideoSubmitPage
         },
         {
-          path: 'home',
-          name: 'creator-home',
-          component: { template: '<div class="p-6"><h2 class="text-2xl font-bold mb-4">创作中心首页</h2><p class="text-gray-600">这里显示创作中心概览数据</p></div>' }
-        },
-        {
           path: 'content',
           name: 'creator-content',
-          component: { template: '<div class="p-6"><h2 class="text-2xl font-bold mb-4">稿件管理</h2><p class="text-gray-600">这里管理您的所有稿件</p></div>' }
+          component: CreatorContentPage
         },
         {
           path: 'fans',
           name: 'creator-fans',
-          component: { template: '<div class="p-6"><h2 class="text-2xl font-bold mb-4">粉丝管理</h2><p class="text-gray-600">这里管理您的粉丝</p></div>' }
+          component: CreatorFansPage
         },
         {
           path: 'comments',
           name: 'creator-comments',
-          component: { template: '<div class="p-6"><h2 class="text-2xl font-bold mb-4">评论管理</h2><p class="text-gray-600">这里管理您的评论</p></div>' }
+          component: CreatorCommentsPage
         }
       ]
     },

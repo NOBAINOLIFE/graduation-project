@@ -24,7 +24,7 @@
         </foreach>
         ON DUPLICATE KEY UPDATE
         is_deleted = 0,
-        update_time = CURRENT_TIMESTAMP
+        update_time = CURRENT_TIMESTAMP=
     </insert>
 
 

@@ -1,8 +1,11 @@
 package com.syt.graduationproject.controller;
 
 import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
@@ -140,6 +143,22 @@ public class VideoController {
         } catch (Exception e) {
             log.error("查询视频播放列表失败", e);
             return Response.fail("查询视频播放列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询当前创作者稿件列表
+     */
+    @PostMapping("/creator/list")
+    public Response<PageVo<CreatorVideoManageVo>> listCreatorVideos(@RequestBody(required = false) CreatorVideoQueryRequest request) {
+        try {
+            return Response.success(videoService.listCreatorVideos(request == null ? new CreatorVideoQueryRequest() : request));
+        } catch (CustomException e) {
+            log.warn("查询创作者稿件列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询创作者稿件列表失败，request：{}", request, e);
+            return Response.fail("查询创作者稿件列表失败，系统异常");
         }
     }
 }

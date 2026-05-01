@@ -1,5 +1,6 @@
 package com.syt.graduationproject.repository;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.po.*;
 
@@ -86,6 +87,11 @@ public interface VideoRepository {
      * 查询视频标签
      */
     List<VideoTagPo> queryVideoTags(Long videoId);
+
+    /**
+     * 查询创作者稿件列表
+     */
+    Page<VideoPo> queryCreatorVideoPage(Long userId, String keyword, Integer status, Integer pageNum, Integer pageSize);
 
     int batchAddVideoCollectCount(List<Long> videoIdList, Long delta);
 }

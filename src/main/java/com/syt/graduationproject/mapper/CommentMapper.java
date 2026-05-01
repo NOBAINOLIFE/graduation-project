@@ -4,7 +4,10 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.syt.graduationproject.model.po.CommentPo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
 
 /**
  * 评论表 Mapper 接口
@@ -17,5 +20,16 @@ public interface CommentMapper extends BaseMapper<CommentPo> {
 
 	@Update("UPDATE tb_comment SET is_deleted = 1 WHERE ((id = #{rootCommentId}) OR (root_id = #{rootCommentId})) AND is_deleted = 0")
 	int logicDeleteRootTree(@Param("rootCommentId") Long rootCommentId);
+
+	List<CommentPo> queryCreatorComments(@Param("userId") Long userId,
+										 @Param("keyword") String keyword,
+										 @Param("videoId") Long videoId,
+										 @Param("sortType") Integer sortType,
+										 @Param("offset") Long offset,
+										 @Param("pageSize") Integer pageSize);
+
+	Long countCreatorComments(@Param("userId") Long userId,
+							  @Param("keyword") String keyword,
+							  @Param("videoId") Long videoId);
 
 }

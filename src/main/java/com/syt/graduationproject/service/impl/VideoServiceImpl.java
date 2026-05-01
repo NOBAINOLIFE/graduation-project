@@ -1,11 +1,13 @@
 package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.config.KafkaConfig;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.VideoPartitionMapper;
+import com.syt.graduationproject.mapper.VideoStatsMapper;
 import com.syt.graduationproject.mapper.VideoTagMapper;
 import com.syt.graduationproject.mapper.VideoTagRelMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
@@ -13,8 +15,11 @@ import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
 import com.syt.graduationproject.repository.SearchRepository;
@@ -73,6 +78,8 @@ public class VideoServiceImpl implements VideoService {
     private final ManagerService managerService;
 
     private final VideoPartitionMapper videoPartitionMapper;
+
+    private final VideoStatsMapper videoStatsMapper;
 
     private final VideoTagMapper videoTagMapper;
 
@@ -439,5 +446,89 @@ public class VideoServiceImpl implements VideoService {
                     .build());
         }
         return result;
+    }
+
+    @Override
+    public PageVo<CreatorVideoManageVo> listCreatorVideos(CreatorVideoQueryRequest request) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        int safePageNum = request == null || request.getPageNum() == null || request.getPageNum() < 1 ? 1 : request.getPageNum();
+        int safePageSize = request == null || request.getPageSize() == null ? 12 : Math.min(Math.max(request.getPageSize(), 1), 50);
+        String keyword = request == null ? null : request.getKeyword();
+        Integer status = request == null ? null : request.getStatus();
+
+        Page<VideoPo> page = videoRepository.queryCreatorVideoPage(userId, keyword, status, safePageNum, safePageSize);
+        List<VideoPo> videoRecords = page.getRecords();
+        if (CollectionUtils.isEmpty(videoRecords)) {
+            return PageVo.<CreatorVideoManageVo>builder()
+                    .total(page.getTotal())
+                    .pageNum(safePageNum)
+                    .pageSize(safePageSize)
+                    .isEnd(true)
+                    .records(Collections.emptyList())
+                    .build();
+        }
+
+        List<Long> videoIds = videoRecords.stream().map(VideoPo::getId).collect(Collectors.toList());
+        Map<Long, VideoStatsPo> statsMap = videoStatsMapper.selectList(new LambdaQueryWrapper<VideoStatsPo>()
+                        .in(VideoStatsPo::getVideoId, videoIds)
+                        .eq(VideoStatsPo::getIsDeleted, 0))
+                .stream()
+                .collect(Collectors.toMap(VideoStatsPo::getVideoId, item -> item, (left, right) -> left));
+
+        Set<Long> partitionIds = videoRecords.stream()
+                .map(VideoPo::getPartitionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> partitionNameMap = partitionIds.isEmpty()
+                ? Collections.emptyMap()
+                : videoPartitionMapper.selectBatchIds(partitionIds).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(VideoPartitionPo::getId, VideoPartitionPo::getPartitionName, (left, right) -> left));
+
+        List<CreatorVideoManageVo> records = videoRecords.stream()
+                .map(video -> {
+                    VideoStatsPo statsPo = statsMap.get(video.getId());
+                    return CreatorVideoManageVo.builder()
+                            .videoId(video.getId())
+                            .title(video.getTitle())
+                            .description(video.getDescription())
+                            .coverUrl(video.getCoverUrl())
+                            .duration(video.getDuration())
+                            .partitionId(video.getPartitionId())
+                            .partitionName(partitionNameMap.get(video.getPartitionId()))
+                            .status(video.getStatus())
+                            .statusText(resolveVideoStatusText(video.getStatus()))
+                            .playCount(statsPo == null ? 0L : defaultLong(statsPo.getPlayCount()))
+                            .likeCount(statsPo == null ? 0L : defaultLong(statsPo.getLikeCount()))
+                            .collectCount(statsPo == null ? 0L : defaultLong(statsPo.getCollectCount()))
+                            .commentCount(statsPo == null ? 0L : defaultLong(statsPo.getCommentCount()))
+                            .createTime(video.getCreateTime())
+                            .updateTime(video.getUpdateTime())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return PageVo.<CreatorVideoManageVo>builder()
+                .total(page.getTotal())
+                .pageNum(safePageNum)
+                .pageSize(safePageSize)
+                .isEnd((long) safePageNum * safePageSize >= page.getTotal())
+                .records(records)
+                .build();
+    }
+
+    private String resolveVideoStatusText(Integer status) {
+        if (status == null) {
+            return "未知状态";
+        }
+        return Arrays.stream(VideoStatusEnum.values())
+                .filter(item -> item.getCode() == status)
+                .findFirst()
+                .map(VideoStatusEnum::getMessage)
+                .orElse("未知状态");
+    }
+
+    private long defaultLong(Long value) {
+        return value == null ? 0L : value;
     }
 }

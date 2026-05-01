@@ -1,7 +1,10 @@
 package com.syt.graduationproject.service;
 
+import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
 import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
@@ -43,4 +46,6 @@ public interface VideoService {
     List<SearchVideoVo> getVideoPlayList(Long lastVideoId);
 
     List<UserVideoHistoryVo> listUserVideoHistory(Integer pageNum, Integer pageSize);
+
+    PageVo<CreatorVideoManageVo> listCreatorVideos(CreatorVideoQueryRequest request);
 }

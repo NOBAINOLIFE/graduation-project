@@ -73,6 +73,7 @@
 
               <button
                 class="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-200"
+                :disabled="actionLoading.share"
                 @click="handleShare"
               >
                 <el-icon :size="20"><Share /></el-icon>
@@ -612,6 +613,7 @@ import {
   queryVideoDirectoryRelations,
   reportVideo,
   reportVideoProgress,
+  shareVideo,
   submitVideoComment
 } from '../api/video';
 import {
@@ -690,7 +692,8 @@ const actionLoading = reactive({
   like: false,
   coin: false,
   collect: false,
-  follow: false
+  follow: false,
+  share: false
 });
 
 const videoInfo = ref(createDefaultVideoInfo());
@@ -1334,17 +1337,36 @@ async function handleLikeComment(comment) {
   }
 }
 
-function handleShare() {
+async function recordShareCount() {
+  if (!viewerLoggedIn.value || !currentVideoId.value || actionLoading.share) {
+    return;
+  }
+  actionLoading.share = true;
+  try {
+    const firstShare = await shareVideo(currentVideoId.value);
+    if (firstShare) {
+      videoInfo.value.shareCount = Number(videoInfo.value.shareCount || 0) + 1;
+    }
+  } catch (error) {
+    console.error('分享计数上报失败:', error);
+  } finally {
+    actionLoading.share = false;
+  }
+}
+
+async function handleShare() {
   const url = window.location.href;
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(url).then(() => {
+    navigator.clipboard.writeText(url).then(async () => {
       ElMessage.success('链接已复制，快去分享吧');
+      await recordShareCount();
     }).catch(() => {
       ElMessage.warning('复制失败，请手动复制地址栏链接');
     });
     return;
   }
   ElMessage.info(url);
+  await recordShareCount();
 }
 
 async function handleReply(comment, targetReply = null) {

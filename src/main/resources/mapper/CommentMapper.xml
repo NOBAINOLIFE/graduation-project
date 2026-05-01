@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.syt.graduationproject.mapper.CommentMapper">
+
+    <select id="queryCreatorComments" resultType="com.syt.graduationproject.model.po.CommentPo">
+        SELECT
+        c.*
+        FROM tb_comment c
+        INNER JOIN tb_video v ON v.id = c.video_id
+        LEFT JOIN tb_comment_stats s ON s.comment_id = c.id
+        WHERE v.user_id = #{userId}
+        AND c.is_deleted = 0
+
+        <if test="keyword != null and keyword != ''">
+            AND c.content LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+
+        <if test="videoId != null">
+            AND c.video_id = #{videoId}
+        </if>
+
+        ORDER BY
+        CASE WHEN #{sortType} = 2 THEN COALESCE(s.like_count, 0) END DESC,
+        c.create_time DESC,
+        c.id DESC
+
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countCreatorComments" resultType="long">
+        SELECT COUNT(1)
+        FROM tb_comment c
+        INNER JOIN tb_video v ON v.id = c.video_id
+        WHERE v.user_id = #{userId}
+        AND c.is_deleted = 0
+
+        <if test="keyword != null and keyword != ''">
+            AND c.content LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+
+        <if test="videoId != null">
+            AND c.video_id = #{videoId}
+        </if>
+    </select>
+</mapper>

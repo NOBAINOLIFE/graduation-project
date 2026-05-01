@@ -70,5 +70,12 @@ public class RedisKeyUtil {
     public static String videoPlayPvDeltaKey() {
         return "video:pv:delta";
     }
+
+    /**
+     * 用户分享视频去重 key：video:share:dedup:{videoId}:{userId}
+     */
+    public static String videoShareDedupKey(Long videoId, Long userId) {
+        return "video:share:dedup:" + videoId + ":" + userId;
+    }
 }
 

@@ -226,6 +226,39 @@ public class InteractController {
     }
 
     /**
+     * 查询当前创作者评论列表
+     */
+    @PostMapping("/comment/creator/list")
+    public Response<PageVo<CreatorCommentManageVo>> queryCreatorCommentList(@RequestBody(required = false) CreatorCommentQueryRequest request) {
+        try {
+            return Response.success(interactService.listCreatorComments(request == null ? new CreatorCommentQueryRequest() : request));
+        } catch (CustomException e) {
+            log.warn("查询创作者评论列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询创作者评论列表失败，request：{}", request, e);
+            return Response.fail("查询创作者评论列表失败，系统异常");
+        }
+    }
+
+    /**
+     * 删除当前创作者评论区中的评论
+     */
+    @PostMapping("/comment/creator/delete/{commentId}")
+    public Response<Object> deleteCreatorComment(@PathVariable Long commentId) {
+        try {
+            interactService.deleteCreatorComment(commentId);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("删除创作者评论失败，commentId：{}，原因：{}", commentId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("删除创作者评论失败，commentId：{}", commentId, e);
+            return Response.fail("删除创作者评论失败，系统异常");
+        }
+    }
+
+    /**
      * 查询粉丝列表
      */
     @PostMapping("/fansList")
@@ -437,6 +470,22 @@ public class InteractController {
         } catch (Exception e) {
             log.error("一键三连失败，request：{}", request, e);
             return Response.fail("一键三连失败，系统异常");
+        }
+    }
+
+    /**
+     * 分享视频，同一用户对同一视频只计数一次
+     */
+    @PostMapping("/shareVideo/{videoId}")
+    public Response<Boolean> shareVideo(@PathVariable Long videoId) {
+        try {
+            return Response.success(interactService.shareVideo(videoId));
+        } catch (CustomException e) {
+            log.warn("分享视频失败，videoId：{}，原因：{}", videoId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("分享视频失败，videoId：{}", videoId, e);
+            return Response.fail("分享视频失败，系统异常");
         }
     }
 

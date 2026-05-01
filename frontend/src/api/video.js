@@ -121,3 +121,9 @@ export function reportVideo(payload) {
     json: payload
   });
 }
+
+export function shareVideo(videoId) {
+  return request(`/graduation-project/interact/shareVideo/${videoId}`, {
+    method: 'POST'
+  });
+}

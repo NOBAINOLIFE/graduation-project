@@ -10,6 +10,7 @@ import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
 import com.syt.graduationproject.model.request.CoinVideoRequest;
 import com.syt.graduationproject.model.request.CommentListRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
+import com.syt.graduationproject.model.request.CreatorCommentQueryRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
 import com.syt.graduationproject.model.request.ReportSubmitRequest;
@@ -152,6 +153,8 @@ public interface InteractService {
     @Transactional(rollbackFor = Exception.class)
     void tripleAction(TripleActionRequest request);
 
+    boolean shareVideo(Long videoId);
+
     void submitReport(ReportSubmitRequest request);
 
     /**
@@ -166,4 +169,9 @@ public interface InteractService {
     CommentPageVo listVideoComments(CommentListRequest request);
 
     PageVo<CommentVo> listCommentReplies(Long rootCommentId, Integer pageNum, Integer pageSize);
+
+    PageVo<CreatorCommentManageVo> listCreatorComments(CreatorCommentQueryRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    void deleteCreatorComment(Long commentId);
 }

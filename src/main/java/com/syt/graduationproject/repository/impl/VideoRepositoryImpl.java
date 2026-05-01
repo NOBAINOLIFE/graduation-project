@@ -12,6 +12,7 @@ import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -224,6 +225,19 @@ public class VideoRepositoryImpl implements VideoRepository {
                 .map(VideoTagRelPo::getTagId)
                 .collect(Collectors.toList());
         return videoTagMapper.selectBatchIds(tagIdList);
+    }
+
+    @Override
+    public Page<VideoPo> queryCreatorVideoPage(Long userId, String keyword, Integer status, Integer pageNum, Integer pageSize) {
+        Page<VideoPo> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<VideoPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(VideoPo::getUserId, userId)
+                .like(StringUtils.isNotBlank(keyword), VideoPo::getTitle, keyword)
+                .eq(status != null, VideoPo::getStatus, status)
+                .ne(status == null, VideoPo::getStatus, VideoStatusEnum.DELETED.getCode())
+                .orderByDesc(VideoPo::getUpdateTime)
+                .orderByDesc(VideoPo::getId);
+        return videoMapper.selectPage(page, queryWrapper);
     }
 
     /**
