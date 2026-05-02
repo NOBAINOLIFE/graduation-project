@@ -65,7 +65,7 @@
                   <span class="shrink-0 text-xs text-[#a0a7b1]">{{ formatSessionTime(session.lastTime) }}</span>
                 </div>
                 <p class="mt-1 truncate text-sm" :class="session.unreadCount > 0 ? 'text-[#18191c]' : 'text-[#7c8794]'">
-                  {{ session.lastContent || '开始聊天吧' }}
+                  {{ getSessionPreview(session) }}
                 </p>
               </div>
             </button>
@@ -136,11 +136,45 @@
                   :class="isOwnMessage(message) ? 'items-end' : 'items-start'"
                 >
                   <div
+                    v-if="message.textContent"
                     class="inline-block max-w-full whitespace-pre-wrap break-words rounded-3xl px-4 py-3 text-sm leading-7 shadow-sm"
                     :class="isOwnMessage(message) ? 'bg-[#00a1d6] text-white' : 'border border-[#ebf0f4] bg-white text-[#18191c]'"
                   >
-                    {{ message.content }}
+                    {{ message.textContent }}
                   </div>
+                  <button
+                    v-if="message.shareVideoId"
+                    class="mt-2 w-full max-w-[340px] overflow-hidden rounded-[24px] border border-[#d9e4ec] bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8fd5ee] hover:shadow-[0_18px_50px_-30px_rgba(0,161,214,0.55)]"
+                    @click="goToVideo(message.shareVideoId)"
+                  >
+                    <div class="flex gap-3 p-3">
+                      <div class="h-20 w-[132px] shrink-0 overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#d9eef6_0%,#eff6fb_100%)]">
+                        <img
+                          v-if="getVideoCard(message.shareVideoId)?.coverUrl"
+                          :src="getVideoCard(message.shareVideoId).coverUrl"
+                          :alt="getVideoCard(message.shareVideoId)?.title || `视频 ${message.shareVideoId}`"
+                          class="h-full w-full object-cover"
+                        />
+                        <div v-else class="flex h-full w-full items-center justify-center text-xs font-medium text-[#6b7c8f]">
+                          视频加载中
+                        </div>
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 text-[11px] font-medium text-[#00a1d6]">
+                          <span class="rounded-full bg-[#e8f7fd] px-2 py-0.5">视频分享</span>
+                          <span class="text-[#9aa7b4]">ID {{ message.shareVideoId }}</span>
+                        </div>
+                        <p class="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-[#18191c]">
+                          {{ getVideoCard(message.shareVideoId)?.title || '正在加载视频信息...' }}
+                        </p>
+                        <div class="mt-3 flex items-center gap-3 text-xs text-[#7c8794]">
+                          <span>{{ formatVideoDuration(getVideoCard(message.shareVideoId)?.duration) }}</span>
+                          <span>{{ formatVideoPlayCount(getVideoCard(message.shareVideoId)?.playCount) }}</span>
+                          <span class="truncate">{{ getVideoCard(message.shareVideoId)?.username || '视频详情页' }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
                   <div
                     class="mt-2 flex items-center gap-2 px-1 text-xs"
                     :class="isOwnMessage(message) ? 'text-[#8ca0af]' : 'text-[#a0a7b1]'"
@@ -203,11 +237,13 @@ import {
   getChatWsPath,
   markChatRead
 } from '../../api/chat';
+import { getVideoDetail } from '../../api/video';
 import { getToken, getUserId } from '../../utils/auth';
 import { emitChatUnreadChange } from '../../utils/chat';
 
 const CHAT_PAGE_SIZE = 20;
 const STATUS_SENDING = -1;
+const VIDEO_LINK_PATTERN = /(https?:\/\/[^\s]+|\/video\/\d+[^\s]*)/ig;
 
 const route = useRoute();
 const router = useRouter();
@@ -232,6 +268,8 @@ let currentHistoryRequestId = 0;
 
 const userSummaryCache = new Map();
 const pendingUserSummaryMap = new Map();
+const videoCardCache = ref({});
+const pendingVideoCardMap = new Map();
 
 const currentUserId = computed(() => getUserId());
 const routeTargetUserId = computed(() => parseUserId(route.params.userId));
@@ -315,6 +353,61 @@ function getMessageKey(message) {
   return message.serverMsgId || message.id || message.clientMsgId;
 }
 
+function trimLinkCandidate(value) {
+  return String(value || '').trim().replace(/[)\]}>，。！？；;,]+$/g, '');
+}
+
+function parseVideoIdFromLink(rawLink) {
+  const link = trimLinkCandidate(rawLink);
+  if (!link) {
+    return null;
+  }
+  try {
+    const url = link.startsWith('http://') || link.startsWith('https://')
+      ? new URL(link)
+      : new URL(link, window.location.origin);
+    const matched = url.pathname.match(/^\/video\/(\d+)(?:\/)?$/);
+    if (!matched) {
+      return null;
+    }
+    const videoId = Number(matched[1]);
+    return Number.isFinite(videoId) && videoId > 0 ? videoId : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function parseShareMessageContent(content) {
+  const rawContent = String(content || '');
+  const matches = rawContent.match(VIDEO_LINK_PATTERN) || [];
+  for (const rawLink of matches) {
+    const videoId = parseVideoIdFromLink(rawLink);
+    if (!videoId) {
+      continue;
+    }
+    return {
+      textContent: rawContent.replace(rawLink, '').trim(),
+      shareVideoId: videoId
+    };
+  }
+  return {
+    textContent: rawContent,
+    shareVideoId: null
+  };
+}
+
+function applyMessagePresentation(message) {
+  const parsed = parseShareMessageContent(message.content);
+  if (parsed.shareVideoId) {
+    ensureVideoCard(parsed.shareVideoId);
+  }
+  return {
+    ...message,
+    textContent: parsed.textContent,
+    shareVideoId: parsed.shareVideoId
+  };
+}
+
 function isOwnMessage(message) {
   return Number(message.fromUserId) === Number(currentUserId.value);
 }
@@ -344,6 +437,47 @@ function computeUnreadTotal() {
 
 function notifyUnreadChange() {
   emitChatUnreadChange(computeUnreadTotal());
+}
+
+function getVideoCard(videoId) {
+  return videoCardCache.value[videoId] || null;
+}
+
+function formatVideoDuration(duration) {
+  const totalSeconds = Number(duration || 0);
+  if (!totalSeconds) {
+    return '时长未知';
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatVideoPlayCount(playCount) {
+  const count = Number(playCount || 0);
+  if (!count) {
+    return '0 播放';
+  }
+  if (count >= 10000) {
+    return `${(count / 10000).toFixed(count >= 100000 ? 0 : 1)}万播放`;
+  }
+  return `${count} 播放`;
+}
+
+function getSessionPreview(session) {
+  const content = String(session?.lastContent || '').trim();
+  if (!content) {
+    return '开始聊天吧';
+  }
+  const parsed = parseShareMessageContent(content);
+  if (!parsed.shareVideoId) {
+    return content;
+  }
+  return parsed.textContent ? `${parsed.textContent} [视频]` : '分享了一个视频';
 }
 
 async function syncUnreadTotalFromServer() {
@@ -428,6 +562,38 @@ async function hydrateSessionUsers(sessions) {
   await Promise.all(tasks);
 }
 
+async function ensureVideoCard(videoId) {
+  if (!videoId) {
+    return null;
+  }
+  if (videoCardCache.value[videoId]) {
+    return videoCardCache.value[videoId];
+  }
+  if (pendingVideoCardMap.has(videoId)) {
+    return pendingVideoCardMap.get(videoId);
+  }
+  const task = getVideoDetail(videoId)
+    .then((detail) => {
+      if (!detail) {
+        return null;
+      }
+      videoCardCache.value = {
+        ...videoCardCache.value,
+        [videoId]: detail
+      };
+      return detail;
+    })
+    .catch((error) => {
+      console.error('加载视频卡片失败:', error);
+      return null;
+    })
+    .finally(() => {
+      pendingVideoCardMap.delete(videoId);
+    });
+  pendingVideoCardMap.set(videoId, task);
+  return task;
+}
+
 async function ensureConversationEntry(withUserId) {
   if (!withUserId || Number(withUserId) === Number(currentUserId.value)) {
     return null;
@@ -461,17 +627,17 @@ async function ensureConversationEntry(withUserId) {
 }
 
 function normalizeHistoryMessage(item) {
-  return {
+  return applyMessagePresentation({
     ...item,
     serverMsgId: item.id,
     clientMsgId: item.clientMsgId || null,
     createTime: item.createTime,
     sendTime: item.createTime
-  };
+  });
 }
 
 function normalizeSocketMessage(payload) {
-  return {
+  return applyMessagePresentation({
     id: payload.serverMsgId,
     serverMsgId: payload.serverMsgId,
     clientMsgId: payload.clientMsgId || null,
@@ -481,7 +647,7 @@ function normalizeSocketMessage(payload) {
     status: 1,
     createTime: payload.sendTime,
     sendTime: payload.sendTime
-  };
+  });
 }
 
 function mergeMessages(messages, { append = true } = {}) {
@@ -679,7 +845,7 @@ async function handleSendMessage() {
     sendTime: now
   };
 
-  mergeMessages([localMessage], { append: true });
+  mergeMessages([applyMessagePresentation(localMessage)], { append: true });
   updateSession(toUserId, {
     lastContent: content,
     lastTime: now
@@ -942,6 +1108,13 @@ function goToUserProfile(withUserId) {
     name: 'user-profile',
     params: { userId: withUserId }
   });
+}
+
+function goToVideo(videoId) {
+  if (!videoId) {
+    return;
+  }
+  router.push(`/video/${videoId}`);
 }
 
 function handleDraftKeydown(event) {
