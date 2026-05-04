@@ -8,11 +8,12 @@ import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.SearchUserVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.repository.SearchRepository;
-import com.syt.graduationproject.service.InteractService;
+import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.SearchService;
 import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -25,7 +26,9 @@ import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.USER_INDEX;
@@ -53,7 +56,7 @@ public class SearchServiceImpl implements SearchService {
 
     private final SearchConverter searchConverter;
 
-    private final InteractService interactService;
+    private final InteractRelationService interactRelationService;
 
     @Override
     public PageVo<SearchVideoVo> searchVideos(SearchVideoRequest request) {
@@ -85,7 +88,7 @@ public class SearchServiceImpl implements SearchService {
                 .map(searchConverter::toSearchUserVo)
                 .peek(userVo -> {
                     if (userId != null) {
-                        userVo.setIsFollow(interactService.queryFollow(userId, userVo.getUserId()).getIsFollow());
+                        userVo.setIsFollow(interactRelationService.queryFollowRelation(userId, userVo.getUserId()).getIsFollow());
                     } else {
                         userVo.setIsFollow(false);
                     }
@@ -98,6 +101,40 @@ public class SearchServiceImpl implements SearchService {
                 .pageSize(normalizePageSize(request.getPageSize()))
                 .records(records)
                 .build();
+    }
+
+    @Override
+    public Map<Long, SearchUserVo> queryUserVoMapFromEs(List<Long> userIds) {
+        if (CollectionUtils.isEmpty(userIds)) {
+            return Collections.emptyMap();
+        }
+        NativeSearchQuery query = new NativeSearchQueryBuilder()
+                .withQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termsQuery("userId", userIds)))
+                .withMaxResults(userIds.size())
+                .build();
+        SearchHits<UserEsDoc> searchHits = searchRepository.commonSearch(query, UserEsDoc.class, USER_INDEX);
+        return searchHits.getSearchHits().stream()
+                .map(SearchHit::getContent)
+                .map(searchConverter::toSearchUserVo)
+                .collect(Collectors.toMap(SearchUserVo::getUserId, item -> item, (left, right) -> left));
+    }
+
+    @Override
+    public Map<Long, SearchVideoVo> queryVideoVoMapFromEs(List<Long> videoIds) {
+        if (CollectionUtils.isEmpty(videoIds)) {
+            return Collections.emptyMap();
+        }
+        NativeSearchQuery query = new NativeSearchQueryBuilder()
+                .withQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termsQuery("videoId", videoIds)))
+                .withMaxResults(videoIds.size())
+                .build();
+        SearchHits<VideoEsDoc> searchHits = searchRepository.commonSearch(query, VideoEsDoc.class, VIDEO_INDEX);
+        return searchHits.getSearchHits().stream()
+                .map(SearchHit::getContent)
+                .map(searchConverter::toSearchVideoVo)
+                .collect(Collectors.toMap(SearchVideoVo::getVideoId, item -> item, (left, right) -> left));
     }
 
     /**

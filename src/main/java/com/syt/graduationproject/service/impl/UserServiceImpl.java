@@ -25,6 +25,7 @@ import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.EsSyncService;
+import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.UserService;
@@ -83,6 +84,8 @@ public class UserServiceImpl implements UserService {
     private final MinioService minioService;
 
     private final CollectionDirectoryMapper collectionDirectoryMapper;
+
+    private final InteractRelationService interactRelationService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -215,7 +218,7 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         // 查询关注信息
-        FollowBo followBo = interactService.queryFollow(myId, userId);
+        FollowBo followBo = interactRelationService.queryFollowRelation(myId, userId);
         userInfoVo.setIsFollow(followBo.getIsFollow());
         userInfoVo.setIsFans(followBo.getIsFans());
 

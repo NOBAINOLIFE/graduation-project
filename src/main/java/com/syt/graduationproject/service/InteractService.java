@@ -28,11 +28,6 @@ import java.util.List;
 public interface InteractService {
 
     /**
-     * 查询关注关系
-     */
-    FollowBo queryFollow(Long followerId, Long followeeId);
-
-    /**
      * 关注/取关
      */
     @Transactional(rollbackFor = Exception.class)
@@ -60,12 +55,6 @@ public interface InteractService {
      */
     @Transactional(rollbackFor = Exception.class)
     void likeComment(LikeRequest request);
-
-
-    /**
-     * 查询用户与视频的交互信息
-     */
-    UserVideoInteractionBo queryUserVideoInteraction(Long userId, Long videoId);
 
     /**
      * WebSocket：注册在线会话

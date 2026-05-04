@@ -31,6 +31,7 @@ import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
+import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.ManagerService;
 import com.syt.graduationproject.service.minio.MinioService;
@@ -63,8 +64,6 @@ public class VideoServiceImpl implements VideoService {
 
     private static final long PV_DELTA_KEY_TTL_HOURS = 24L;
 
-    private final InteractService interactService;
-
     private final UserRepository userRepository;
 
     private final MinioService minioService;
@@ -88,7 +87,10 @@ public class VideoServiceImpl implements VideoService {
     private final SearchRepository searchRepository;
 
     private final SearchConverter searchConverter;
+
     private final VideoConverter videoConverter;
+
+    private final InteractRelationService interactRelationService;
 
     /**
      * 查询用户视频数
@@ -153,9 +155,9 @@ public class VideoServiceImpl implements VideoService {
 
         // 查询用户与视频的交互情况
         if (myId != null) {
-            UserVideoInteractionBo userVideoInteractionBo = interactService.queryUserVideoInteraction(myId, videoId);
+            UserVideoInteractionBo userVideoInteractionBo = interactRelationService.queryUserVideoInteraction(myId, videoId);
             videoPlayDetailVo.setIsLike(userVideoInteractionBo.getIsLike());
-            videoPlayDetailVo.setIsCoin(userVideoInteractionBo.getIsCoin());
+            videoPlayDetailVo.setIsCoin(userVideoInteractionBo.getCoinCount() != 0);
             videoPlayDetailVo.setIsCollect(userVideoInteractionBo.getIsCollect());
         }
 
@@ -180,7 +182,7 @@ public class VideoServiceImpl implements VideoService {
         }
 
         if (myId != null) {
-            FollowBo followBo = interactService.queryFollow(myId, videoPo.getUserId());
+            FollowBo followBo = interactRelationService.queryFollowRelation(myId, videoPo.getUserId());
             videoPlayDetailVo.setIsFollow(followBo.getIsFollow());
         }
 

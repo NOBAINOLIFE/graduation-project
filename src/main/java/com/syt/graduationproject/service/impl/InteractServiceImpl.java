@@ -5,8 +5,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.*;
-import com.syt.graduationproject.model.bo.FollowBo;
-import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
@@ -21,7 +19,9 @@ import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.EsSyncService;
+import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.InteractService;
+import com.syt.graduationproject.service.SearchService;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
@@ -89,15 +89,15 @@ public class InteractServiceImpl implements InteractService {
 
     private final VideoMapper videoMapper;
 
-    private final SearchRepository searchRepository;
-
-    private final SearchConverter searchConverter;
-
     private final StringRedisTemplate stringRedisTemplate;
 
     private final VideoRepository videoRepository;
 
     private final EsSyncService esSyncService;
+
+    private final SearchService searchService;
+
+    private final InteractRelationService interactRelationService;
 
     /**
      * 在线私聊会话：userId -> sessions（多端登录）
@@ -134,24 +134,6 @@ public class InteractServiceImpl implements InteractService {
     private static final int COIN_CHANGE_TYPE_VIDEO_REWARD = 2;
 
     private static final String DEFAULT_COLLECTION_NAME = "默认收藏夹";
-
-    /**
-     * 查询两者关注关系
-     */
-    @Override
-    public FollowBo queryFollow(Long followerId, Long followeeId) {
-        FollowBo followBo = new FollowBo();
-
-        // 1. 查询当前用户(followerId)是否关注了目标用户(followeeId)
-        FollowRecordPo followRecordPo1 = interactRepository.queryFollow(followerId, followeeId);
-        followBo.setIsFollow(followRecordPo1 != null && followRecordPo1.getIsDeleted().equals(NOT_DELETED));
-
-        // 2. 查询目标用户(followeeId)是否关注了当前用户(followerId)
-        FollowRecordPo followRecordPo2 = interactRepository.queryFollow(followeeId, followerId);
-        followBo.setIsFans(followRecordPo2 != null && followRecordPo2.getIsDeleted().equals(NOT_DELETED));
-
-        return followBo;
-    }
 
     /**
      * 关注/取关
@@ -396,29 +378,6 @@ public class InteractServiceImpl implements InteractService {
                 commentStatsMapper.updateLikeCount(commentId, -1);
             }
         }
-    }
-
-    /**
-     * 查询用户视频互动信息
-     */
-    @Override
-    public UserVideoInteractionBo queryUserVideoInteraction(Long userId, Long videoId) {
-        return UserVideoInteractionBo.builder()
-                .userId(userId)
-                .videoId(videoId)
-                .isLike(likeVideoMapper.selectCount(new QueryWrapper<LikeVideoPo>().lambda()
-                        .eq(LikeVideoPo::getUserId, userId)
-                        .eq(LikeVideoPo::getVideoId, videoId)) > 0)
-                .isCoin(userCoinChangeLogMapper.selectCount(new QueryWrapper<UserCoinChangeLogPo>().lambda()
-                        .eq(UserCoinChangeLogPo::getUserId, userId)
-                        .eq(UserCoinChangeLogPo::getChangeType, COIN_CHANGE_TYPE_VIDEO_REWARD)
-                        .eq(UserCoinChangeLogPo::getRelatedTargetId, videoId)
-                        .lt(UserCoinChangeLogPo::getChangeAmount, 0)) > 0)
-                .isCollect(collectionItemMapper.selectCount(new QueryWrapper<CollectionItemPo>().lambda()
-                        .eq(CollectionItemPo::getUserId, userId)
-                        .eq(CollectionItemPo::getVideoId, videoId)
-                        .eq(CollectionItemPo::getIsDeleted, NOT_DELETED)) > 0)
-                .build();
     }
 
     @Override
@@ -1063,7 +1022,7 @@ public class InteractServiceImpl implements InteractService {
         }
 
         // 操作前是否收藏该视频
-        boolean beforeCollect = interactRepository.isCollectVideo(userId, videoId);
+        boolean beforeCollect = interactRelationService.isCollectVideo(userId, videoId);
 
         // --- 执行收藏 ---
         for (Long directoryId : CollectionUtils.emptyIfNull(collectDirectoryIdList)) {
@@ -1104,7 +1063,7 @@ public class InteractServiceImpl implements InteractService {
         }
 
         // 操作后是否收藏该视频
-        boolean afterCollect = interactRepository.isCollectVideo(userId, videoId);
+        boolean afterCollect = interactRelationService.isCollectVideo(userId, videoId);
         if (beforeCollect && !afterCollect) {
             videoStatsMapper.updateCollectCount(videoId, -1);
             esSyncService.syncVideo(videoId);
@@ -1635,7 +1594,7 @@ public class InteractServiceImpl implements InteractService {
             return Collections.emptyList();
         }
 
-        Map<Long, SearchVideoVo> videoVoMap = queryVideoVoMapFromEs(videoIds);
+        Map<Long, SearchVideoVo> videoVoMap = searchService.queryVideoVoMapFromEs(videoIds);
         List<SearchVideoVo> result = items.stream()
                 .map(item -> mergeCollectionItemVideo(item, videoVoMap.get(item.getVideoId())))
                 .filter(Objects::nonNull)
@@ -1702,7 +1661,7 @@ public class InteractServiceImpl implements InteractService {
             return Collections.emptyList();
         }
         Set<Long> fanUserIds = queryFollowerIdSet(currentUserId, orderedUserIds);
-        Map<Long, SearchUserVo> userVoMap = queryUserVoMapFromEs(orderedUserIds);
+        Map<Long, SearchUserVo> userVoMap = searchService.queryUserVoMapFromEs(orderedUserIds);
         List<UserSimpleInfoVo> result = new ArrayList<>();
         for (Long targetUserId : orderedUserIds) {
             if (targetUserId == null || hasMutualBlock(currentUserId, targetUserId)) {
@@ -1722,38 +1681,6 @@ public class InteractServiceImpl implements InteractService {
                     .build());
         }
         return result;
-    }
-
-    private Map<Long, SearchUserVo> queryUserVoMapFromEs(List<Long> userIds) {
-        if (CollectionUtils.isEmpty(userIds)) {
-            return Collections.emptyMap();
-        }
-        NativeSearchQuery query = new NativeSearchQueryBuilder()
-                .withQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termsQuery("userId", userIds)))
-                .withMaxResults(userIds.size())
-                .build();
-        SearchHits<UserEsDoc> searchHits = searchRepository.commonSearch(query, UserEsDoc.class, USER_INDEX);
-        return searchHits.getSearchHits().stream()
-                .map(SearchHit::getContent)
-                .map(searchConverter::toSearchUserVo)
-                .collect(Collectors.toMap(SearchUserVo::getUserId, item -> item, (left, right) -> left));
-    }
-
-    private Map<Long, SearchVideoVo> queryVideoVoMapFromEs(List<Long> videoIds) {
-        if (CollectionUtils.isEmpty(videoIds)) {
-            return Collections.emptyMap();
-        }
-        NativeSearchQuery query = new NativeSearchQueryBuilder()
-                .withQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termsQuery("videoId", videoIds)))
-                .withMaxResults(videoIds.size())
-                .build();
-        SearchHits<VideoEsDoc> searchHits = searchRepository.commonSearch(query, VideoEsDoc.class, VIDEO_INDEX);
-        return searchHits.getSearchHits().stream()
-                .map(SearchHit::getContent)
-                .map(searchConverter::toSearchVideoVo)
-                .collect(Collectors.toMap(SearchVideoVo::getVideoId, item -> item, (left, right) -> left));
     }
 
     private SearchVideoVo mergeCollectionItemVideo(CollectionItemPo item, SearchVideoVo videoVo) {
@@ -2173,7 +2100,7 @@ public class InteractServiceImpl implements InteractService {
                 : userMapper.selectBatchIds(relatedUserIds).stream()
                 .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
 
-        Set<Long> likedCommentIdSet = queryLikedCommentIdSet(currentUserId, commentIds);
+        Set<Long> likedCommentIdSet = interactRelationService.batchQueryLikeComment(currentUserId, commentIds);
         List<CommentVo> records = commentList.stream().map(comment -> {
             CommentStatsPo statsPo = commentStatsMap.get(comment.getId());
             UserPo userPo = userMap.get(comment.getUserId());
@@ -2255,17 +2182,6 @@ public class InteractServiceImpl implements InteractService {
         List<CommentStatsPo> statsList = commentStatsMapper.selectList(new LambdaQueryWrapper<CommentStatsPo>()
                 .in(CommentStatsPo::getCommentId, commentIds));
         return statsList.stream().collect(Collectors.toMap(CommentStatsPo::getCommentId, item -> item, (left, right) -> left));
-    }
-
-    private Set<Long> queryLikedCommentIdSet(Long currentUserId, List<Long> commentIds) {
-        if (currentUserId == null || CollectionUtils.isEmpty(commentIds)) {
-            return Collections.emptySet();
-        }
-
-        List<LikeCommentPo> likeCommentPos = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
-                .eq(LikeCommentPo::getUserId, currentUserId)
-                .in(LikeCommentPo::getCommentId, commentIds));
-        return likeCommentPos.stream().map(LikeCommentPo::getCommentId).collect(Collectors.toSet());
     }
 
     private long getCommentHotScore(Map<Long, CommentStatsPo> commentStatsMap, Long commentId) {

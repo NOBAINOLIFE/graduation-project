@@ -526,9 +526,8 @@ public class InteractController {
      * 查询收藏夹内视频
      */
     @GetMapping("/collection/item/list")
-    public Response<List<SearchVideoVo>> listCollectionItems(
-            @RequestParam("directoryId") Long directoryId,
-            @RequestParam(value = "sortType", defaultValue = "1") Integer sortType) {
+    public Response<List<SearchVideoVo>> listCollectionItems(@RequestParam("directoryId") Long directoryId,
+                                                             @RequestParam(value = "sortType", defaultValue = "1") Integer sortType) {
         try {
             return Response.success(interactService.listCollectionItems(directoryId, sortType));
         } catch (CustomException e) {

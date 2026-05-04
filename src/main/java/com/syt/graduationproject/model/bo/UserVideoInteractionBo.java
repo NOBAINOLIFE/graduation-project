@@ -14,13 +14,28 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UserVideoInteractionBo {
 
+    /**
+     * 用户ID
+     */
     private Long userId;
 
+    /**
+     * 视频ID
+     */
     private Long videoId;
 
+    /**
+     * 是否点赞
+     */
     private Boolean isLike;
 
-    private Boolean isCoin;
-
+    /**
+     * 是否收藏
+     */
     private Boolean isCollect;
+
+    /**
+     * 投币数量
+     */
+    private Integer coinCount;
 }

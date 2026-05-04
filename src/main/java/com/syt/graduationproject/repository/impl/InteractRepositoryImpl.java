@@ -38,19 +38,6 @@ public class InteractRepositoryImpl implements InteractRepository {
     private final CommentStatsMapper commentStatsMapper;
 
     /**
-     * 查询两者关注关系
-     */
-    @Override
-    public FollowRecordPo queryFollow(Long followerId, Long followeeId) {
-        QueryWrapper<FollowRecordPo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda()
-                .eq(FollowRecordPo::getFollowerId, followerId)
-                .eq(FollowRecordPo::getFolloweeId, followeeId)
-                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED);
-        return followRecordMapper.selectOne(queryWrapper);
-    }
-
-    /**
      * 查询用户粉丝数
      */
     @Override
@@ -158,18 +145,6 @@ public class InteractRepositoryImpl implements InteractRepository {
                 .eq(CollectionItemPo::getUserId, userId)
                 .eq(CollectionItemPo::getVideoId, videoId)
                 .eq(CollectionItemPo::getIsDeleted, NOT_DELETED));
-    }
-
-    /**
-     * 判断用户是否收藏某视频
-     */
-    @Override
-    public boolean isCollectVideo(Long userId, Long videoId) {
-        return collectionItemMapper.selectOne(new LambdaQueryWrapper<CollectionItemPo>()
-                .eq(CollectionItemPo::getUserId, userId)
-                .eq(CollectionItemPo::getVideoId, videoId)
-                .eq(CollectionItemPo::getIsDeleted, NOT_DELETED)
-                .last("LIMIT 1")) != null;
     }
 
     @Override

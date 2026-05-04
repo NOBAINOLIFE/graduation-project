@@ -9,11 +9,6 @@ import java.util.List;
 public interface InteractRepository {
 
     /**
-     * 查询两者关注关系
-     */
-    FollowRecordPo queryFollow(Long followerId, Long followeeId);
-
-    /**
      * 查询用户粉丝数量
      */
     Long queryUserFansNum(Long myId);
@@ -67,8 +62,6 @@ public interface InteractRepository {
      * 查询用户所有收藏有某视频的收藏记录
      */
     List<CollectionItemPo> queryUserCollectionItemWithVideo(Long userId, Long videoId);
-
-    boolean isCollectVideo(Long userId, Long videoId);
 
     List<CollectionDirectoryPo> batchQueryUserCollectionDirectory(Long userId, List<Long> directoryIdList);
 
