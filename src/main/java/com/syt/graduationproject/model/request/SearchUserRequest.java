@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -15,6 +17,11 @@ public class SearchUserRequest {
      * 用户名关键词
      */
     private String keyword;
+
+    /**
+     * 限定用户ID集合
+     */
+    private List<Long> userIdList;
 
     /**
      * 排序方式：1-粉丝数从高到低

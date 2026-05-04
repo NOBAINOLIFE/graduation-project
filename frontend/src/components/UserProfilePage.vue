@@ -58,23 +58,43 @@
       <div class="max-w-7xl mx-auto px-4">
         <div class="flex items-center justify-between gap-6 py-1">
           <!-- 左侧导航标签 -->
-          <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-            <button
-              v-for="tab in tabs"
-              :key="tab.key"
-              class="relative flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-base font-medium transition-colors"
-              :class="activeTab === tab.key ? 'text-[#00a1d6]' : 'text-gray-600 hover:text-gray-800'"
-              @click="switchContentTab(tab.key)"
-            >
-              <!-- 图标 -->
-              <el-icon v-if="tab.iconType" class="h-[18px] w-[18px] shrink-0" :color="tab.iconColor">
-                <VideoCamera v-if="tab.iconType === 'video'" />
-                <Star v-else-if="tab.iconType === 'star'" />
-              </el-icon>
-              <span>{{ tab.label }}</span>
-              <span v-if="tab.count !== undefined && tab.count !== null" class="text-xs text-gray-400">{{ tab.count }}</span>
-              <div v-if="activeTab === tab.key" class="absolute bottom-0 left-2 right-2 h-0.5 bg-[#00a1d6]"></div>
-            </button>
+          <div class="flex min-w-0 flex-1 items-center gap-3">
+            <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+              <button
+                v-for="tab in tabs"
+                :key="tab.key"
+                class="relative flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-base font-medium transition-colors"
+                :class="activeTab === tab.key ? 'text-[#00a1d6]' : 'text-gray-600 hover:text-gray-800'"
+                @click="switchContentTab(tab.key)"
+              >
+                <!-- 图标 -->
+                <el-icon v-if="tab.iconType" class="h-[18px] w-[18px] shrink-0" :color="tab.iconColor">
+                  <VideoCamera v-if="tab.iconType === 'video'" />
+                  <Star v-else-if="tab.iconType === 'star'" />
+                </el-icon>
+                <span>{{ tab.label }}</span>
+                <span v-if="tab.count !== undefined && tab.count !== null" class="text-xs text-gray-400">{{ tab.count }}</span>
+                <div v-if="activeTab === tab.key" class="absolute bottom-0 left-2 right-2 h-0.5 bg-[#00a1d6]"></div>
+              </button>
+            </div>
+
+            <label class="relative w-36 flex-shrink-0 sm:w-44">
+              <input
+                v-model.trim="videoKeywordInput"
+                type="text"
+                class="h-8 w-full rounded-full border border-[#d8dee8] bg-[#f8fafc] pl-3 pr-9 text-xs text-[#111827] outline-none transition focus:border-[#00a1d6] focus:bg-white"
+                placeholder="搜索投稿标题"
+                @keyup.enter="handleVideoKeywordSearch"
+              />
+              <button
+                class="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[#6b7280] transition hover:bg-[#e8f5fb] hover:text-[#00a1d6]"
+                @click.prevent="handleVideoKeywordSearch"
+              >
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+                </svg>
+              </button>
+            </label>
           </div>
 
           <!-- 右侧统计信息 -->
@@ -116,7 +136,7 @@
           <svg class="w-24 h-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
           </svg>
-          <p class="text-gray-500 text-lg">该空间主人没有投过稿，这里什么都没有...</p>
+          <p class="text-gray-500 text-lg">{{ appliedVideoKeyword ? `没有找到与“${appliedVideoKeyword}”相关的投稿` : '该空间主人没有投过稿，这里什么都没有...' }}</p>
         </div>
 
         <div v-else>
@@ -782,6 +802,9 @@ const videoList = ref([]);
 const loading = ref(false);
 const pageNum = ref(1);
 const hasMore = ref(true);
+const videoKeywordInput = ref('');
+const appliedVideoKeyword = ref('');
+const pendingVideoReload = ref(false);
 const relationKeyword = ref('');
 const relationLoading = ref(false);
 const followingUsers = ref([]);
@@ -928,6 +951,7 @@ async function loadUserVideos(isRefresh = false) {
 
     const result = await searchVideos({
       userId: userId.value,
+      keyword: appliedVideoKeyword.value || undefined,
       pageNum: pageNum.value,
       pageSize: 20,
       sortType: activeSort.value
@@ -1330,6 +1354,17 @@ function handleSortChange(sortType) {
   loadUserVideos(true);
 }
 
+function handleVideoKeywordSearch() {
+  const nextKeyword = videoKeywordInput.value.trim();
+  appliedVideoKeyword.value = nextKeyword;
+  if (activeTab.value !== 'videos') {
+    pendingVideoReload.value = true;
+    switchContentTab('videos');
+    return;
+  }
+  loadUserVideos(true);
+}
+
 function switchContentTab(tabKey) {
   const nextQuery = { ...route.query };
   if (tabKey === 'videos') {
@@ -1351,6 +1386,11 @@ function switchContentTab(tabKey) {
 
 // 监听路由变化，切换标签时重新加载数据
 watch(() => activeTab.value, (newTab) => {
+  if (newTab === 'videos' && pendingVideoReload.value) {
+    pendingVideoReload.value = false;
+    loadUserVideos(true);
+    return;
+  }
   if (['following', 'fans'].includes(newTab)) {
     loadRelationList(newTab, true);
   }
@@ -1365,8 +1405,11 @@ function getNameInitial(username) {
 }
 
 function getRelationButtonLabel(item) {
-  if (activeTab.value === 'fans') {
-    return item.isFollow ? '已互粉' : '回关';
+  if (item.isFollow && item.isFans) {
+    return '已互粉';
+  }
+  if (!item.isFollow && item.isFans) {
+    return '回关';
   }
   return item.isFollow ? '已关注' : '+ 关注';
 }
@@ -1375,7 +1418,7 @@ function getRelationButtonClass(item) {
   if (item.isFollow) {
     return 'border-transparent bg-[#f3f4f6] text-[#8b95a1] hover:bg-[#e9edf2]';
   }
-  if (activeTab.value === 'fans') {
+  if (item.isFans) {
     return 'border-[#36a7ea] bg-white text-[#18a8df] hover:bg-[#f4fbff]';
   }
   return 'border-transparent bg-[#ffe8ef] text-[#ff6b8f] hover:bg-[#ffd8e5]';
@@ -1506,6 +1549,9 @@ watch(() => route.params.userId, (newId) => {
   if (newId) {
     userId.value = newId;
     selectedDirectoryId.value = null;
+    videoKeywordInput.value = '';
+    appliedVideoKeyword.value = '';
+    pendingVideoReload.value = false;
     relationKeyword.value = '';
     followingUsers.value = [];
     fanUsers.value = [];

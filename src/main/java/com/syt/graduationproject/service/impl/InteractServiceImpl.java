@@ -7,6 +7,8 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
+import com.syt.graduationproject.model.es.UserEsDoc;
+import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.vo.*;
@@ -14,7 +16,9 @@ import com.syt.graduationproject.model.vo.Page.CommentPageVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.websocket.*;
+import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.repository.InteractRepository;
+import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.InteractService;
@@ -25,6 +29,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +51,8 @@ import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.DELETED;
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
+import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.USER_INDEX;
+import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.VIDEO_INDEX;
 
 @Slf4j
 @Service
@@ -77,6 +88,10 @@ public class InteractServiceImpl implements InteractService {
     private final ReportMapper reportMapper;
 
     private final VideoMapper videoMapper;
+
+    private final SearchRepository searchRepository;
+
+    private final SearchConverter searchConverter;
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -991,26 +1006,7 @@ public class InteractServiceImpl implements InteractService {
         }
 
         Set<Long> followedFanIds = queryFolloweeIdSet(currentUserId, fanIds);
-        Map<Long, UserPo> fansInfoMap = queryUserMap(fanIds);
-
-        List<UserSimpleInfoVo> result = new ArrayList<>();
-        for (Long fanId : fanIds) {
-            UserPo fansInfo = fansInfoMap.get(fanId);
-            if (fansInfo == null) {
-                continue;
-            }
-            if (hasMutualBlock(currentUserId, fanId)) {
-                continue;
-            }
-            UserSimpleInfoVo vo = new UserSimpleInfoVo();
-            vo.setUserId(fanId);
-            vo.setUsername(fansInfo.getUsername());
-            vo.setBio(fansInfo.getBio());
-            vo.setAvatarUrl(fansInfo.getAvatarUrl());
-            vo.setIsFollow(followedFanIds.contains(fanId));
-            result.add(vo);
-        }
-        return result;
+        return buildRelationUserList(fanIds, followedFanIds, currentUserId);
     }
 
     @Override
@@ -1038,26 +1034,7 @@ public class InteractServiceImpl implements InteractService {
         }
 
         Set<Long> followedUserIds = queryFolloweeIdSet(currentUserId, followsIdList);
-        Map<Long, UserPo> followsInfoMap = queryUserMap(followsIdList);
-
-        List<UserSimpleInfoVo> result = new ArrayList<>();
-        for (Long followeeId : followsIdList) {
-            UserPo followsInfo = followsInfoMap.get(followeeId);
-            if (followsInfo == null) {
-                continue;
-            }
-            if (hasMutualBlock(currentUserId, followeeId)) {
-                continue;
-            }
-            UserSimpleInfoVo vo = new UserSimpleInfoVo();
-            vo.setUserId(followeeId);
-            vo.setUsername(followsInfo.getUsername());
-            vo.setBio(followsInfo.getBio());
-            vo.setAvatarUrl(followsInfo.getAvatarUrl());
-            vo.setIsFollow(followedUserIds.contains(followeeId));
-            result.add(vo);
-        }
-        return result;
+        return buildRelationUserList(followsIdList, followedUserIds, currentUserId);
     }
 
     @Override
@@ -1640,6 +1617,12 @@ public class InteractServiceImpl implements InteractService {
             return Collections.emptyList();
         }
 
+        Long currentUserId = UserHolderUtil.getUser().getUserId();
+        CollectionDirectoryPo directoryPo = queryVisibleDirectory(currentUserId, directoryId);
+        if (directoryPo == null) {
+            throw new CustomException("收藏夹不存在或无权限查看");
+        }
+
         List<CollectionItemPo> items = collectionItemMapper.selectList(new LambdaQueryWrapper<CollectionItemPo>().eq(CollectionItemPo::getDirectoryId, directoryId).eq(CollectionItemPo::getIsDeleted, NOT_DELETED).orderByDesc(CollectionItemPo::getCreateTime));
 
         if (items == null || items.isEmpty()) {
@@ -1652,23 +1635,11 @@ public class InteractServiceImpl implements InteractService {
             return Collections.emptyList();
         }
 
-        List<VideoPo> videos = videoMapper.selectBatchIds(videoIds);
-        Map<Long, VideoPo> videoMap = videos.stream().collect(Collectors.toMap(VideoPo::getId, v -> v));
-
-        Set<Long> userIds = videos.stream().map(VideoPo::getUserId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, UserPo> userMap = userIds.isEmpty() ? Collections.emptyMap() : userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(UserPo::getId, u -> u));
-
-        List<VideoStatsPo> statsList = videoStatsMapper.selectList(new LambdaQueryWrapper<VideoStatsPo>().in(VideoStatsPo::getVideoId, videoIds));
-        Map<Long, VideoStatsPo> statsMap = statsList.stream().collect(Collectors.toMap(VideoStatsPo::getVideoId, s -> s));
-
-        List<SearchVideoVo> result = items.stream().map(item -> {
-            VideoPo video = videoMap.get(item.getVideoId());
-            if (video == null) return null;
-            UserPo user = userMap.get(video.getUserId());
-            VideoStatsPo stats = statsMap.get(video.getId());
-
-            return SearchVideoVo.builder().videoId(video.getId()).title(video.getTitle()).userId(video.getUserId()).username(user != null ? user.getUsername() : "未知用户").coverUrl(video.getCoverUrl()).playCount(stats != null ? stats.getPlayCount() : 0L).createTime(video.getCreateTime()).collectionCount(stats != null ? stats.getCollectCount() : 0L).duration(video.getDuration()).collectTime(item.getCreateTime()).build();
-        }).filter(Objects::nonNull).collect(Collectors.toList());
+        Map<Long, SearchVideoVo> videoVoMap = queryVideoVoMapFromEs(videoIds);
+        List<SearchVideoVo> result = items.stream()
+                .map(item -> mergeCollectionItemVideo(item, videoVoMap.get(item.getVideoId())))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
         // 根据排序类型排序
         if (sortType != null) {
@@ -1726,6 +1697,100 @@ public class InteractServiceImpl implements InteractService {
         }
     }
 
+    private List<UserSimpleInfoVo> buildRelationUserList(List<Long> orderedUserIds, Set<Long> followedUserIds, Long currentUserId) {
+        if (CollectionUtils.isEmpty(orderedUserIds)) {
+            return Collections.emptyList();
+        }
+        Set<Long> fanUserIds = queryFollowerIdSet(currentUserId, orderedUserIds);
+        Map<Long, SearchUserVo> userVoMap = queryUserVoMapFromEs(orderedUserIds);
+        List<UserSimpleInfoVo> result = new ArrayList<>();
+        for (Long targetUserId : orderedUserIds) {
+            if (targetUserId == null || hasMutualBlock(currentUserId, targetUserId)) {
+                continue;
+            }
+            SearchUserVo userVo = userVoMap.get(targetUserId);
+            if (userVo == null) {
+                continue;
+            }
+            result.add(UserSimpleInfoVo.builder()
+                    .userId(userVo.getUserId())
+                    .username(userVo.getUsername())
+                    .avatarUrl(userVo.getAvatar())
+                    .bio(userVo.getBio())
+                    .isFollow(followedUserIds.contains(targetUserId))
+                    .isFans(fanUserIds.contains(targetUserId))
+                    .build());
+        }
+        return result;
+    }
+
+    private Map<Long, SearchUserVo> queryUserVoMapFromEs(List<Long> userIds) {
+        if (CollectionUtils.isEmpty(userIds)) {
+            return Collections.emptyMap();
+        }
+        NativeSearchQuery query = new NativeSearchQueryBuilder()
+                .withQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termsQuery("userId", userIds)))
+                .withMaxResults(userIds.size())
+                .build();
+        SearchHits<UserEsDoc> searchHits = searchRepository.commonSearch(query, UserEsDoc.class, USER_INDEX);
+        return searchHits.getSearchHits().stream()
+                .map(SearchHit::getContent)
+                .map(searchConverter::toSearchUserVo)
+                .collect(Collectors.toMap(SearchUserVo::getUserId, item -> item, (left, right) -> left));
+    }
+
+    private Map<Long, SearchVideoVo> queryVideoVoMapFromEs(List<Long> videoIds) {
+        if (CollectionUtils.isEmpty(videoIds)) {
+            return Collections.emptyMap();
+        }
+        NativeSearchQuery query = new NativeSearchQueryBuilder()
+                .withQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termsQuery("videoId", videoIds)))
+                .withMaxResults(videoIds.size())
+                .build();
+        SearchHits<VideoEsDoc> searchHits = searchRepository.commonSearch(query, VideoEsDoc.class, VIDEO_INDEX);
+        return searchHits.getSearchHits().stream()
+                .map(SearchHit::getContent)
+                .map(searchConverter::toSearchVideoVo)
+                .collect(Collectors.toMap(SearchVideoVo::getVideoId, item -> item, (left, right) -> left));
+    }
+
+    private SearchVideoVo mergeCollectionItemVideo(CollectionItemPo item, SearchVideoVo videoVo) {
+        if (item == null || videoVo == null) {
+            return null;
+        }
+        return SearchVideoVo.builder()
+                .videoId(videoVo.getVideoId())
+                .title(videoVo.getTitle())
+                .userId(videoVo.getUserId())
+                .username(videoVo.getUsername())
+                .coverUrl(videoVo.getCoverUrl())
+                .playCount(videoVo.getPlayCount())
+                .createTime(videoVo.getCreateTime())
+                .collectionCount(videoVo.getCollectionCount())
+                .duration(videoVo.getDuration())
+                .collectTime(item.getCreateTime())
+                .build();
+    }
+
+    private CollectionDirectoryPo queryVisibleDirectory(Long currentUserId, Long directoryId) {
+        if (directoryId == null) {
+            return null;
+        }
+        CollectionDirectoryPo directoryPo = collectionDirectoryMapper.selectById(directoryId);
+        if (directoryPo == null || !Objects.equals(directoryPo.getIsDeleted(), NOT_DELETED)) {
+            return null;
+        }
+        if (Objects.equals(currentUserId, directoryPo.getUserId())) {
+            return directoryPo;
+        }
+        if (hasMutualBlock(currentUserId, directoryPo.getUserId())) {
+            return null;
+        }
+        return Objects.equals(directoryPo.getIsPublic(), 1) ? directoryPo : null;
+    }
+
     private Set<Long> queryFolloweeIdSet(Long followerId, List<Long> followeeIds) {
         if (followerId == null || CollectionUtils.isEmpty(followeeIds)) {
             return Collections.emptySet();
@@ -1736,6 +1801,19 @@ public class InteractServiceImpl implements InteractService {
                 .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
         return followRecordPos.stream()
                 .map(FollowRecordPo::getFolloweeId)
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Long> queryFollowerIdSet(Long followeeId, List<Long> followerIds) {
+        if (followeeId == null || CollectionUtils.isEmpty(followerIds)) {
+            return Collections.emptySet();
+        }
+        List<FollowRecordPo> followRecordPos = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
+                .eq(FollowRecordPo::getFolloweeId, followeeId)
+                .in(FollowRecordPo::getFollowerId, followerIds)
+                .eq(FollowRecordPo::getIsDeleted, NOT_DELETED));
+        return followRecordPos.stream()
+                .map(FollowRecordPo::getFollowerId)
                 .collect(Collectors.toSet());
     }
 

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -23,6 +24,11 @@ public class SearchVideoRequest {
      * 视频标题关键词
      */
     private String keyword;
+
+    /**
+     * 限定视频ID集合
+     */
+    private List<Long> videoIdList;
 
     /**
      * 分区ID

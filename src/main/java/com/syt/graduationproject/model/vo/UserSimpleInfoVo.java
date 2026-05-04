@@ -20,4 +20,6 @@ public class UserSimpleInfoVo {
     private String bio;
 
     private Boolean isFollow;
+
+    private Boolean isFans;
 }

@@ -25,6 +25,7 @@ import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -57,7 +58,16 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public PageVo<SearchVideoVo> searchVideos(SearchVideoRequest request) {
-        NativeSearchQuery query = buildVideoQuery(request);
+        SearchVideoRequest safeRequest = request == null ? new SearchVideoRequest() : request;
+        if (safeRequest.getVideoIdList() != null && safeRequest.getVideoIdList().isEmpty()) {
+            return PageVo.<SearchVideoVo>builder()
+                    .total(0L)
+                    .pageNum(normalizePageNum(safeRequest.getPageNum()))
+                    .pageSize(normalizePageSize(safeRequest.getPageSize()))
+                    .records(Collections.emptyList())
+                    .build();
+        }
+        NativeSearchQuery query = buildVideoQuery(safeRequest);
         SearchHits<VideoEsDoc> searchHits = searchRepository.commonSearch(query, VideoEsDoc.class, VIDEO_INDEX);
         List<SearchVideoVo> records = searchHits.getSearchHits()
                 .stream()
@@ -67,15 +77,24 @@ public class SearchServiceImpl implements SearchService {
 
         return PageVo.<SearchVideoVo>builder()
                 .total(searchHits.getTotalHits())
-                .pageNum(normalizePageNum(request.getPageNum()))
-                .pageSize(normalizePageSize(request.getPageSize()))
+                .pageNum(normalizePageNum(safeRequest.getPageNum()))
+                .pageSize(normalizePageSize(safeRequest.getPageSize()))
                 .records(records)
                 .build();
     }
 
     @Override
     public PageVo<SearchUserVo> searchUsers(SearchUserRequest request) {
-        NativeSearchQuery query = buildUserQuery(request);
+        SearchUserRequest safeRequest = request == null ? new SearchUserRequest() : request;
+        if (safeRequest.getUserIdList() != null && safeRequest.getUserIdList().isEmpty()) {
+            return PageVo.<SearchUserVo>builder()
+                    .total(0L)
+                    .pageNum(normalizePageNum(safeRequest.getPageNum()))
+                    .pageSize(normalizePageSize(safeRequest.getPageSize()))
+                    .records(Collections.emptyList())
+                    .build();
+        }
+        NativeSearchQuery query = buildUserQuery(safeRequest);
         SearchHits<UserEsDoc> searchHits = searchRepository.commonSearch(query, UserEsDoc.class, USER_INDEX);
 
         Long userId = UserHolderUtil.getUser().getUserId();
@@ -94,8 +113,8 @@ public class SearchServiceImpl implements SearchService {
 
         return PageVo.<SearchUserVo>builder()
                 .total(searchHits.getTotalHits())
-                .pageNum(normalizePageNum(request.getPageNum()))
-                .pageSize(normalizePageSize(request.getPageSize()))
+                .pageNum(normalizePageNum(safeRequest.getPageNum()))
+                .pageSize(normalizePageSize(safeRequest.getPageSize()))
                 .records(records)
                 .build();
     }
@@ -107,6 +126,9 @@ public class SearchServiceImpl implements SearchService {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
         if (request.getUserId() != null) {
             boolQueryBuilder.filter(QueryBuilders.termQuery("userId", request.getUserId()));
+        }
+        if (request.getVideoIdList() != null) {
+            boolQueryBuilder.filter(QueryBuilders.termsQuery("videoId", request.getVideoIdList()));
         }
         if (request.getPartitionId() != null) {
             boolQueryBuilder.filter(QueryBuilders.termQuery("partitionId", request.getPartitionId()));
@@ -175,6 +197,9 @@ public class SearchServiceImpl implements SearchService {
 
     private NativeSearchQuery buildUserQuery(SearchUserRequest request) {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        if (request.getUserIdList() != null) {
+            boolQueryBuilder.filter(QueryBuilders.termsQuery("userId", request.getUserIdList()));
+        }
         if (StringUtils.isNotBlank(request.getKeyword())) {
             BoolQueryBuilder keywordQuery = QueryBuilders.boolQuery()
                     .should(QueryBuilders.matchQuery("username", request.getKeyword()))
