@@ -19,11 +19,6 @@ public class SearchUserRequest {
     private String keyword;
 
     /**
-     * 限定用户ID集合
-     */
-    private List<Long> userIdList;
-
-    /**
      * 排序方式：1-粉丝数从高到低
      */
     private Integer sortType;

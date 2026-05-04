@@ -26,11 +26,6 @@ public class SearchVideoRequest {
     private String keyword;
 
     /**
-     * 限定视频ID集合
-     */
-    private List<Long> videoIdList;
-
-    /**
      * 分区ID
      */
     private Long partitionId;
