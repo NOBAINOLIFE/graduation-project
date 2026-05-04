@@ -82,20 +82,7 @@ CREATE TABLE IF NOT EXISTS tb_user_wallet
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
 
--- 3.3) Daily reward log table
-CREATE TABLE IF NOT EXISTS tb_user_reward_log
-(
-    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id     BIGINT NOT NULL,
-    reward_date DATE   NOT NULL,
-    reward_coin INT    NOT NULL DEFAULT 1,
-    create_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_user_reward_date (user_id, reward_date)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4;
-
--- 3.4) Collection directory capability extension
+-- 3.3) Collection directory capability extension
 ALTER TABLE tb_collection_directory
     ADD COLUMN is_default TINYINT NOT NULL DEFAULT 0 COMMENT '0-no 1-yes' AFTER is_public;
 

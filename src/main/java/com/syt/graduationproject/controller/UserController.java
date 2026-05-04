@@ -7,6 +7,7 @@ import com.syt.graduationproject.model.request.UserInfoUpdateRequest;
 import com.syt.graduationproject.model.request.UserPasswordUpdateRequest;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.LoginVo;
+import com.syt.graduationproject.model.vo.UserCoinChangeLogVo;
 import com.syt.graduationproject.model.vo.UserInfoVo;
 import com.syt.graduationproject.service.UserService;
 import com.syt.graduationproject.util.UserHolderUtil;
@@ -15,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 /**
  * 用户控制器
@@ -76,6 +79,22 @@ public class UserController {
         } catch (Exception e) {
             log.error("查询用户信息失败，userId：{}", userId, e);
             return Response.fail("查询用户信息失败，系统异常");
+        }
+    }
+
+    /**
+     * 查询当前用户近一周硬币变动记录
+     */
+    @GetMapping("/coin/change-logs")
+    public Response<List<UserCoinChangeLogVo>> queryMyCoinChangeLogs(@RequestParam(required = false) Integer days) {
+        try {
+            return Response.success(userService.queryMyCoinChangeLogs(days));
+        } catch (CustomException e) {
+            log.warn("查询硬币变动记录失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询硬币变动记录失败，days：{}", days, e);
+            return Response.fail("查询硬币变动记录失败，系统异常");
         }
     }
 

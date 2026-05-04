@@ -5,10 +5,12 @@ import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.exception.ErrorOperationException;
 import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.mapper.CollectionDirectoryMapper;
+import com.syt.graduationproject.mapper.UserCoinChangeLogMapper;
 import com.syt.graduationproject.mapper.UserRoleMapper;
 import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.po.CollectionDirectoryPo;
+import com.syt.graduationproject.model.po.UserCoinChangeLogPo;
 import com.syt.graduationproject.model.po.UserPo;
 import com.syt.graduationproject.model.po.UserRolePo;
 import com.syt.graduationproject.model.po.UserStatsPo;
@@ -17,6 +19,7 @@ import com.syt.graduationproject.model.request.RegisterRequest;
 import com.syt.graduationproject.model.request.UserInfoUpdateRequest;
 import com.syt.graduationproject.model.request.UserPasswordUpdateRequest;
 import com.syt.graduationproject.model.vo.LoginVo;
+import com.syt.graduationproject.model.vo.UserCoinChangeLogVo;
 import com.syt.graduationproject.model.vo.UserInfoVo;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
@@ -36,10 +39,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.UserConstant.*;
 
@@ -50,6 +57,10 @@ import static com.syt.graduationproject.constant.UserConstant.*;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
+
+    private static final int COIN_CHANGE_TYPE_DAILY_REWARD = 1;
+
+    private static final int COIN_CHANGE_TYPE_VIDEO_REWARD = 2;
 
     private final InteractService interactService;
 
@@ -64,6 +75,8 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
 
     private final UserRoleMapper userRoleMapper;
+
+    private final UserCoinChangeLogMapper userCoinChangeLogMapper;
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -218,6 +231,71 @@ public class UserServiceImpl implements UserService {
         userInfoVo.setIsBlack(interactService.hasMutualBlock(myId, userId));
 
         return userInfoVo;
+    }
+
+    @Override
+    public List<UserCoinChangeLogVo> queryMyCoinChangeLogs(Integer days) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        int queryDays = days == null ? 7 : days;
+        if (queryDays <= 0 || queryDays > 30) {
+            throw new ErrorParamException("查询天数需在1到30之间");
+        }
+        LocalDateTime startTime = LocalDate.now().minusDays(queryDays - 1L).atStartOfDay();
+
+        List<UserCoinChangeLogVo> result = userCoinChangeLogMapper.selectList(new QueryWrapper<UserCoinChangeLogPo>()
+                        .lambda()
+                        .eq(UserCoinChangeLogPo::getUserId, userId)
+                        .ge(UserCoinChangeLogPo::getCreateTime, startTime)
+                        .orderByDesc(UserCoinChangeLogPo::getCreateTime, UserCoinChangeLogPo::getId))
+                .stream()
+                .map(this::toCoinChangeLogVo)
+                .collect(Collectors.toList());
+        result.sort((left, right) -> {
+            LocalDateTime leftTime = left.getCreateTime();
+            LocalDateTime rightTime = right.getCreateTime();
+            if (leftTime == null && rightTime == null) {
+                return Long.compare(
+                        right.getId() == null ? 0L : right.getId(),
+                        left.getId() == null ? 0L : left.getId()
+                );
+            }
+            if (leftTime == null) {
+                return 1;
+            }
+            if (rightTime == null) {
+                return -1;
+            }
+            int timeCompare = rightTime.compareTo(leftTime);
+            if (timeCompare != 0) {
+                return timeCompare;
+            }
+            return Long.compare(
+                    right.getId() == null ? 0L : right.getId(),
+                    left.getId() == null ? 0L : left.getId()
+            );
+        });
+        return result;
+    }
+
+    private UserCoinChangeLogVo toCoinChangeLogVo(UserCoinChangeLogPo item) {
+        return UserCoinChangeLogVo.builder()
+                .id(item.getId())
+                .changeAmount(item.getChangeAmount())
+                .changeType(item.getChangeType())
+                .relatedTargetId(item.getRelatedTargetId())
+                .changeDesc(buildCoinChangeDesc(item.getChangeType(), item.getRelatedTargetId()))
+                .createTime(item.getCreateTime())
+                .build();
+    }
+
+    private String buildCoinChangeDesc(Integer changeType, Long relatedTargetId) {
+        if (Objects.equals(changeType, COIN_CHANGE_TYPE_DAILY_REWARD)) {
+            return "每日登录奖励";
+        }
+        if (Objects.equals(changeType, COIN_CHANGE_TYPE_VIDEO_REWARD)) {
+            return "给视频（id：" + relatedTargetId + "）打赏";
+        }
+        return "硬币变动";
     }
 
     @Override

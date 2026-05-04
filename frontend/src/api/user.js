@@ -28,6 +28,42 @@ export function getUserInfo(userId = null) {
   });
 }
 
+export function updateUserInfo(payload) {
+  return request('/graduation-project/user/update-info', {
+    method: 'POST',
+    json: payload
+  });
+}
+
+export function updateUserPassword(payload) {
+  return request('/graduation-project/user/update-password', {
+    method: 'POST',
+    json: payload
+  });
+}
+
+export function uploadAvatar(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/graduation-project/user/upload-avatar', {
+    method: 'POST',
+    formData
+  });
+}
+
+export function getMyCoinWallet() {
+  return request('/graduation-project/interact/coin/wallet', {
+    method: 'GET'
+  });
+}
+
+export function getMyCoinChangeLogs(days = 7) {
+  return request('/graduation-project/user/coin/change-logs', {
+    method: 'GET',
+    params: { days }
+  });
+}
+
 export function searchVideos(payload) {
   return request('/graduation-project/search/video', {
     method: 'POST',

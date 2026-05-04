@@ -2,6 +2,7 @@ import {createRouter, createWebHistory} from 'vue-router';
 import HomePage from '../components/HomePage.vue';
 import SearchPage from '../components/SearchPage.vue';
 import UserProfilePage from '../components/UserProfilePage.vue';
+import UserCenterPage from '../components/UserCenterPage.vue';
 import CreatorCenter from '../components/CreatorCenter.vue';
 import VideoSubmitPage from '../components/VideoSubmitPage.vue';
 import VideoPlayerPage from '../components/VideoPlayerPage.vue';
@@ -56,6 +57,12 @@ const router = createRouter({
       path: '/user/:userId',
       name: 'user-profile',
       component: UserProfilePage,
+      meta: { requiresUserAuth: true }
+    },
+    {
+      path: '/user-center',
+      name: 'user-center',
+      component: UserCenterPage,
       meta: { requiresUserAuth: true }
     },
     {

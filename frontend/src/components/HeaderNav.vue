@@ -9,6 +9,13 @@
         >
           首页
         </h1>
+        <button
+          v-if="isLoggedIn"
+          class="text-sm font-medium text-gray-600 transition-colors hover:text-[#00a1d6] whitespace-nowrap"
+          @click="goToMyProfile"
+        >
+          个人主页
+        </button>
       </div>
 
       <!-- 中间搜索框 -->
@@ -143,6 +150,12 @@ const unreadBadge = computed(() => (unreadTotal.value > 99 ? '99+' : String(unre
 
 function goHome() {
   router.push('/');
+}
+
+function goToMyProfile() {
+  const userId = getUserId();
+  if (!userId) return;
+  router.push(`/user/${userId}`);
 }
 
 function clearSearch() {

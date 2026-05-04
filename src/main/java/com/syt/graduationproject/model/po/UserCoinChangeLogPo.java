@@ -11,49 +11,31 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 视频投币记录表
- */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_coin_record")
-public class CoinRecordPo {
+@TableName("tb_user_coin_change_log")
+public class UserCoinChangeLogPo {
 
-    /**
-     * 唯一id
-     */
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 投币人ID
-     */
-    @TableField(value = "user_id")
+    @TableField("user_id")
     private Long userId;
 
-    /**
-     * 视频ID
-     */
-    @TableField(value = "video_id")
-    private Long videoId;
+    @TableField("change_amount")
+    private Integer changeAmount;
 
-    /**
-     * 投币数量（通常上限为2）
-     */
-    @TableField(value = "amount")
-    private Integer amount;
+    @TableField("change_type")
+    private Integer changeType;
 
-    /**
-     * 投币时间
-     */
-    @TableField(value = "create_time")
+    @TableField("related_target_id")
+    private Long relatedTargetId;
+
+    @TableField("create_time")
     private LocalDateTime createTime;
 
-    /**
-     * 更新时间
-     */
-    @TableField(value = "update_time")
+    @TableField("update_time")
     private LocalDateTime updateTime;
 }

@@ -58,6 +58,11 @@ export function updateUserToken(token) {
   localStorage.setItem(USER_REFRESHED_AT_KEY, String(Date.now()));
 }
 
+export function updateStoredUsername(username) {
+  localStorage.setItem(USERNAME_KEY, username || '');
+  emitUserAuthChanged(Boolean(getToken()));
+}
+
 /**
  * 获取普通用户ID
  */

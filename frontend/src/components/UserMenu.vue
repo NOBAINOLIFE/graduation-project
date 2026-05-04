@@ -71,12 +71,12 @@
       <div class="py-1">
         <button
           class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-          @click="goToPersonalHome"
+          @click="goToPersonalCenter"
         >
           <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h10M4 17h7"/>
           </svg>
-          <span>个人主页</span>
+          <span>个人中心</span>
         </button>
 
         <button
@@ -141,10 +141,11 @@ function handleMouseLeave() {
 
 // 点击头像（移动端）
 function handleClick() {
-  if (!userInfo.value) {
-    loadUserInfo();
+  const userId = getUserId();
+  if (userId) {
+    router.push(`/user/${userId}`);
   }
-  showMenu.value = !showMenu.value;
+  showMenu.value = false;
 }
 
 // 加载用户信息
@@ -164,12 +165,9 @@ function handleImageError(e) {
   e.target.style.display = 'none';
 }
 
-// 跳转到个人主页
-function goToPersonalHome() {
-  const userId = getUserId();
-  if (userId) {
-    router.push(`/user/${userId}`);
-  }
+// 跳转到个人中心
+function goToPersonalCenter() {
+  router.push('/user-center');
   showMenu.value = false;
 }
 
@@ -181,7 +179,11 @@ function goToVideoManage() {
 
 // 跳转到我的视频
 function goToMyVideos() {
-  goToPersonalHome();
+  const userId = getUserId();
+  if (userId) {
+    router.push(`/user/${userId}`);
+  }
+  showMenu.value = false;
 }
 
 // 跳转到粉丝列表

@@ -62,8 +62,6 @@ public class InteractServiceImpl implements InteractService {
 
     private final LikeCommentMapper likeCommentMapper;
 
-    private final CoinRecordMapper coinRecordMapper;
-
     private final CollectionDirectoryMapper collectionDirectoryMapper;
 
     private final CollectionItemMapper collectionItemMapper;
@@ -72,7 +70,7 @@ public class InteractServiceImpl implements InteractService {
 
     private final UserWalletMapper userWalletMapper;
 
-    private final UserRewardLogMapper userRewardLogMapper;
+    private final UserCoinChangeLogMapper userCoinChangeLogMapper;
 
     private final PrivateMessageMapper privateMessageMapper;
 
@@ -115,6 +113,10 @@ public class InteractServiceImpl implements InteractService {
     private static final int OPERATION_OFF = 0;
 
     private static final int DAILY_LOGIN_REWARD = 1;
+
+    private static final int COIN_CHANGE_TYPE_DAILY_REWARD = 1;
+
+    private static final int COIN_CHANGE_TYPE_VIDEO_REWARD = 2;
 
     private static final String DEFAULT_COLLECTION_NAME = "默认收藏夹";
 
@@ -392,9 +394,11 @@ public class InteractServiceImpl implements InteractService {
                 .isLike(likeVideoMapper.selectCount(new QueryWrapper<LikeVideoPo>().lambda()
                         .eq(LikeVideoPo::getUserId, userId)
                         .eq(LikeVideoPo::getVideoId, videoId)) > 0)
-                .isCoin(coinRecordMapper.selectCount(new QueryWrapper<CoinRecordPo>().lambda()
-                        .eq(CoinRecordPo::getUserId, userId)
-                        .eq(CoinRecordPo::getVideoId, videoId)) > 0)
+                .isCoin(userCoinChangeLogMapper.selectCount(new QueryWrapper<UserCoinChangeLogPo>().lambda()
+                        .eq(UserCoinChangeLogPo::getUserId, userId)
+                        .eq(UserCoinChangeLogPo::getChangeType, COIN_CHANGE_TYPE_VIDEO_REWARD)
+                        .eq(UserCoinChangeLogPo::getRelatedTargetId, videoId)
+                        .lt(UserCoinChangeLogPo::getChangeAmount, 0)) > 0)
                 .isCollect(collectionItemMapper.selectCount(new QueryWrapper<CollectionItemPo>().lambda()
                         .eq(CollectionItemPo::getUserId, userId)
                         .eq(CollectionItemPo::getVideoId, videoId)
@@ -1394,10 +1398,10 @@ public class InteractServiceImpl implements InteractService {
         }
 
         ensureWalletRow(myId);
-        CoinRecordPo oldRecord = coinRecordMapper.selectOne(new LambdaQueryWrapper<CoinRecordPo>()
-                .eq(CoinRecordPo::getUserId, myId)
-                .eq(CoinRecordPo::getVideoId, request.getVideoId()));
-        int oldAmount = oldRecord == null ? 0 : oldRecord.getAmount();
+        Integer oldAmount = userCoinChangeLogMapper.sumConsumedCoinByTarget(myId, COIN_CHANGE_TYPE_VIDEO_REWARD, request.getVideoId());
+        if (oldAmount == null) {
+            oldAmount = 0;
+        }
         int targetAmount = oldAmount + request.getAmount();
         if (targetAmount > 2) {
             throw new CustomException("单个视频最多投币2个");
@@ -1408,16 +1412,7 @@ public class InteractServiceImpl implements InteractService {
             throw new CustomException("硬币余额不足");
         }
 
-        if (oldRecord == null) {
-            coinRecordMapper.insert(CoinRecordPo.builder()
-                    .userId(myId)
-                    .videoId(request.getVideoId())
-                    .amount(request.getAmount())
-                    .build());
-        } else {
-            oldRecord.setAmount(targetAmount);
-            coinRecordMapper.updateById(oldRecord);
-        }
+        recordCoinChangeLog(myId, -request.getAmount(), COIN_CHANGE_TYPE_VIDEO_REWARD, request.getVideoId());
         videoStatsMapper.updateCoinCount(request.getVideoId(), request.getAmount());
     }
 
@@ -1428,20 +1423,19 @@ public class InteractServiceImpl implements InteractService {
             return false;
         }
         ensureWalletRow(userId);
-        LocalDate today = LocalDate.now();
-        UserRewardLogPo exists = userRewardLogMapper.selectOne(new LambdaQueryWrapper<UserRewardLogPo>()
-                .eq(UserRewardLogPo::getUserId, userId)
-                .eq(UserRewardLogPo::getRewardDate, today)
-                .last("limit 1"));
-        if (exists != null) {
+        LocalDateTime startTime = LocalDate.now().atStartOfDay();
+        LocalDateTime endTime = startTime.plusDays(1);
+        Integer existsCount = userCoinChangeLogMapper.countLogsInRange(
+                userId,
+                COIN_CHANGE_TYPE_DAILY_REWARD,
+                startTime,
+                endTime
+        );
+        if (existsCount != null && existsCount > 0) {
             return false;
         }
-        userRewardLogMapper.insert(UserRewardLogPo.builder()
-                .userId(userId)
-                .rewardDate(today)
-                .rewardCoin(DAILY_LOGIN_REWARD)
-                .build());
         userWalletMapper.updateCoinBalance(userId, (long) DAILY_LOGIN_REWARD);
+        recordCoinChangeLog(userId, DAILY_LOGIN_REWARD, COIN_CHANGE_TYPE_DAILY_REWARD, null);
         return true;
     }
 
@@ -1576,6 +1570,15 @@ public class InteractServiceImpl implements InteractService {
                     .build());
         } catch (DuplicateKeyException ignore) {
         }
+    }
+
+    private void recordCoinChangeLog(Long userId, Integer changeAmount, Integer changeType, Long relatedTargetId) {
+        userCoinChangeLogMapper.insert(UserCoinChangeLogPo.builder()
+                .userId(userId)
+                .changeAmount(changeAmount)
+                .changeType(changeType)
+                .relatedTargetId(relatedTargetId)
+                .build());
     }
 
     /**

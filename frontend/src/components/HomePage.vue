@@ -5,6 +5,7 @@
     <header class="border-t border-white/60 bg-white/70 backdrop-blur-sm">
       <div class="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-3">
         <button
+
           class="rounded-full px-4 py-1.5 text-sm whitespace-nowrap transition-colors"
           :class="selectedPartition === null ? 'bg-[#00a1d6] text-white' : 'text-[#61666d] hover:bg-[#f1f2f3]'"
           @click="selectPartition(null)"
