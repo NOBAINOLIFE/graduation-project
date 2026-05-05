@@ -32,6 +32,16 @@ public class ChatSessionVo {
     private String withAvatarUrl;
 
     /**
+     * 对方是否被封禁
+     */
+    private Boolean withUserBanned;
+
+    /**
+     * 当前用户与对方是否存在任一方向拉黑关系
+     */
+    private Boolean withUserBlack;
+
+    /**
      * 最后一条消息ID
      */
     private Long lastMsgId;

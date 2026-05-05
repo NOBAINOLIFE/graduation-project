@@ -28,13 +28,17 @@ public interface PrivateMessageMapper extends BaseMapper<PrivateMessagePo> {
      * 会话列表（按双方 userId 聚合出最近一条 + 未读数）
      * 对应 XML: querySessions
      */
-    List<ChatSessionVo> querySessions(@Param("myId") Long myId, @Param("readStatus") Integer readStatus);
+    List<ChatSessionVo> querySessions(@Param("myId") Long myId,
+                                      @Param("readStatus") Integer readStatus,
+                                      @Param("failStatus") Integer failStatus);
 
     /**
      * 总未读数（所有会话累加）
      */
-    @Select("select count(1) from tb_private_message where to_user_id = #{myId} and (status <> #{readStatus})")
-    Long queryTotalUnread(@Param("myId") Long myId, @Param("readStatus") Integer readStatus);
+    @Select("select count(1) from tb_private_message where to_user_id = #{myId} and status <> #{readStatus} and status <> #{failStatus}")
+    Long queryTotalUnread(@Param("myId") Long myId,
+                          @Param("readStatus") Integer readStatus,
+                          @Param("failStatus") Integer failStatus);
 
     /**
      * 标记已读（把对方 -> 我 的消息，id<=upToMsgId 的置为 READ）

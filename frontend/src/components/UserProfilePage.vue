@@ -29,25 +29,59 @@
           <div class="flex-1 pb-1">
             <div class="flex items-center gap-3 mb-1">
               <h1 class="text-xl font-bold text-white drop-shadow-lg">{{ userInfo?.username || '加载中...' }}</h1>
+              <span v-if="userInfo?.isBanned" class="rounded-full bg-[#fb7299] px-2.5 py-0.5 text-xs font-medium text-white">已封禁</span>
+              <span v-if="userInfo?.isBlack" class="rounded-full bg-slate-900/70 px-2.5 py-0.5 text-xs font-medium text-white">黑名单</span>
             </div>
             <p class="text-white/90 text-sm line-clamp-1 drop-shadow">{{ userInfo?.bio || '这个人很懒，什么都没写~' }}</p>
           </div>
 
           <!-- 操作按钮 -->
-          <div class="flex-shrink-0 flex gap-3 pb-1" v-if="!isSelf">
+          <div class="flex-shrink-0 flex items-end gap-3 pb-1" v-if="!isSelf">
             <button
-              class="px-6 py-2 bg-[#00a1d6] text-white rounded-lg hover:bg-[#0090c0] transition-colors font-medium text-sm"
-              :class="userInfo?.isFollow ? 'bg-gray-400 hover:bg-gray-500' : ''"
+              class="px-6 py-2 bg-[#00a1d6] text-white rounded-lg hover:bg-[#0090c0] transition-colors font-medium text-sm h-9 w-18"
+              :class="userInfo?.isFollow ? 'bg-[#fb7299] hover:bg-[#fc8bab]' : ''"
+              :disabled="isProfileRestricted"
               @click="handleFollow"
             >
               {{ userInfo?.isFollow ? '已关注' : '+ 关注' }}
             </button>
             <button
-              class="px-6 py-2 bg-white/20 backdrop-blur text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30 text-sm"
+              class="px-6 py-2 bg-white/20 backdrop-blur text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30 text-sm h-9 w-18"
+              :disabled="isProfileRestricted"
               @click="goToPrivateChat"
             >
               发消息
             </button>
+            <div class="profile-more relative">
+              <button
+                class="flex h-9 w-9 items-center justify-center rounded-lg border border-white/30 bg-white/20 text-white backdrop-blur transition-colors hover:bg-white/30"
+                type="button"
+                aria-label="更多操作"
+              >
+                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 7a1.75 1.75 0 1 0 0-3.5A1.75 1.75 0 0 0 12 7Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
+                </svg>
+              </button>
+              <div class="profile-more-panel absolute right-0 top-full z-20 w-40 pt-2">
+                <div class="rounded-2xl border border-white/20 bg-white/95 p-2 shadow-[0_16px_40px_rgba(15,23,42,0.16)]">
+                  <button
+                    class="flex w-full items-center rounded-xl px-3 py-2 text-sm text-[#111827] transition hover:bg-[#f5f7fb]"
+                    type="button"
+                    :disabled="isProfileRestricted"
+                    @click="openBlockDialog({ targetUserId: userInfo?.userId, username: userInfo?.username })"
+                  >
+                    加入黑名单
+                  </button>
+                  <button
+                    class="mt-1 flex w-full items-center rounded-xl px-3 py-2 text-sm text-[#111827] transition hover:bg-[#f5f7fb]"
+                    type="button"
+                    @click="openUserReportDialog"
+                  >
+                    举报
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -102,6 +136,7 @@
             <button
               class="text-center transition-colors"
               :class="activeTab === 'following' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]'"
+              :disabled="isProfileRestricted"
               @click="switchContentTab('following')"
             >
               <div class="text-xs text-gray-500">关注数</div>
@@ -110,6 +145,7 @@
             <button
               class="text-center transition-colors"
               :class="activeTab === 'fans' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]'"
+              :disabled="isProfileRestricted"
               @click="switchContentTab('fans')"
             >
               <div class="text-xs text-gray-500">粉丝数</div>
@@ -130,8 +166,14 @@
 
     <!-- 内容区域 -->
     <div class="max-w-7xl mx-auto px-4 mt-5 pb-12">
+      <div v-if="isProfileRestricted" class="rounded-2xl border border-dashed border-[#dbe3ec] bg-white px-6 py-16 text-center">
+        <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4f8] text-2xl text-[#94a3b8]">!</div>
+        <h2 class="mt-5 text-xl font-semibold text-[#111827]">{{ profileRestrictionTitle }}</h2>
+        <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#6b7280]">{{ profileRestrictionDescription }}</p>
+      </div>
+
       <!-- 视频列表 -->
-      <div v-if="activeTab === 'videos'">
+      <div v-else-if="activeTab === 'videos'">
         <div v-if="videoList.length === 0 && !loading" class="flex flex-col items-center justify-center py-20">
           <svg class="w-24 h-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -207,7 +249,7 @@
       </div>
 
       <!-- 收藏页面 -->
-      <div v-if="activeTab === 'favorites'">
+      <div v-else-if="activeTab === 'favorites'">
         <div v-if="collectionDirectories.length === 0" class="flex flex-col items-center justify-center py-20">
           <svg class="w-24 h-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
@@ -472,7 +514,7 @@
         </div>
       </div>
 
-      <div v-if="isRelationTab" class="flex flex-col gap-6 xl:flex-row">
+      <div v-else-if="isRelationTab" class="flex flex-col gap-6 xl:flex-row">
         <aside class="w-full xl:w-[220px] xl:flex-shrink-0">
             <div>
               <div class="mb-2 flex items-center justify-between">
@@ -663,6 +705,88 @@
       </div>
     </div>
 
+    <div
+      v-if="blockDialog.visible"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      @click="closeBlockDialog"
+    >
+      <div class="w-full max-w-[520px] rounded-[28px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]" @click.stop>
+        <div class="border-b border-[#edf2f7] px-6 py-5">
+          <h3 class="text-lg font-bold text-[#0f172a]">加入黑名单</h3>
+        </div>
+        <div class="px-6 py-6">
+          <p class="text-sm leading-7 text-[#475569]">
+            加入黑名单后，将自动解除对该用户的关注关系，并且禁止该用户与我互动或查看我的空间
+          </p>
+        </div>
+        <div class="flex items-center justify-end gap-3 border-t border-[#edf2f7] px-6 py-4">
+          <button
+            class="rounded-2xl border border-[#dbe3ec] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] transition-colors hover:border-[#94a3b8] hover:text-[#1f2937]"
+            @click="closeBlockDialog"
+          >
+            取消
+          </button>
+          <button
+            class="rounded-2xl bg-[#00a1d6] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0090c0] disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="blockDialog.submitting"
+            @click="confirmBlockUser"
+          >
+            {{ blockDialog.submitting ? '处理中...' : '确认加入' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="reportDialog.visible"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      @click="closeReportDialog"
+    >
+      <div class="w-full max-w-3xl rounded-[28px] bg-white px-8 py-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]" @click.stop>
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-xl font-semibold text-slate-900">{{ reportDialog.title }}</h3>
+          <button class="text-slate-400 transition hover:text-slate-600" @click="closeReportDialog">×</button>
+        </div>
+
+        <p class="mb-3 text-sm text-slate-500">请选择举报原因</p>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label
+            v-for="option in reportReasonOptions"
+            :key="option"
+            class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-[#00a1d6]"
+          >
+            <input v-model="reportDialog.reason" type="radio" :value="option" class="accent-[#00a1d6]" />
+            <span>{{ option }}</span>
+          </label>
+        </div>
+
+        <div class="mt-4">
+          <p class="mb-1 text-sm text-slate-500">详细描述 <span class="text-rose-500">*</span></p>
+          <textarea
+            v-model="reportDialog.detail"
+            maxlength="400"
+            rows="4"
+            placeholder="请填写举报详细信息，方便我们更好地处理"
+            class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00a1d6] focus:outline-none"
+          ></textarea>
+          <p class="mt-1 text-right text-xs text-slate-400">{{ reportDialog.detail.length }}/400</p>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-3">
+          <button class="rounded-lg border border-slate-200 px-6 py-2 text-sm text-slate-600 transition hover:bg-slate-50" @click="closeReportDialog">
+            取消
+          </button>
+          <button
+            class="rounded-lg bg-[#00a1d6] px-6 py-2 text-sm text-white transition hover:bg-[#00b5e5] disabled:cursor-not-allowed disabled:bg-slate-300"
+            :disabled="reportDialog.submitting"
+            @click="submitUserReport"
+          >
+            {{ reportDialog.submitting ? '提交中...' : '提交' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 新建/编辑收藏夹对话框 -->
     <div v-if="showCreateDialog || showEditDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click="closeDialog">
       <div class="bg-white rounded-lg shadow-xl w-[500px] max-w-[90vw] max-h-[90vh] overflow-y-auto" @click.stop>
@@ -767,7 +891,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   getUserInfo,
@@ -783,7 +907,7 @@ import {
   listFansUsers,
   listFollowUsers
 } from '../api/user';
-import { followUser } from '../api/video';
+import { blockUser, followUser, submitReport } from '../api/video';
 import { getUserId } from '../utils/auth';
 import HeaderNav from './HeaderNav.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -819,6 +943,27 @@ const isSelf = computed(() => {
   const currentUserId = getUserId();
   return String(userId.value) === String(currentUserId);
 });
+const isProfileRestricted = computed(() => {
+  return !isSelf.value && (Boolean(userInfo.value?.isBanned) || Boolean(userInfo.value?.isBlack));
+});
+const profileRestrictionTitle = computed(() => {
+  if (userInfo.value?.isBanned) {
+    return '该用户已被封禁';
+  }
+  if (userInfo.value?.isBlack) {
+    return '无法查看该用户主页';
+  }
+  return '当前主页暂不可见';
+});
+const profileRestrictionDescription = computed(() => {
+  if (userInfo.value?.isBanned) {
+    return '该账号因违反社区规范已被封禁，主页内容和互动功能暂不可用。';
+  }
+  if (userInfo.value?.isBlack) {
+    return '由于存在黑名单关系，你暂时无法查看该用户内容，也无法关注或发送私信。';
+  }
+  return '请稍后再试。';
+});
 const isRelationTab = computed(() => activeTab.value === 'following' || activeTab.value === 'fans');
 const favoriteCount = ref(0);
 const collectionDirectories = ref([]);
@@ -849,6 +994,32 @@ const coverFile = ref(null);
 const nameLength = ref(0);
 const descLength = ref(0);
 const uploading = ref(false);
+const blockDialog = reactive({
+  visible: false,
+  submitting: false,
+  targetUserId: null,
+  username: ''
+});
+const reportDialog = reactive({
+  visible: false,
+  submitting: false,
+  targetType: 1,
+  targetId: null,
+  title: '举报用户',
+  reason: '',
+  detail: ''
+});
+const reportReasonOptions = [
+  '色情低俗',
+  '违法犯罪',
+  '赌博诈骗',
+  '血腥暴力',
+  '人身攻击',
+  '侵犯隐私',
+  '垃圾广告',
+  '侵权',
+  '其他'
+];
 
 const selectedDirectory = computed(() => {
   return collectionDirectories.value.find(dir => dir.directoryId === selectedDirectoryId.value) || null;
@@ -927,10 +1098,29 @@ function goHome() {
   router.push('/');
 }
 
+function resetRestrictedProfileContent() {
+  videoList.value = [];
+  collectionDirectories.value = [];
+  favoriteVideos.value = [];
+  followingUsers.value = [];
+  fanUsers.value = [];
+  favoriteCount.value = 0;
+  selectedDirectoryId.value = null;
+  hasMore.value = false;
+  relationLoadedMap.value = {
+    following: false,
+    fans: false
+  };
+  exitBatchMode();
+}
+
 // 加载用户信息
 async function loadUserInfo() {
   try {
     userInfo.value = await getUserInfo(userId.value);
+    if (isProfileRestricted.value) {
+      resetRestrictedProfileContent();
+    }
   } catch (error) {
     console.error('加载用户信息失败:', error);
   }
@@ -938,7 +1128,7 @@ async function loadUserInfo() {
 
 // 加载用户视频
 async function loadUserVideos(isRefresh = false) {
-  if (loading.value) return;
+  if (loading.value || isProfileRestricted.value) return;
   
   try {
     loading.value = true;
@@ -975,6 +1165,10 @@ async function loadUserVideos(isRefresh = false) {
 
 // 加载收藏夹列表
 async function loadCollectionDirectories() {
+  if (isProfileRestricted.value) {
+    resetRestrictedProfileContent();
+    return;
+  }
   try {
     const directories = await listCollectionDirectories(userId.value);
     collectionDirectories.value = directories || [];
@@ -1002,7 +1196,7 @@ async function loadCollectionDirectories() {
 
 // 加载收藏夹内视频
 async function loadFavoriteVideos() {
-  if (!selectedDirectoryId.value || favoriteLoading.value) return;
+  if (!selectedDirectoryId.value || favoriteLoading.value || isProfileRestricted.value) return;
   
   try {
     favoriteLoading.value = true;
@@ -1021,7 +1215,7 @@ async function loadRelationList(type = activeTab.value, forceRefresh = false) {
   if (!['following', 'fans'].includes(type)) {
     return;
   }
-  if (relationLoading.value) {
+  if (relationLoading.value || isProfileRestricted.value) {
     return;
   }
 
@@ -1366,6 +1560,9 @@ function handleVideoKeywordSearch() {
 }
 
 function switchContentTab(tabKey) {
+  if (isProfileRestricted.value) {
+    return;
+  }
   const nextQuery = { ...route.query };
   if (tabKey === 'videos') {
     delete nextQuery.tab;
@@ -1384,8 +1581,25 @@ function switchContentTab(tabKey) {
   });
 }
 
+async function loadProfilePageData() {
+  await loadUserInfo();
+  if (isProfileRestricted.value) {
+    return;
+  }
+  await Promise.all([
+    loadUserVideos(true),
+    loadCollectionDirectories()
+  ]);
+  if (['following', 'fans'].includes(activeTab.value)) {
+    loadRelationList(activeTab.value, true);
+  }
+}
+
 // 监听路由变化，切换标签时重新加载数据
 watch(() => activeTab.value, (newTab) => {
+  if (isProfileRestricted.value) {
+    return;
+  }
   if (newTab === 'videos' && pendingVideoReload.value) {
     pendingVideoReload.value = false;
     loadUserVideos(true);
@@ -1432,7 +1646,7 @@ function syncSelfFollowCount(delta) {
 }
 
 async function toggleRelationFollow(item) {
-  if (!item?.userId || isCurrentUser(item.userId) || relationFollowLoadingMap.value[item.userId]) {
+  if (!item?.userId || isCurrentUser(item.userId) || relationFollowLoadingMap.value[item.userId] || isProfileRestricted.value) {
     return;
   }
 
@@ -1467,7 +1681,7 @@ async function toggleRelationFollow(item) {
 
 // 关注/取消关注
 async function handleFollow() {
-  if (isSelf.value || !userInfo.value?.userId) {
+  if (isSelf.value || !userInfo.value?.userId || isProfileRestricted.value) {
     return;
   }
 
@@ -1489,8 +1703,111 @@ async function handleFollow() {
   }
 }
 
+function openBlockDialog({ targetUserId, username }) {
+  if (!targetUserId || isProfileRestricted.value) {
+    return;
+  }
+  blockDialog.visible = true;
+  blockDialog.targetUserId = Number(targetUserId);
+  blockDialog.username = username || '';
+}
+
+function closeBlockDialog() {
+  if (blockDialog.submitting) {
+    return;
+  }
+  blockDialog.visible = false;
+  blockDialog.targetUserId = null;
+  blockDialog.username = '';
+}
+
+async function confirmBlockUser() {
+  if (!blockDialog.targetUserId) {
+    return;
+  }
+
+  blockDialog.submitting = true;
+  try {
+    await blockUser({
+      targetUserId: blockDialog.targetUserId,
+      operation: 1
+    });
+
+    if (userInfo.value?.userId && Number(userInfo.value.userId) === Number(blockDialog.targetUserId)) {
+      const wasFollow = Boolean(userInfo.value.isFollow);
+      userInfo.value.isFollow = false;
+      if (wasFollow) {
+        userInfo.value.fansNum = Math.max(0, Number(userInfo.value.fansNum || 0) - 1);
+      }
+    }
+
+    blockDialog.submitting = false;
+    closeBlockDialog();
+    ElMessage.success('已加入黑名单');
+  } catch (error) {
+    console.error('加入黑名单失败:', error);
+    ElMessage.error(error.message || '加入黑名单失败');
+  } finally {
+    blockDialog.submitting = false;
+  }
+}
+
+function openUserReportDialog() {
+  if (!userInfo.value?.userId) {
+    return;
+  }
+  reportDialog.visible = true;
+  reportDialog.targetType = 1;
+  reportDialog.targetId = Number(userInfo.value.userId);
+  reportDialog.title = '举报用户';
+  reportDialog.reason = '';
+  reportDialog.detail = '';
+}
+
+function closeReportDialog() {
+  if (reportDialog.submitting) {
+    return;
+  }
+  reportDialog.visible = false;
+  reportDialog.targetId = null;
+  reportDialog.reason = '';
+  reportDialog.detail = '';
+}
+
+async function submitUserReport() {
+  if (!reportDialog.targetId) {
+    return;
+  }
+  if (!reportDialog.reason.trim()) {
+    ElMessage.warning('请选择举报原因');
+    return;
+  }
+  if (!reportDialog.detail.trim()) {
+    ElMessage.warning('请填写详细描述');
+    return;
+  }
+
+  reportDialog.submitting = true;
+  try {
+    await submitReport({
+      targetType: reportDialog.targetType,
+      targetId: reportDialog.targetId,
+      reason: reportDialog.reason,
+      detail: reportDialog.detail
+    });
+    reportDialog.submitting = false;
+    closeReportDialog();
+    ElMessage.success('举报提交成功，我们会尽快处理');
+  } catch (error) {
+    console.error('举报失败:', error);
+    ElMessage.error(error.message || '举报提交失败');
+  } finally {
+    reportDialog.submitting = false;
+  }
+}
+
 function goToPrivateChat() {
-  if (isSelf.value || !userInfo.value?.userId) {
+  if (isSelf.value || !userInfo.value?.userId || isProfileRestricted.value) {
     return;
   }
   router.push({
@@ -1560,12 +1877,7 @@ watch(() => route.params.userId, (newId) => {
       fans: false
     };
     exitBatchMode();
-    loadUserInfo();
-    loadUserVideos(true);
-    loadCollectionDirectories();
-    if (['following', 'fans'].includes(activeTab.value)) {
-      loadRelationList(activeTab.value, true);
-    }
+    loadProfilePageData();
   }
 });
 
@@ -1583,12 +1895,7 @@ watch(
 );
 
 onMounted(() => {
-  loadUserInfo();
-  loadUserVideos(true);
-  loadCollectionDirectories();
-  if (['following', 'fans'].includes(activeTab.value)) {
-    loadRelationList(activeTab.value);
-  }
+  loadProfilePageData();
 });
 </script>
 
@@ -1612,6 +1919,20 @@ onMounted(() => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.profile-more-panel {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.profile-more:hover .profile-more-panel,
+.profile-more:focus-within .profile-more-panel {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>
 

@@ -42,6 +42,8 @@ public class CommentVo {
 
     private Boolean isLike;
 
+    private Boolean isTop;
+
     private List<CommentVo> replyPreviewList;
 
     private LocalDateTime createTime;

@@ -21,6 +21,7 @@
         AND c.is_deleted = 0
 
         <if test="lastHotScore != null and lastCreateTime != null and lastCommentId != null">
+            AND COALESCE(c.is_top, 0) = 0
             AND (
             s.hot_score &lt; #{lastHotScore}
             OR (
@@ -36,6 +37,7 @@
         </if>
 
         ORDER BY
+        COALESCE(c.is_top, 0) DESC,
         s.hot_score DESC,
         s.create_time DESC,
         s.comment_id DESC

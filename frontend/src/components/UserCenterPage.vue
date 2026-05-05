@@ -184,6 +184,74 @@
               </form>
             </section>
 
+            <section v-else-if="activeSection === 'blacklist'" class="rounded-3xl border border-[#e8eef5] bg-white p-6 shadow-sm">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-xl font-semibold text-[#111827]">黑名单管理</h2>
+                  <p class="mt-1 text-sm text-[#6b7280]">管理已拉黑的用户，移出后对方将恢复与你的正常互动权限。</p>
+                </div>
+                <button
+                  class="rounded-full border border-[#dbe3ec] px-4 py-2 text-sm font-medium text-[#475569] transition hover:border-[#00a1d6] hover:text-[#00a1d6] disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="blacklistLoading"
+                  @click="loadBlockedUsers"
+                >
+                  {{ blacklistLoading ? '刷新中...' : '刷新' }}
+                </button>
+              </div>
+
+              <div class="mt-6 space-y-3">
+                <div v-if="blacklistLoading" class="rounded-2xl border border-dashed border-[#dbe3ec] px-4 py-10 text-center text-sm text-[#94a3b8]">
+                  正在加载黑名单...
+                </div>
+
+                <div v-else-if="blockedUsers.length === 0" class="rounded-2xl border border-dashed border-[#dbe3ec] px-4 py-12 text-center">
+                  <p class="text-sm font-medium text-[#64748b]">暂无黑名单用户</p>
+                  <p class="mt-2 text-xs text-[#94a3b8]">从用户主页或视频评论区拉黑后，会在这里集中管理。</p>
+                </div>
+
+                <template v-else>
+                  <div
+                    v-for="user in blockedUsers"
+                    :key="`blocked-${user.userId}`"
+                    class="flex flex-col gap-4 rounded-2xl border border-[#ecf1f6] bg-[#fcfdff] p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div class="flex min-w-0 items-center gap-4">
+                      <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,_#d6f3ff,_#f2fbff)] text-lg font-semibold text-[#00a1d6]">
+                        <img
+                          v-if="user.avatarUrl"
+                          :src="user.avatarUrl"
+                          :alt="user.username || '用户头像'"
+                          class="h-full w-full object-cover"
+                          @error="handleImageError"
+                        />
+                        <span v-else>{{ getNameInitial(user.username) }}</span>
+                      </div>
+                      <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <h3 class="truncate font-semibold text-[#0f172a]">{{ user.username || '未知用户' }}</h3>
+                          <span
+                            v-for="tag in getRelationTags(user)"
+                            :key="`${user.userId}-${tag}`"
+                            class="rounded-full bg-[#eef6fb] px-2 py-0.5 text-xs font-medium text-[#0095c8]"
+                          >
+                            {{ tag }}
+                          </span>
+                        </div>
+                        <p class="mt-1 line-clamp-2 text-sm text-[#64748b]">{{ user.bio || '这个用户暂未填写个人简介' }}</p>
+                      </div>
+                    </div>
+                    <button
+                      class="shrink-0 rounded-full border border-[#fecdd3] bg-[#fff1f2] px-4 py-2 text-sm font-medium text-[#e11d48] transition hover:border-[#fb7185] hover:bg-[#ffe4e6] disabled:cursor-not-allowed disabled:opacity-60"
+                      :disabled="unblockSubmittingUserId === user.userId"
+                      @click="unblockBlockedUser(user)"
+                    >
+                      {{ unblockSubmittingUserId === user.userId ? '移出中...' : '移出黑名单' }}
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </section>
+
             <section v-else class="space-y-6">
               <section class="rounded-3xl border border-[#e8eef5] bg-white p-6 shadow-sm">
                 <div class="flex items-center justify-between gap-3">
@@ -269,13 +337,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import HeaderNav from './HeaderNav.vue';
 import {
+  blockUser,
   getMyCoinChangeLogs,
   getMyCoinWallet,
   getUserInfo,
+  listBlockedUsers,
   updateUserInfo,
   updateUserPassword,
   uploadAvatar
@@ -288,7 +358,11 @@ const rewardLoading = ref(false);
 const avatarUploading = ref(false);
 const profileSubmitting = ref(false);
 const passwordSubmitting = ref(false);
+const blacklistLoading = ref(false);
+const hasLoadedBlacklist = ref(false);
+const unblockSubmittingUserId = ref(null);
 const rewardLogs = ref([]);
+const blockedUsers = ref([]);
 const wallet = reactive({
   balance: 0
 });
@@ -333,6 +407,12 @@ const sectionItems = [
     label: '我的硬币',
     description: '查看硬币数量和近7天变化记录',
     short: '03'
+  },
+  {
+    key: 'blacklist',
+    label: '黑名单管理',
+    description: '查看并移出已拉黑用户',
+    short: '04'
   }
 ];
 
@@ -381,12 +461,67 @@ async function loadRewardData() {
   }
 }
 
+async function loadBlockedUsers() {
+  blacklistLoading.value = true;
+  try {
+    const users = await listBlockedUsers();
+    blockedUsers.value = Array.isArray(users) ? users : [];
+    hasLoadedBlacklist.value = true;
+  } catch (error) {
+    console.error('加载黑名单失败:', error);
+    ElMessage.error(error.message || '加载黑名单失败');
+  } finally {
+    blacklistLoading.value = false;
+  }
+}
+
 async function initializePage() {
   try {
     await Promise.all([loadProfile(), loadRewardData()]);
   } catch (error) {
     console.error('初始化个人中心失败:', error);
     ElMessage.error(error.message || '加载个人中心失败');
+  }
+}
+
+function getRelationTags(user) {
+  const tags = [];
+  if (user?.isFollow) {
+    tags.push('已关注');
+  }
+  if (user?.isFans) {
+    tags.push('你的粉丝');
+  }
+  return tags;
+}
+
+async function unblockBlockedUser(user) {
+  if (!user?.userId) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确定将「${user.username || '该用户'}」移出黑名单吗？`, '移出黑名单', {
+      confirmButtonText: '移出',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+  } catch (error) {
+    return;
+  }
+
+  try {
+    unblockSubmittingUserId.value = user.userId;
+    await blockUser({
+      targetUserId: user.userId,
+      operation: 0
+    });
+    blockedUsers.value = blockedUsers.value.filter(item => item.userId !== user.userId);
+    ElMessage.success('已移出黑名单');
+  } catch (error) {
+    console.error('移出黑名单失败:', error);
+    ElMessage.error(error.message || '移出黑名单失败');
+  } finally {
+    unblockSubmittingUserId.value = null;
   }
 }
 
@@ -533,5 +668,11 @@ function parseDateValue(value) {
 
 onMounted(() => {
   initializePage();
+});
+
+watch(activeSection, section => {
+  if (section === 'blacklist' && !hasLoadedBlacklist.value) {
+    loadBlockedUsers();
+  }
 });
 </script>

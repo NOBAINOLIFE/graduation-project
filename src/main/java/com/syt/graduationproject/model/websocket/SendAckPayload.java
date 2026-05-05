@@ -18,4 +18,10 @@ public class SendAckPayload {
     private Long toUserId;
 
     private Boolean delivered;
+
+    private Integer status;
+
+    private Integer failReason;
+
+    private String failReasonText;
 }

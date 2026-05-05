@@ -14,6 +14,13 @@ export function auditVideo(payload) {
   });
 }
 
+export function queryUserList(payload) {
+  return request('/graduation-project/manager/user/list', {
+    method: 'POST',
+    json: payload
+  });
+}
+
 export function queryReportList(payload) {
   return request('/graduation-project/manager/report/list', {
     method: 'POST',

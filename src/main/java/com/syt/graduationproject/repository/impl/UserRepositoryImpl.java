@@ -31,8 +31,7 @@ public class UserRepositoryImpl implements UserRepository {
     public UserPo queryUserByAccount(Long account) {
         QueryWrapper<UserPo> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda()
-                .eq(UserPo::getAccount, account)
-                .eq(UserPo::getStatus, UserStatusEnum.NORMAL.getCode());
+                .eq(UserPo::getAccount, account);
         return userMapper.selectOne(queryWrapper);
     }
 
@@ -43,8 +42,7 @@ public class UserRepositoryImpl implements UserRepository {
     public UserPo queryUserById(Long userId) {
         QueryWrapper<UserPo> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda()
-                .eq(UserPo::getId, userId)
-                .eq(UserPo::getStatus, UserStatusEnum.NORMAL.getCode());
+                .eq(UserPo::getId, userId);
         return userMapper.selectOne(queryWrapper);
     }
 

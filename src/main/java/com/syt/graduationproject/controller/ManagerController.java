@@ -6,7 +6,9 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
+import com.syt.graduationproject.model.request.ManagerUserListRequest;
 import com.syt.graduationproject.model.response.Response;
+import com.syt.graduationproject.model.vo.ManagerUserVo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
@@ -36,6 +38,20 @@ public class ManagerController {
         } catch (Exception e) {
             log.error("查询视频审核列表失败，request:{}", request, e);
             return Response.fail("查询视频审核列表失败，系统异常");
+        }
+    }
+
+    @PostMapping("/user/list")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<PageVo<ManagerUserVo>> queryUserList(@RequestBody(required = false) ManagerUserListRequest request) {
+        try {
+            return Response.success(managerService.queryUserList(request));
+        } catch (CustomException e) {
+            log.warn("查询用户列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询用户列表失败，request:{}", request, e);
+            return Response.fail("查询用户列表失败，系统异常");
         }
     }
 

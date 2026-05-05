@@ -247,6 +247,44 @@ public class InteractServiceImpl implements InteractService {
     }
 
     @Override
+    public List<UserSimpleInfoVo> queryMyBlockList() {
+        Long myId = UserHolderUtil.getUser().getUserId();
+        List<UserBlockPo> blockRecords = userBlockMapper.selectList(new LambdaQueryWrapper<UserBlockPo>()
+                .eq(UserBlockPo::getUserId, myId)
+                .eq(UserBlockPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(UserBlockPo::getCreateTime)
+                .orderByDesc(UserBlockPo::getId));
+        if (CollectionUtils.isEmpty(blockRecords)) {
+            return Collections.emptyList();
+        }
+
+        List<Long> blockedUserIds = blockRecords.stream()
+                .map(UserBlockPo::getBlockedUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, UserPo> userMap = queryUserMap(blockedUserIds);
+        Set<Long> followedUserIds = queryFolloweeIdSet(myId, blockedUserIds);
+        Set<Long> fanUserIds = queryFollowerIdSet(myId, blockedUserIds);
+        List<UserSimpleInfoVo> result = new ArrayList<>();
+        for (Long blockedUserId : blockedUserIds) {
+            UserPo userPo = userMap.get(blockedUserId);
+            if (userPo == null) {
+                continue;
+            }
+            result.add(UserSimpleInfoVo.builder()
+                    .userId(userPo.getId())
+                    .username(userPo.getUsername())
+                    .avatarUrl(userPo.getAvatarUrl())
+                    .bio(userPo.getBio())
+                    .isFollow(followedUserIds.contains(blockedUserId))
+                    .isFans(fanUserIds.contains(blockedUserId))
+                    .build());
+        }
+        return result;
+    }
+
+    @Override
     public boolean hasMutualBlock(Long userA, Long userB) {
         if (userA == null || userB == null) {
             return false;
@@ -298,6 +336,59 @@ public class InteractServiceImpl implements InteractService {
         if (request.getRootId() == 0) {
             videoStatsMapper.incrCommentCount(comment.getVideoId());
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteComment(Long commentId) {
+        Long currentUserId = UserHolderUtil.getUser().getUserId();
+        if (commentId == null) {
+            throw new CustomException("评论ID不能为空");
+        }
+
+        CommentPo commentPo = commentMapper.selectById(commentId);
+        if (commentPo == null || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
+            throw new CustomException("评论不存在");
+        }
+
+        VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
+        boolean canDelete = Objects.equals(commentPo.getUserId(), currentUserId)
+                || (videoPo != null && Objects.equals(videoPo.getUserId(), currentUserId));
+        if (!canDelete) {
+            throw new CustomException("无权限删除该评论");
+        }
+
+        doDeleteComment(commentPo);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void topComment(CommentTopRequest request) {
+        Long currentUserId = UserHolderUtil.getUser().getUserId();
+        if (request == null || request.getCommentId() == null) {
+            throw new CustomException("评论ID不能为空");
+        }
+
+        CommentPo commentPo = commentMapper.selectById(request.getCommentId());
+        if (commentPo == null || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
+            throw new CustomException("评论不存在");
+        }
+        if (!Objects.equals(commentPo.getRootId(), 0L)) {
+            throw new CustomException("仅支持置顶主评论");
+        }
+
+        VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
+        if (videoPo == null || !Objects.equals(videoPo.getUserId(), currentUserId)) {
+            throw new CustomException("只有视频作者可以置顶评论");
+        }
+
+        Integer operation = Optional.ofNullable(request.getOperation()).orElse(1);
+        if (Objects.equals(operation, 1)) {
+            commentMapper.clearTopByVideoId(commentPo.getVideoId());
+            commentMapper.updateTopById(commentPo.getId(), 1);
+            return;
+        }
+        commentMapper.updateTopById(commentPo.getId(), 0);
     }
 
     /**
@@ -422,13 +513,16 @@ public class InteractServiceImpl implements InteractService {
         if (Objects.equals(fromUserId, toUserId)) {
             throw new CustomException("不能给自己发送私信");
         }
+        UserPo senderUser = userMapper.selectById(fromUserId);
         UserPo targetUser = userMapper.selectById(toUserId);
+        if (senderUser == null) {
+            throw new CustomException("发送方用户不存在");
+        }
         if (targetUser == null) {
             throw new CustomException("接收方用户不存在");
         }
-        if (hasMutualBlock(fromUserId, toUserId)) {
-            throw new CustomException("由于隐私设置，无法发送私信");
-        }
+        PrivateMessageFailReasonEnum failReason = resolvePrivateMessageFailReason(fromUserId, toUserId, senderUser, targetUser);
+        boolean failed = !Objects.equals(failReason, PrivateMessageFailReasonEnum.NONE);
 
         // 1) 落库（生成 serverMsgId）——MySQL 兜底：无论在线/离线都先写入历史
         PrivateMessagePo po = PrivateMessagePo.builder()
@@ -436,7 +530,8 @@ public class InteractServiceImpl implements InteractService {
                 .toUserId(toUserId)
                 .clientMsgId(request.getClientMsgId())
                 .content(content)
-                .status(PrivateMessageStatusEnum.SAVED.getCode())
+                .status(failed ? PrivateMessageStatusEnum.FAIL.getCode() : PrivateMessageStatusEnum.SAVED.getCode())
+                .failReason(failReason.getCode())
                 .build();
         try {
             privateMessageMapper.insert(po);
@@ -447,19 +542,34 @@ public class InteractServiceImpl implements InteractService {
                     .eq(PrivateMessagePo::getClientMsgId, request.getClientMsgId())
                     .last("limit 1"));
             if (existed != null) {
-                po = existed;
+                broadcastToUser(fromUserId, WsEnvelope.builder()
+                        .type("chat_send_ack")
+                        .data(buildSendAckPayload(request.getClientMsgId(), existed.getId(), toUserId, existed.getStatus(), existed.getFailReason()))
+                        .build());
+                return;
             } else {
                 throw e;
             }
         }
 
         Long serverMsgId = po.getId();
+        if (failed) {
+            broadcastToUser(fromUserId, WsEnvelope.builder()
+                    .type("chat_send_ack")
+                    .data(buildSendAckPayload(request.getClientMsgId(), serverMsgId, toUserId, po.getStatus(), po.getFailReason()))
+                    .build());
+            return;
+        }
+
         PrivateChatMessage chatMsg = PrivateChatMessage.builder()
                 .serverMsgId(serverMsgId)
                 .clientMsgId(request.getClientMsgId())
                 .fromUserId(fromUserId)
                 .toUserId(toUserId)
                 .content(content)
+                .status(PrivateMessageStatusEnum.SAVED.getCode())
+                .failReason(PrivateMessageFailReasonEnum.NONE.getCode())
+                .failReasonText(PrivateMessageFailReasonEnum.NONE.getMessage())
                 .sendTime(LocalDateTime.now())
                 .build();
 
@@ -496,8 +606,50 @@ public class InteractServiceImpl implements InteractService {
         // 4) 给发送方推送发送回执（包含是否实时投递成功）
         broadcastToUser(fromUserId, WsEnvelope.builder()
                 .type("chat_send_ack")
-                .data(new SendAckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered))
+                .data(buildSendAckPayload(request.getClientMsgId(), serverMsgId, toUserId, delivered ? PrivateMessageStatusEnum.DELIVERED.getCode() : PrivateMessageStatusEnum.SAVED.getCode(), PrivateMessageFailReasonEnum.NONE.getCode()))
                 .build());
+    }
+
+    private PrivateMessageFailReasonEnum resolvePrivateMessageFailReason(Long fromUserId, Long toUserId, UserPo senderUser, UserPo targetUser) {
+        if (Objects.equals(senderUser.getStatus(), UserStatusEnum.BANNED.getCode())) {
+            return PrivateMessageFailReasonEnum.SENDER_BANNED;
+        }
+        if (Objects.equals(targetUser.getStatus(), UserStatusEnum.BANNED.getCode())) {
+            return PrivateMessageFailReasonEnum.RECEIVER_BANNED;
+        }
+        if (userBlockMapper.countActiveBlock(fromUserId, toUserId) > 0) {
+            return PrivateMessageFailReasonEnum.SENDER_BLOCKED_RECEIVER;
+        }
+        if (userBlockMapper.countActiveBlock(toUserId, fromUserId) > 0) {
+            return PrivateMessageFailReasonEnum.RECEIVER_BLOCKED_SENDER;
+        }
+        return PrivateMessageFailReasonEnum.NONE;
+    }
+
+    private SendAckPayload buildSendAckPayload(String clientMsgId, Long serverMsgId, Long toUserId, Integer status, Integer failReason) {
+        Integer safeStatus = status == null ? PrivateMessageStatusEnum.SAVED.getCode() : status;
+        Integer safeFailReason = failReason == null ? PrivateMessageFailReasonEnum.NONE.getCode() : failReason;
+        return SendAckPayload.builder()
+                .clientMsgId(clientMsgId)
+                .serverMsgId(serverMsgId)
+                .toUserId(toUserId)
+                .delivered(Objects.equals(safeStatus, PrivateMessageStatusEnum.DELIVERED.getCode())
+                        || Objects.equals(safeStatus, PrivateMessageStatusEnum.ACKED.getCode())
+                        || Objects.equals(safeStatus, PrivateMessageStatusEnum.READ.getCode()))
+                .status(safeStatus)
+                .failReason(safeFailReason)
+                .failReasonText(getPrivateMessageFailReasonText(safeFailReason))
+                .build();
+    }
+
+    private String getPrivateMessageFailReasonText(Integer code) {
+        int safeCode = code == null ? PrivateMessageFailReasonEnum.NONE.getCode() : code;
+        for (PrivateMessageFailReasonEnum reason : PrivateMessageFailReasonEnum.values()) {
+            if (reason.getCode() == safeCode) {
+                return reason.getMessage();
+            }
+        }
+        return PrivateMessageFailReasonEnum.SYSTEM_ERROR.getMessage();
     }
 
     private boolean broadcastToUser(Long userId, WsEnvelope<?> envelope) {
@@ -631,52 +783,49 @@ public class InteractServiceImpl implements InteractService {
 
     @Override
     public List<PrivateMessageVo> queryChatHistory(Long myId, Long withUserId, Long beforeId, Integer pageSize) {
-        if (hasMutualBlock(myId, withUserId)) {
-            throw new CustomException("由于隐私设置，无法查看私信");
-        }
         int size = pageSize == null ? 20 : Math.min(Math.max(pageSize, 1), 100);
-        return privateMessageMapper.queryHistory(myId, withUserId, beforeId, size);
+        List<PrivateMessageVo> history = privateMessageMapper.queryHistory(myId, withUserId, beforeId, size);
+        if (CollectionUtils.isNotEmpty(history)) {
+            history.forEach(item -> item.setFailReasonText(getPrivateMessageFailReasonText(item.getFailReason())));
+        }
+        return history;
     }
 
     @Override
     public List<ChatSessionVo> queryChatSessions(Long myId) {
-        List<ChatSessionVo> sessions = privateMessageMapper.querySessions(myId, PrivateMessageStatusEnum.READ.getCode());
+        List<ChatSessionVo> sessions = privateMessageMapper.querySessions(
+                myId,
+                PrivateMessageStatusEnum.READ.getCode(),
+                PrivateMessageStatusEnum.FAIL.getCode());
         if (sessions == null || sessions.isEmpty()) {
             return sessions;
         }
-        List<ChatSessionVo> visibleSessions = sessions.stream()
-                .filter(item -> !hasMutualBlock(myId, item.getWithUserId()))
-                .collect(Collectors.toList());
-        if (visibleSessions.isEmpty()) {
-            return visibleSessions;
-        }
 
-        Map<Long, UserPo> userMap = queryUserMap(visibleSessions.stream()
+        Map<Long, UserPo> userMap = queryUserMap(sessions.stream()
                 .map(ChatSessionVo::getWithUserId)
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList()));
-        visibleSessions.forEach(item -> {
+        sessions.forEach(item -> {
             UserPo userPo = userMap.get(item.getWithUserId());
             if (userPo != null) {
                 item.setWithUsername(userPo.getUsername());
                 item.setWithAvatarUrl(userPo.getAvatarUrl());
+                item.setWithUserBanned(Objects.equals(userPo.getStatus(), UserStatusEnum.BANNED.getCode()));
             }
+            item.setWithUserBlack(hasMutualBlock(myId, item.getWithUserId()));
         });
-        return visibleSessions;
+        return sessions;
     }
 
     @Override
     public Long queryTotalUnread(Long myId) {
-        return privateMessageMapper.queryTotalUnread(myId, PrivateMessageStatusEnum.READ.getCode());
+        return privateMessageMapper.queryTotalUnread(myId, PrivateMessageStatusEnum.READ.getCode(), PrivateMessageStatusEnum.FAIL.getCode());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int markChatRead(Long myId, Long withUserId, Long upToMsgId) {
-        if (hasMutualBlock(myId, withUserId)) {
-            throw new CustomException("由于隐私设置，无法操作私信");
-        }
         int rows = privateMessageMapper.markRead(
                 myId,
                 withUserId,
@@ -1808,13 +1957,15 @@ public class InteractServiceImpl implements InteractService {
                 .eq(CommentPo::getRootId, 0L)
                 .eq(CommentPo::getIsDeleted, NOT_DELETED);
         if (request.getLastCreateTime() != null && request.getLastCommentId() != null) {
+            queryWrapper.eq(CommentPo::getIsTop, 0);
             queryWrapper.and(wrapper -> wrapper
                     .lt(CommentPo::getCreateTime, request.getLastCreateTime())
                     .or(inner -> inner
                             .eq(CommentPo::getCreateTime, request.getLastCreateTime())
                             .lt(CommentPo::getId, request.getLastCommentId())));
         }
-        queryWrapper.orderByDesc(CommentPo::getCreateTime)
+        queryWrapper.orderByDesc(CommentPo::getIsTop)
+                .orderByDesc(CommentPo::getCreateTime)
                 .orderByDesc(CommentPo::getId)
                 .last("LIMIT " + (pageSize + 1));
 
@@ -1836,11 +1987,21 @@ public class InteractServiceImpl implements InteractService {
         }
 
         Long myId = getCurrentUserIdOrNull();
+        if (CollectionUtils.isEmpty(filterBlockedComments(Collections.singletonList(rootComment), myId))) {
+            return PageVo.<CommentVo>builder()
+                    .total(0L)
+                    .pageNum(safePageNum)
+                    .pageSize(safePageSize)
+                    .isEnd(true)
+                    .records(Collections.emptyList())
+                    .build();
+        }
         List<CommentPo> replyComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
                 .eq(CommentPo::getRootId, rootCommentId)
                 .eq(CommentPo::getIsDeleted, NOT_DELETED)
                 .orderByAsc(CommentPo::getCreateTime)
                 .orderByAsc(CommentPo::getId));
+        replyComments = filterBlockedComments(replyComments, myId);
 
         if (CollectionUtils.isEmpty(replyComments)) {
             return PageVo.<CommentVo>builder()
@@ -1983,6 +2144,10 @@ public class InteractServiceImpl implements InteractService {
             throw new CustomException("无权限删除该评论");
         }
 
+        doDeleteComment(commentPo);
+    }
+
+    private void doDeleteComment(CommentPo commentPo) {
         if (Objects.equals(commentPo.getRootId(), 0L)) {
             int removed = commentMapper.logicDeleteRootTree(commentPo.getId());
             if (removed > 0) {
@@ -1991,7 +2156,7 @@ public class InteractServiceImpl implements InteractService {
             return;
         }
 
-        int removed = commentMapper.logicDeleteById(commentId);
+        int removed = commentMapper.logicDeleteById(commentPo.getId());
         if (removed > 0) {
             commentStatsMapper.updateReplyCount(commentPo.getRootId(), -1);
             if (commentPo.getParentId() != null
@@ -2074,6 +2239,7 @@ public class InteractServiceImpl implements InteractService {
     }
 
     private PageVo<CommentVo> buildCommentPage(List<CommentPo> commentList, Long total, Integer pageNum, Integer pageSize, Long currentUserId) {
+        commentList = filterBlockedComments(commentList, currentUserId);
         if (CollectionUtils.isEmpty(commentList)) {
             return PageVo.<CommentVo>builder()
                     .total(total == null ? 0L : total)
@@ -2120,6 +2286,7 @@ public class InteractServiceImpl implements InteractService {
                     .replyCount(statsPo == null || statsPo.getReplyCount() == null ? 0L : statsPo.getReplyCount())
                     .hotScore(statsPo == null || statsPo.getHotScore() == null ? 10L : statsPo.getHotScore())
                     .isLike(likedCommentIdSet.contains(comment.getId()))
+                    .isTop(Objects.equals(comment.getIsTop(), 1))
                     .createTime(comment.getCreateTime())
                     .build();
         }).collect(Collectors.toList());
@@ -2148,6 +2315,7 @@ public class InteractServiceImpl implements InteractService {
                 .in(CommentPo::getRootId, rootCommentIds)
                 .in(CommentPo::getParentId, rootCommentIds)
                 .eq(CommentPo::getIsDeleted, NOT_DELETED));
+        directReplies = filterBlockedComments(directReplies, currentUserId);
         if (CollectionUtils.isEmpty(directReplies)) {
             return;
         }
@@ -2173,6 +2341,29 @@ public class InteractServiceImpl implements InteractService {
             previewMap.put(rootId, previewList);
         });
         builtRecords.forEach(item -> item.setReplyPreviewList(previewMap.getOrDefault(item.getCommentId(), Collections.emptyList())));
+    }
+
+    private List<CommentPo> filterBlockedComments(List<CommentPo> commentList, Long currentUserId) {
+        if (currentUserId == null || CollectionUtils.isEmpty(commentList)) {
+            return commentList;
+        }
+        List<Long> candidateUserIds = commentList.stream()
+                .map(CommentPo::getUserId)
+                .filter(Objects::nonNull)
+                .filter(userId -> !Objects.equals(userId, currentUserId))
+                .distinct()
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(candidateUserIds)) {
+            return commentList;
+        }
+        List<Long> blockedUserIdList = userBlockMapper.listMutualBlockedUserIds(currentUserId, candidateUserIds);
+        if (CollectionUtils.isEmpty(blockedUserIdList)) {
+            return commentList;
+        }
+        Set<Long> blockedUserIds = new HashSet<>(blockedUserIdList);
+        return commentList.stream()
+                .filter(comment -> !blockedUserIds.contains(comment.getUserId()))
+                .collect(Collectors.toList());
     }
 
     private Map<Long, CommentStatsPo> queryCommentStatsMap(List<Long> commentIds) {

@@ -149,6 +149,14 @@ public class UserServiceImpl implements UserService {
             throw new ErrorOperationException("用户不存在");
         }
 
+        if (userPo.getStatus().equals(UserStatusEnum.BANNED.getCode())) {
+            throw new ErrorOperationException("该账号已被禁用");
+        }
+
+        if (userPo.getStatus().equals(UserStatusEnum.DELETED.getCode())) {
+            throw new ErrorOperationException("该账号已被注销");
+        }
+
         // 校验密码
         if (!userPo.getPassword().equals(password)) {
             throw new ErrorParamException("账号或密码错误");
@@ -193,9 +201,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserInfoVo queryUserInfo(Long userId) {
         Long myId = UserHolderUtil.getUser().getUserId();
-        if (!Objects.equals(myId, userId) && interactService.hasMutualBlock(myId, userId)) {
-            throw new ErrorOperationException("由于隐私设置，无法查看该用户主页");
-        }
+
         // 查询用户是否存在
         UserPo userPo = userRepository.queryUserById(userId);
         if (Objects.isNull(userPo)) {
@@ -206,8 +212,7 @@ public class UserServiceImpl implements UserService {
         // 判断用户状态
         Integer status = userPo.getStatus();
         if (status.equals(UserStatusEnum.DELETED.getCode())) {
-            log.warn("用户已删除，用户ID：{}", userId);
-            throw new ErrorOperationException("用户已删除");
+            throw new ErrorOperationException("该用户已注销");
         }
         UserInfoVo userInfoVo = UserInfoVo.builder()
                 .userId(userPo.getId())
@@ -224,11 +229,11 @@ public class UserServiceImpl implements UserService {
 
         // 查询各种数量
         UserStatsPo userStatsPo = userRepository.queryUserStatsById(userId);
-        userInfoVo.setVideoNum(userStatsPo.getVideoNum());
-        userInfoVo.setFansNum(userStatsPo.getFansNum());
-        userInfoVo.setFollowNum(userStatsPo.getFollowNum());
-        userInfoVo.setLikeNum(userStatsPo.getLikeNum());
-        userInfoVo.setPlayNum(userStatsPo.getPlayNum());
+        userInfoVo.setVideoNum(userStatsPo == null ? 0L : userStatsPo.getVideoNum());
+        userInfoVo.setFansNum(userStatsPo == null ? 0L : userStatsPo.getFansNum());
+        userInfoVo.setFollowNum(userStatsPo == null ? 0L : userStatsPo.getFollowNum());
+        userInfoVo.setLikeNum(userStatsPo == null ? 0L : userStatsPo.getLikeNum());
+        userInfoVo.setPlayNum(userStatsPo == null ? 0L : userStatsPo.getPlayNum());
 
         // 设置黑名单
         userInfoVo.setIsBlack(interactService.hasMutualBlock(myId, userId));

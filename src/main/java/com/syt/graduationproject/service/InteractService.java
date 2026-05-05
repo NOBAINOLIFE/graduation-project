@@ -10,6 +10,7 @@ import com.syt.graduationproject.model.request.CollectionDirectoryUpdateRequest;
 import com.syt.graduationproject.model.request.CoinVideoRequest;
 import com.syt.graduationproject.model.request.CommentListRequest;
 import com.syt.graduationproject.model.request.CommentRequest;
+import com.syt.graduationproject.model.request.CommentTopRequest;
 import com.syt.graduationproject.model.request.CreatorCommentQueryRequest;
 import com.syt.graduationproject.model.request.FollowRequest;
 import com.syt.graduationproject.model.request.LikeRequest;
@@ -36,6 +37,8 @@ public interface InteractService {
     @Transactional(rollbackFor = Exception.class)
     void blockUser(BlockUserRequest request);
 
+    List<UserSimpleInfoVo> queryMyBlockList();
+
     boolean hasMutualBlock(Long userA, Long userB);
 
     /**
@@ -43,6 +46,12 @@ public interface InteractService {
      */
     @Transactional(rollbackFor = Exception.class)
     void comment(CommentRequest request);
+
+    @Transactional(rollbackFor = Exception.class)
+    void deleteComment(Long commentId);
+
+    @Transactional(rollbackFor = Exception.class)
+    void topComment(CommentTopRequest request);
 
     /**
      * 点赞/取消点赞视频

@@ -58,6 +58,12 @@ public class PrivateMessagePo {
     private Integer status;
 
     /**
+     * 失败原因：见 PrivateMessageFailReasonEnum，未失败为 0。
+     */
+    @TableField("fail_reason")
+    private Integer failReason;
+
+    /**
      * 投递时间（服务端向对方在线会话发送成功的时间）
      */
     @TableField("delivered_time")

@@ -146,3 +146,16 @@ export function listFollowUsers(targetUserId = null) {
   });
 }
 
+export function listBlockedUsers() {
+  return request('/graduation-project/interact/block/list', {
+    method: 'GET'
+  });
+}
+
+export function blockUser(payload) {
+  return request('/graduation-project/interact/block', {
+    method: 'POST',
+    json: payload
+  });
+}
+

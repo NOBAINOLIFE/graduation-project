@@ -29,6 +29,12 @@ public class PrivateChatMessage {
 
     private String content;
 
+    private Integer status;
+
+    private Integer failReason;
+
+    private String failReasonText;
+
     private LocalDateTime sendTime;
 }
 

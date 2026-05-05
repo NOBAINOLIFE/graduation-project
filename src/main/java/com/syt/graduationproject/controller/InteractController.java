@@ -141,6 +141,22 @@ public class InteractController {
     }
 
     /**
+     * 查询当前用户黑名单
+     */
+    @GetMapping("/block/list")
+    public Response<List<UserSimpleInfoVo>> blockList() {
+        try {
+            return Response.success(interactService.queryMyBlockList());
+        } catch (CustomException e) {
+            log.warn("查询黑名单失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询黑名单失败", e);
+            return Response.fail("查询黑名单失败，系统异常");
+        }
+    }
+
+    /**
      * 点赞/取消点赞视频
      */
     @PostMapping("/likeVideo")
@@ -171,6 +187,40 @@ public class InteractController {
         } catch (Exception e) {
             log.error("用户评论失败，commentRequest：{}", request, e);
             return Response.fail("评论失败，系统异常");
+        }
+    }
+
+    /**
+     * 删除自己的评论
+     */
+    @PostMapping("/comment/delete/{commentId}")
+    public Response<Object> deleteComment(@PathVariable Long commentId) {
+        try {
+            interactService.deleteComment(commentId);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("删除评论失败，commentId：{}，原因：{}", commentId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("删除评论失败，commentId：{}", commentId, e);
+            return Response.fail("删除评论失败，系统异常");
+        }
+    }
+
+    /**
+     * 置顶/取消置顶自己的主评论
+     */
+    @PostMapping("/comment/top")
+    public Response<Object> topComment(@RequestBody CommentTopRequest request) {
+        try {
+            interactService.topComment(request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("置顶评论失败，request：{}，原因：{}", request, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("置顶评论失败，request：{}", request, e);
+            return Response.fail("置顶评论失败，系统异常");
         }
     }
 

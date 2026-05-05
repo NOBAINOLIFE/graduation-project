@@ -61,7 +61,11 @@
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between gap-3">
-                  <p class="truncate text-sm font-semibold text-[#18191c]">{{ getSessionName(session) }}</p>
+                  <div class="flex min-w-0 items-center gap-2">
+                    <p class="truncate text-sm font-semibold text-[#18191c]">{{ getSessionName(session) }}</p>
+                    <span v-if="session.withUserBanned" class="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-500">封禁</span>
+                    <span v-if="session.withUserBlack" class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">黑名单</span>
+                  </div>
                   <span class="shrink-0 text-xs text-[#a0a7b1]">{{ formatSessionTime(session.lastTime) }}</span>
                 </div>
                 <p class="mt-1 truncate text-sm" :class="session.unreadCount > 0 ? 'text-[#18191c]' : 'text-[#7c8794]'">
@@ -93,8 +97,12 @@
                 <span v-else>{{ getUserInitial(getSessionName(activeSession)) }}</span>
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-lg font-semibold text-[#18191c]">{{ getSessionName(activeSession) }}</p>
-                <p class="mt-1 text-sm text-[#8b95a1]">与 {{ getSessionName(activeSession) }} 的私聊会话</p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="truncate text-lg font-semibold text-[#18191c]">{{ getSessionName(activeSession) }}</p>
+                  <span v-if="activeSession.withUserBanned" class="rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-500">已封禁</span>
+                  <span v-if="activeSession.withUserBlack" class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">黑名单</span>
+                </div>
+                <p class="mt-1 text-sm text-[#8b95a1]">{{ activeSessionStatusText }}</p>
               </div>
               <button
                 class="rounded-full border border-[#dfe5ec] px-4 py-2 text-sm text-[#61666d] transition-colors hover:border-[#00a1d6] hover:text-[#00a1d6]"
@@ -125,6 +133,10 @@
                 <p class="mt-2 text-sm text-[#9499a0]">发送第一条消息，开启这段对话。</p>
               </div>
 
+              <div v-if="activeSessionRestricted" class="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+                {{ activeSessionRestrictionText }}
+              </div>
+
               <article
                 v-for="message in messageList"
                 :key="getMessageKey(message)"
@@ -137,10 +149,22 @@
                 >
                   <div
                     v-if="message.textContent"
-                    class="inline-block max-w-full whitespace-pre-wrap break-words rounded-3xl px-4 py-3 text-sm leading-7 shadow-sm"
-                    :class="isOwnMessage(message) ? 'bg-[#00a1d6] text-white' : 'border border-[#ebf0f4] bg-white text-[#18191c]'"
+                    class="flex max-w-full items-center gap-2"
+                    :class="isOwnMessage(message) ? 'justify-end' : 'justify-start'"
                   >
-                    {{ message.textContent }}
+                    <span
+                      v-if="isOwnMessage(message) && isFailedMessage(message)"
+                      class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xs font-bold leading-none text-white"
+                      :title="getMessageFailReasonText(message)"
+                    >
+                      !
+                    </span>
+                    <div
+                      class="inline-block max-w-full whitespace-pre-wrap break-words rounded-3xl px-4 py-3 text-sm leading-7 shadow-sm"
+                      :class="isOwnMessage(message) ? 'bg-[#00a1d6] text-white' : 'border border-[#ebf0f4] bg-white text-[#18191c]'"
+                    >
+                      {{ message.textContent }}
+                    </div>
                   </div>
                   <button
                     v-if="message.shareVideoId"
@@ -199,7 +223,7 @@
                 ></textarea>
                 <div class="mt-3 flex items-center justify-between px-2 pb-1">
                   <p class="text-xs text-[#9aa4af]">
-                    {{ wsConnected ? '消息实时同步中' : '连接异常，发送前请等待重连' }}
+                    {{ activeSessionRestricted ? activeSessionRestrictionText : (wsConnected ? '消息实时同步中' : '连接异常，发送前请等待重连') }}
                   </p>
                   <button
                     class="rounded-full bg-[#00a1d6] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0093c7] disabled:cursor-not-allowed disabled:bg-[#b7d8e5]"
@@ -243,7 +267,16 @@ import { emitChatUnreadChange } from '../../utils/chat';
 
 const CHAT_PAGE_SIZE = 20;
 const STATUS_SENDING = -1;
+const STATUS_FAIL = 3;
 const VIDEO_LINK_PATTERN = /(https?:\/\/[^\s]+|\/video\/\d+[^\s]*)/ig;
+const FAIL_REASON_TEXT_MAP = {
+  0: '',
+  1: '系统异常',
+  2: '你已被封禁',
+  3: '对方已被封禁',
+  4: '你已拉黑对方',
+  5: '对方已拉黑你'
+};
 
 const route = useRoute();
 const router = useRouter();
@@ -278,6 +311,21 @@ const activeSession = computed(() => {
     return null;
   }
   return sessionList.value.find(item => item.withUserId === selectedUserId.value) || null;
+});
+const activeSessionRestricted = computed(() => {
+  return Boolean(activeSession.value?.withUserBanned) || Boolean(activeSession.value?.withUserBlack);
+});
+const activeSessionRestrictionText = computed(() => {
+  if (activeSession.value?.withUserBanned) {
+    return '对方账号已被封禁，消息会记录为发送失败。';
+  }
+  if (activeSession.value?.withUserBlack) {
+    return '当前存在黑名单关系，消息会记录为发送失败且不会投递给对方。';
+  }
+  return '';
+});
+const activeSessionStatusText = computed(() => {
+  return activeSessionRestrictionText.value || `与 ${getSessionName(activeSession.value)} 的私聊会话`;
 });
 
 function parseUserId(rawValue) {
@@ -425,10 +473,18 @@ function getMessageStatusText(message) {
   if (message.status === 1) {
     return '已送达';
   }
-  if (message.status === 3) {
-    return '发送失败';
+  if (isFailedMessage(message)) {
+    return getMessageFailReasonText(message) || '发送失败';
   }
   return '已发送';
+}
+
+function isFailedMessage(message) {
+  return Number(message?.status) === STATUS_FAIL;
+}
+
+function getMessageFailReasonText(message) {
+  return message?.failReasonText || FAIL_REASON_TEXT_MAP[Number(message?.failReason || 0)] || '发送失败';
 }
 
 function computeUnreadTotal() {
@@ -497,13 +553,15 @@ function updateSession(withUserId, patch = {}) {
   const nextList = [...sessionList.value];
   const index = nextList.findIndex(item => item.withUserId === withUserId);
   if (index === -1) {
-    nextList.push({
-      withUserId,
-      withUsername: patch.withUsername || '',
-      withAvatarUrl: patch.withAvatarUrl || '',
-      lastMsgId: patch.lastMsgId || null,
-      lastContent: patch.lastContent || '',
-      lastTime: patch.lastTime || null,
+      nextList.push({
+        withUserId,
+        withUsername: patch.withUsername || '',
+        withAvatarUrl: patch.withAvatarUrl || '',
+        withUserBanned: Boolean(patch.withUserBanned),
+        withUserBlack: Boolean(patch.withUserBlack),
+        lastMsgId: patch.lastMsgId || null,
+        lastContent: patch.lastContent || '',
+        lastTime: patch.lastTime || null,
       unreadCount: Number(patch.unreadCount || 0)
     });
   } else {
@@ -534,7 +592,9 @@ async function ensureUserSummary(userId) {
       const summary = info ? {
         userId: info.userId,
         username: info.username,
-        avatarUrl: info.avatarUrl
+        avatarUrl: info.avatarUrl,
+        isBanned: Boolean(info.isBanned),
+        isBlack: Boolean(info.isBlack)
       } : null;
       if (summary) {
         userSummaryCache.set(userId, summary);
@@ -558,6 +618,8 @@ async function hydrateSessionUsers(sessions) {
       }
       item.withUsername = item.withUsername || summary.username;
       item.withAvatarUrl = item.withAvatarUrl || summary.avatarUrl;
+      item.withUserBanned = item.withUserBanned || summary.isBanned;
+      item.withUserBlack = item.withUserBlack || summary.isBlack;
     });
   await Promise.all(tasks);
 }
@@ -605,7 +667,9 @@ async function ensureConversationEntry(withUserId) {
       if (summary) {
         session = updateSession(withUserId, {
           withUsername: session.withUsername || summary.username,
-          withAvatarUrl: session.withAvatarUrl || summary.avatarUrl
+          withAvatarUrl: session.withAvatarUrl || summary.avatarUrl,
+          withUserBanned: session.withUserBanned || summary.isBanned,
+          withUserBlack: session.withUserBlack || summary.isBlack
         });
       }
     }
@@ -619,6 +683,8 @@ async function ensureConversationEntry(withUserId) {
   return updateSession(withUserId, {
     withUsername: summary.username,
     withAvatarUrl: summary.avatarUrl,
+    withUserBanned: summary.isBanned,
+    withUserBlack: summary.isBlack,
     unreadCount: 0,
     lastContent: '',
     lastTime: null,
@@ -632,7 +698,9 @@ function normalizeHistoryMessage(item) {
     serverMsgId: item.id,
     clientMsgId: item.clientMsgId || null,
     createTime: item.createTime,
-    sendTime: item.createTime
+    sendTime: item.createTime,
+    failReason: item.failReason || 0,
+    failReasonText: item.failReasonText || ''
   });
 }
 
@@ -644,7 +712,9 @@ function normalizeSocketMessage(payload) {
     fromUserId: payload.fromUserId,
     toUserId: payload.toUserId,
     content: payload.content,
-    status: 1,
+    status: payload.status == null ? 1 : payload.status,
+    failReason: payload.failReason || 0,
+    failReasonText: payload.failReasonText || '',
     createTime: payload.sendTime,
     sendTime: payload.sendTime
   });
@@ -865,7 +935,9 @@ async function handleSendMessage() {
       if (item.clientMsgId === clientMsgId) {
         return {
           ...item,
-          status: 3
+          status: STATUS_FAIL,
+          failReason: 1,
+          failReasonText: FAIL_REASON_TEXT_MAP[1]
         };
       }
       return item;
@@ -891,13 +963,16 @@ function applySendAck(payload) {
         ...item,
         id: payload.serverMsgId || item.id,
         serverMsgId: payload.serverMsgId || item.serverMsgId,
-        status: payload.delivered ? 1 : 0
+        status: payload.status == null ? (payload.delivered ? 1 : 0) : payload.status,
+        failReason: payload.failReason || 0,
+        failReasonText: payload.failReasonText || ''
       };
     }
     return item;
   });
   updateSession(payload.toUserId, {
-    lastMsgId: payload.serverMsgId || null
+    lastMsgId: payload.serverMsgId || null,
+    lastTime: new Date().toISOString()
   });
 }
 

@@ -7,13 +7,15 @@
     <!-- 历史消息（游标分页：beforeId 为空表示取最新） -->
     <select id="queryHistory" resultType="com.syt.graduationproject.model.vo.PrivateMessageVo">
         select
-          id, from_user_id as fromUserId, to_user_id as toUserId, content, status, create_time as createTime,
+          id, from_user_id as fromUserId, to_user_id as toUserId, content, status,
+          ifnull(fail_reason, 0) as failReason,
+          create_time as createTime,
           delivered_time as deliveredTime, acked_time as ackedTime, read_time as readTime
         from tb_private_message
         where
          (from_user_id = #{myId} and to_user_id = #{withUserId})
           or
-         (from_user_id = #{withUserId} and to_user_id = #{myId})
+         (from_user_id = #{withUserId} and to_user_id = #{myId} and status &lt;&gt; 3)
         <if test="beforeId != null">
           and id &lt; #{beforeId}
         </if>
@@ -34,14 +36,14 @@
             case when from_user_id = #{myId} then to_user_id else from_user_id end as withUserId,
             max(id) as lastMsgId
           from tb_private_message
-          where from_user_id = #{myId} or to_user_id = #{myId}
+          where from_user_id = #{myId} or (to_user_id = #{myId} and status &lt;&gt; #{failStatus})
           group by case when from_user_id = #{myId} then to_user_id else from_user_id end
         ) t
         join tb_private_message m on m.id = t.lastMsgId
         left join (
           select from_user_id as withUserId, count(1) as unreadCount
           from tb_private_message
-          where to_user_id = #{myId} and (status &lt;&gt; #{readStatus})
+          where to_user_id = #{myId} and status &lt;&gt; #{readStatus} and status &lt;&gt; #{failStatus}
           group by from_user_id
         ) u on u.withUserId = t.withUserId
         order by t.lastMsgId desc
@@ -57,6 +59,7 @@
             update_time = #{readTime}
         where from_user_id = #{withUserId}
           and to_user_id = #{myId}
+          and status &lt;&gt; 3
         <if test="upToMsgId != null">
           and id &lt;= #{upToMsgId}
         </if>
@@ -76,6 +79,7 @@
           <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id}
           </foreach>
+          and status &lt;&gt; 3
     </update>
 
     <!-- 按消息ID批量标记已投递。

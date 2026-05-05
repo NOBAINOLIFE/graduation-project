@@ -71,6 +71,12 @@ public class CommentPo {
     private Integer isDeleted;
 
     /**
+     * 是否置顶：1-置顶，0-未置顶
+     */
+    @TableField(value = "is_top")
+    private Integer isTop;
+
+    /**
      * 创建时间
      */
     @TableField(value = "create_time")

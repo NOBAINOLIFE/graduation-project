@@ -13,6 +13,8 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
+import com.syt.graduationproject.model.request.ManagerUserListRequest;
+import com.syt.graduationproject.model.vo.ManagerUserVo;
 import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.CommentReportInfoVo;
@@ -189,6 +191,80 @@ public class ManagerServiceImpl implements ManagerService {
 				.pageSize(pageSize)
 				.records(records)
 				.build();
+	}
+
+	@Override
+	public PageVo<ManagerUserVo> queryUserList(ManagerUserListRequest request) {
+		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
+		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
+		String keyword = request == null ? null : StringUtils.trimToNull(request.getKeyword());
+		Integer status = request == null ? null : request.getStatus();
+		boolean queryAllStatus = status == null || status < 0;
+
+		Page<UserPo> page = new Page<>(pageNum, pageSize);
+		Page<UserPo> result = userMapper.selectPage(page, new LambdaQueryWrapper<UserPo>()
+				.like(StringUtils.isNotBlank(keyword), UserPo::getUsername, keyword)
+				.eq(!queryAllStatus, UserPo::getStatus, status)
+				.ne(queryAllStatus, UserPo::getStatus, UserStatusEnum.DELETED.getCode())
+				.orderByDesc(UserPo::getCreateTime)
+				.orderByDesc(UserPo::getId));
+
+		List<UserPo> users = result.getRecords();
+		if (CollectionUtils.isEmpty(users)) {
+			return PageVo.<ManagerUserVo>builder()
+					.total(result.getTotal())
+					.pageNum(pageNum)
+					.pageSize(pageSize)
+					.records(Collections.emptyList())
+					.build();
+		}
+
+		Set<Long> userIds = users.stream()
+				.map(UserPo::getId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, UserStatsPo> userStatsMap = queryUserStatsMap(userIds);
+		List<ManagerUserVo> records = users.stream()
+				.map(userPo -> buildManagerUserVo(userPo, userStatsMap.get(userPo.getId())))
+				.collect(Collectors.toList());
+
+		return PageVo.<ManagerUserVo>builder()
+				.total(result.getTotal())
+				.pageNum(pageNum)
+				.pageSize(pageSize)
+				.records(records)
+				.build();
+	}
+
+	private ManagerUserVo buildManagerUserVo(UserPo userPo, UserStatsPo statsPo) {
+		return ManagerUserVo.builder()
+				.userId(userPo.getId())
+				.account(userPo.getAccount())
+				.username(userPo.getUsername())
+				.avatarUrl(userPo.getAvatarUrl())
+				.bio(userPo.getBio())
+				.status(userPo.getStatus())
+				.statusText(userStatusText(userPo.getStatus()))
+				.videoNum(statsPo == null ? 0L : defaultLong(statsPo.getVideoNum()))
+				.fansNum(statsPo == null ? 0L : defaultLong(statsPo.getFansNum()))
+				.followNum(statsPo == null ? 0L : defaultLong(statsPo.getFollowNum()))
+				.likeNum(statsPo == null ? 0L : defaultLong(statsPo.getLikeNum()))
+				.playNum(statsPo == null ? 0L : defaultLong(statsPo.getPlayNum()))
+				.createTime(userPo.getCreateTime())
+				.updateTime(userPo.getUpdateTime())
+				.build();
+	}
+
+	private String userStatusText(Integer status) {
+		if (status == null) {
+			return "未知";
+		}
+		for (UserStatusEnum statusEnum : UserStatusEnum.values()) {
+			if (statusEnum.getCode() == status) {
+				return statusEnum.getMessage();
+			}
+		}
+		return "状态" + status;
 	}
 
 	private Map<Long, List<VideoTagVo>> queryVideoTagMap(List<Long> videoIdList) {

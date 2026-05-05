@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-[#f6f7fb] text-gray-800">
     <HeaderNav />
 
-    <main class="max-w-7xl mx-auto px-4 py-6">
+    <main class="max-w-7xl mx-auto py-6">
       <div class="flex flex-col gap-6 lg:flex-row">
         <div class="min-w-0 flex-1">
           <section class="mb-4">
@@ -82,7 +82,7 @@
 
               <button
                 class="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-200"
-                @click="handleReport"
+                @click="openVideoReportDialog"
               >
                 <el-icon :size="20"><WarnTriangleFilled /></el-icon>
                 <span>举报</span>
@@ -165,54 +165,169 @@
               <article
                 v-for="comment in comments"
                 :key="comment.commentId"
-                class="transition-colors hover:border-[#d6eef8]"
+                class="comment-item transition-colors hover:border-[#d6eef8]"
               >
-                <div class="flex gap-3">
-                  <el-avatar :size="50" :src="comment.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
+                <div class="comment-row flex gap-3">
+                  <el-avatar :size="50" :src="comment.avatarUrl" class="shrink-0 cursor-pointer bg-[#00a1d6] text-white" @click="goToCommentUserProfile(comment)">
                     {{ (comment.username || 'U').slice(0, 1) }}
                   </el-avatar>
-                  <div class="min-w-0 flex-1">
+                  <div class="comment-body min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span class="font-medium text-gray-500 text-xm">{{ comment.username || '未知用户' }}</span>
                       <span class="text-xs text-gray-400">{{ formatDate(comment.createTime) }}</span>
+                      <span v-if="comment.isTop" class="rounded-full bg-[#e6f7ff] px-2 py-0.5 text-xs font-medium text-[#00a1d6]">置顶</span>
                     </div>
                     <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
                       <template v-if="shouldShowReplyTarget(comment)">回复 <span class="text-[#00a1d6]">@{{ comment.replyUsername }}</span>：</template>{{ comment.content }}
                     </p>
-                    <div class="mt-3 flex items-center gap-4 text-sm text-gray-500">
-                      <button
-                        class="flex items-center gap-1 transition-colors hover:text-[#00a1d6]"
-                        :class="comment.isLike ? 'text-[#00a1d6]' : ''"
-                        @click="handleLikeComment(comment)"
-                      >
-                        <el-icon><CaretTop /></el-icon>
-                        <span>{{ formatCount(comment.likeCount) }}</span>
-                      </button>
-                      <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment)">
-                        回复
-                      </button>
+                    <div class="comment-action-row mt-3 flex items-center justify-between gap-3 text-sm text-gray-500">
+                      <div class="flex items-center gap-4">
+                        <button
+                          class="flex items-center gap-1 transition-colors hover:text-[#00a1d6]"
+                          :class="comment.isLike ? 'text-[#00a1d6]' : ''"
+                          @click="handleLikeComment(comment)"
+                        >
+                          <el-icon><CaretTop /></el-icon>
+                          <span>{{ formatCount(comment.likeCount) }}</span>
+                        </button>
+                        <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment)">
+                          回复
+                        </button>
+                      </div>
+                      <div class="comment-more relative">
+                        <button
+                          class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-[#f3f4f6] hover:text-[#111827]"
+                          type="button"
+                          aria-label="更多操作"
+                        >
+                          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 7a1.75 1.75 0 1 0 0-3.5A1.75 1.75 0 0 0 12 7Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
+                          </svg>
+                        </button>
+                        <div class="comment-more-panel absolute right-0 top-full z-20 w-40 pt-2">
+                          <div class="rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_16px_36px_rgba(15,23,42,0.16)]">
+                            <button
+                              v-if="canTopCommentAction(comment)"
+                              class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                              type="button"
+                              @click="handleTopComment(comment)"
+                            >
+                              {{ comment.isTop ? '取消置顶' : '设为置顶' }}
+                            </button>
+                            <button
+                              v-if="canDeleteCommentAction(comment)"
+                              class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#ef4444] transition hover:bg-[#fff1f2]"
+                              type="button"
+                              @click="handleDeleteComment(comment)"
+                            >
+                              删除
+                            </button>
+                            <button
+                              v-if="canModerateUserAction(comment)"
+                              class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                              type="button"
+                              @click="openBlockDialog(comment.userId, comment.username)"
+                            >
+                              加入黑名单
+                            </button>
+                            <button
+                              v-if="canModerateUserAction(comment)"
+                              class="mt-1 flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                              type="button"
+                              @click="openCommentReportDialog(comment)"
+                            >
+                              举报
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div
                       v-if="!isReplyExpanded(comment.commentId) && !isReplyComposerVisible(comment.commentId) && comment.replyCount > 0"
                       class="mt-4 rounded-2xl bg-[#f7fbfd] p-4"
                     >
-                      <div
-                        v-for="reply in comment.replyPreviewList || []"
-                        :key="`preview-${reply.commentId}`"
-                      >
-                        <div class="flex gap-3">
-                          <el-avatar :size="34" :src="reply.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
-                            {{ (reply.username || 'U').slice(0, 1) }}
-                          </el-avatar>
-                          <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                              <span class="text-sm font-medium text-gray-500">{{ reply.username || '未知用户' }}</span>
-                              <span class="text-xs text-gray-400">{{ formatDate(reply.createTime) }}</span>
+                      <div class="space-y-3">
+                        <div
+                          v-for="reply in comment.replyPreviewList || []"
+                          :key="`preview-${reply.commentId}`"
+                          class="comment-item"
+                        >
+                          <div class="comment-row flex gap-3">
+                            <el-avatar :size="34" :src="reply.avatarUrl" class="shrink-0 cursor-pointer bg-[#00a1d6] text-white" @click="goToCommentUserProfile(reply)">
+                              {{ (reply.username || 'U').slice(0, 1) }}
+                            </el-avatar>
+                            <div class="comment-body min-w-0 flex-1">
+                              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span class="text-sm font-medium text-gray-500">{{ reply.username || '未知用户' }}</span>
+                                <span class="text-xs text-gray-400">{{ formatDate(reply.createTime) }}</span>
+                              </div>
+                              <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
+                                <template v-if="shouldShowReplyTarget(reply)">回复 <span class="text-[#00a1d6]">@{{ reply.replyUsername }}</span>：</template>{{ reply.content }}
+                              </p>
+                              <div class="comment-action-row mt-2 flex items-center justify-between gap-3 text-sm text-gray-500">
+                                <div class="flex items-center gap-4">
+                                  <button
+                                    class="flex items-center gap-1 transition-colors hover:text-[#00a1d6]"
+                                    :class="reply.isLike ? 'text-[#00a1d6]' : ''"
+                                    @click="handleLikeComment(reply)"
+                                  >
+                                    <el-icon><CaretTop /></el-icon>
+                                    <span>{{ formatCount(reply.likeCount) }}</span>
+                                  </button>
+                                  <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment, reply)">
+                                    回复
+                                  </button>
+                                </div>
+                                <div class="comment-more relative">
+                                  <button
+                                    class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-[#f3f4f6] hover:text-[#111827]"
+                                    type="button"
+                                    aria-label="更多操作"
+                                  >
+                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M12 7a1.75 1.75 0 1 0 0-3.5A1.75 1.75 0 0 0 12 7Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
+                                    </svg>
+                                  </button>
+                                  <div class="comment-more-panel absolute right-0 top-full z-20 w-40 pt-2">
+                                    <div class="rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_16px_36px_rgba(15,23,42,0.16)]">
+                                      <button
+                                        v-if="canTopCommentAction(reply)"
+                                        class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                                        type="button"
+                                        @click="handleTopComment(reply)"
+                                      >
+                                        {{ reply.isTop ? '取消置顶' : '设为置顶' }}
+                                      </button>
+                                      <button
+                                        v-if="canDeleteCommentAction(reply)"
+                                        class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#ef4444] transition hover:bg-[#fff1f2]"
+                                        type="button"
+                                        @click="handleDeleteComment(reply)"
+                                      >
+                                        删除
+                                      </button>
+                                      <button
+                                        v-if="canModerateUserAction(reply)"
+                                        class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                                        type="button"
+                                        @click="openBlockDialog(reply.userId, reply.username)"
+                                      >
+                                        加入黑名单
+                                      </button>
+                                      <button
+                                        v-if="canModerateUserAction(reply)"
+                                        class="mt-1 flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                                        type="button"
+                                        @click="openCommentReportDialog(reply)"
+                                      >
+                                        举报
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
-                              <template v-if="shouldShowReplyTarget(reply)">回复 <span class="text-[#00a1d6]">@{{ reply.replyUsername }}</span>：</template>{{ reply.content }}
-                            </p>
                           </div>
                         </div>
                       </div>
@@ -244,12 +359,13 @@
                         <article
                           v-for="reply in replyStateMap[comment.commentId].records"
                           :key="reply.commentId"
+                          class="comment-item"
                         >
-                          <div class="flex gap-3">
-                            <el-avatar :size="34" :src="reply.avatarUrl" class="shrink-0 bg-[#00a1d6] text-white">
+                          <div class="comment-row flex gap-3">
+                            <el-avatar :size="34" :src="reply.avatarUrl" class="shrink-0 cursor-pointer bg-[#00a1d6] text-white" @click="goToCommentUserProfile(reply)">
                               {{ (reply.username || 'U').slice(0, 1) }}
                             </el-avatar>
-                            <div class="min-w-0 flex-1">
+                            <div class="comment-body min-w-0 flex-1">
                               <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <span class="text-sm font-medium text-gray-500">{{ reply.username || '未知用户' }}</span>
                                 <span class="text-xs text-gray-400">{{ formatDate(reply.createTime) }}</span>
@@ -257,18 +373,67 @@
                               <p class="mt-2 whitespace-pre-line break-words text-base leading-7 text-gray-900">
                                 <template v-if="shouldShowReplyTarget(reply)">回复 <span class="text-[#00a1d6]">@{{ reply.replyUsername }}</span>：</template>{{ reply.content }}
                               </p>
-                              <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                                <button
-                                  class="flex items-center gap-1 transition-colors hover:text-[#00a1d6]"
-                                  :class="reply.isLike ? 'text-[#00a1d6]' : ''"
-                                  @click="handleLikeComment(reply)"
-                                >
-                                  <el-icon><CaretTop /></el-icon>
-                                  <span>{{ formatCount(reply.likeCount) }}</span>
-                                </button>
-                                <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment, reply)">
-                                  回复
-                                </button>
+                              <div class="comment-action-row mt-2 flex items-center justify-between gap-3 text-sm text-gray-500">
+                                <div class="flex items-center gap-4">
+                                  <button
+                                    class="flex items-center gap-1 transition-colors hover:text-[#00a1d6]"
+                                    :class="reply.isLike ? 'text-[#00a1d6]' : ''"
+                                    @click="handleLikeComment(reply)"
+                                  >
+                                    <el-icon><CaretTop /></el-icon>
+                                    <span>{{ formatCount(reply.likeCount) }}</span>
+                                  </button>
+                                  <button class="transition-colors hover:text-[#00a1d6]" @click="handleReply(comment, reply)">
+                                    回复
+                                  </button>
+                                </div>
+                                <div class="comment-more relative">
+                                  <button
+                                    class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-[#f3f4f6] hover:text-[#111827]"
+                                    type="button"
+                                    aria-label="更多操作"
+                                  >
+                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M12 7a1.75 1.75 0 1 0 0-3.5A1.75 1.75 0 0 0 12 7Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Zm0 6.75a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z" />
+                                    </svg>
+                                  </button>
+                                  <div class="comment-more-panel absolute right-0 top-full z-20 w-40 pt-2">
+                                    <div class="rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_16px_36px_rgba(15,23,42,0.16)]">
+                                      <button
+                                        v-if="canTopCommentAction(reply)"
+                                        class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                                        type="button"
+                                        @click="handleTopComment(reply)"
+                                      >
+                                        {{ reply.isTop ? '取消置顶' : '设为置顶' }}
+                                      </button>
+                                      <button
+                                        v-if="canDeleteCommentAction(reply)"
+                                        class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#ef4444] transition hover:bg-[#fff1f2]"
+                                        type="button"
+                                        @click="handleDeleteComment(reply)"
+                                      >
+                                        删除
+                                      </button>
+                                      <button
+                                        v-if="canModerateUserAction(reply)"
+                                        class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                                        type="button"
+                                        @click="openBlockDialog(reply.userId, reply.username)"
+                                      >
+                                        加入黑名单
+                                      </button>
+                                      <button
+                                        v-if="canModerateUserAction(reply)"
+                                        class="mt-1 flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#111827] transition hover:bg-[#f8fafc]"
+                                        type="button"
+                                        @click="openCommentReportDialog(reply)"
+                                      >
+                                        举报
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -538,7 +703,7 @@
     >
       <div class="w-full max-w-3xl rounded-xl bg-white px-8 py-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
         <div class="mb-4 flex items-center justify-between">
-          <h3 class="text-xl font-semibold text-slate-900">举报视频</h3>
+          <h3 class="text-xl font-semibold text-slate-900">{{ reportDialog.title }}</h3>
           <button class="text-slate-400 transition hover:text-slate-600" @click="closeReportDialog">×</button>
         </div>
 
@@ -573,9 +738,41 @@
           <button
             class="rounded-lg bg-[#00a1d6] px-6 py-2 text-sm text-white transition hover:bg-[#00b5e5] disabled:cursor-not-allowed disabled:bg-slate-300"
             :disabled="reportDialog.submitting"
-            @click="submitReport"
+            @click="submitReportDialog"
           >
             {{ reportDialog.submitting ? '提交中...' : '提交' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="blockDialog.visible"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4"
+      @click.self="closeBlockDialog"
+    >
+      <div class="w-full max-w-[520px] rounded-[28px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
+        <div class="border-b border-[#edf2f7] px-6 py-5">
+          <h3 class="text-lg font-bold text-[#0f172a]">加入黑名单</h3>
+        </div>
+        <div class="px-6 py-6">
+          <p class="text-sm leading-7 text-[#475569]">
+            加入黑名单后，将自动解除对该用户的关注关系，并且禁止该用户与我互动或查看我的空间
+          </p>
+        </div>
+        <div class="flex items-center justify-end gap-3 border-t border-[#edf2f7] px-6 py-4">
+          <button
+            class="rounded-2xl border border-[#dbe3ec] bg-white px-5 py-2.5 text-sm font-medium text-[#475569] transition-colors hover:border-[#94a3b8] hover:text-[#1f2937]"
+            @click="closeBlockDialog"
+          >
+            取消
+          </button>
+          <button
+            class="rounded-2xl bg-[#00a1d6] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0090c0] disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="blockDialog.submitting"
+            @click="confirmBlockUser"
+          >
+            {{ blockDialog.submitting ? '处理中...' : '确认加入' }}
           </button>
         </div>
       </div>
@@ -586,7 +783,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   CaretTop,
   ChatDotRound,
@@ -602,8 +799,10 @@ import {
 import HeaderNav from './HeaderNav.vue';
 import AppVideoPlayer from './common/AppVideoPlayer.vue';
 import {
+  blockUser,
   coinVideo,
   collectVideo,
+  deleteComment,
   followUser,
   getCommentReplies,
   getVideoComments,
@@ -611,10 +810,11 @@ import {
   likeComment,
   likeVideo,
   queryVideoDirectoryRelations,
-  reportVideo,
+  submitReport as submitReportRequest,
   reportVideoProgress,
   shareVideo,
-  submitVideoComment
+  submitVideoComment,
+  topComment
 } from '../api/video';
 import {
   getUserId,
@@ -667,8 +867,17 @@ const coinDialog = reactive({
 const reportDialog = reactive({
   visible: false,
   submitting: false,
+  targetType: 2,
+  targetId: null,
+  title: '举报视频',
   reason: '',
   detail: ''
+});
+const blockDialog = reactive({
+  visible: false,
+  submitting: false,
+  targetUserId: null,
+  username: ''
 });
 
 const reportReasonOptions = [
@@ -702,7 +911,7 @@ const videoSources = computed(() => videoInfo.value.videoSourceList || []);
 const currentUsernameInitial = computed(() => (currentUsername.value || 'U').slice(0, 1));
 const isSelfVideo = computed(() => {
   const userId = getUserId();
-  return Boolean(userId && videoInfo.value.userId && userId === videoInfo.value.userId);
+  return Boolean(userId && videoInfo.value.userId && Number(userId) === Number(videoInfo.value.userId));
 });
 const collectDialogHasChanges = computed(() => {
   const current = [...collectDialog.selectedDirectoryIds].sort((a, b) => a - b);
@@ -1373,9 +1582,100 @@ async function handleReply(comment, targetReply = null) {
   await startReply(comment, targetReply);
 }
 
-function handleReport() {
+function isSelfComment(comment) {
+  const currentUserId = getUserId();
+  if (!currentUserId || !comment?.userId) {
+    return false;
+  }
+  return Number(currentUserId) === Number(comment.userId);
+}
+
+function isRootComment(comment) {
+  return Number(comment?.rootId || 0) === 0;
+}
+
+function canTopCommentAction(comment) {
+  return Boolean(comment?.commentId && isSelfVideo.value && isRootComment(comment));
+}
+
+function canDeleteCommentAction(comment) {
+  return Boolean(comment?.commentId && (isSelfVideo.value || isSelfComment(comment)));
+}
+
+function canModerateUserAction(comment) {
+  return Boolean(comment?.commentId && !isSelfComment(comment));
+}
+
+async function handleDeleteComment(comment) {
+  if (!ensureLoggedIn('登录后可删除评论')) return;
+  if (!canDeleteCommentAction(comment)) {
+    return;
+  }
+
+  if (isRootComment(comment)) {
+    try {
+      await ElMessageBox.confirm(
+        '删除评论后，评论下所有回复都会被删除,是否继续?',
+        '删除评论',
+        {
+          confirmButtonText: '继续删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      );
+    } catch {
+      return;
+    }
+  }
+
+  try {
+    await deleteComment(comment.commentId);
+    ElMessage.success('评论已删除');
+    await loadComments(false);
+  } catch (error) {
+    console.error('删除评论失败:', error);
+    ElMessage.error(error.message || '删除评论失败');
+  }
+}
+
+async function handleTopComment(comment) {
+  if (!ensureLoggedIn('登录后可置顶评论')) return;
+  if (!canTopCommentAction(comment)) {
+    return;
+  }
+
+  try {
+    await topComment({
+      commentId: comment.commentId,
+      operation: comment.isTop ? 0 : 1
+    });
+    ElMessage.success(comment.isTop ? '已取消置顶' : '已设为置顶');
+    await loadComments(false);
+  } catch (error) {
+    console.error('置顶评论失败:', error);
+    ElMessage.error(error.message || '置顶评论失败');
+  }
+}
+
+function openVideoReportDialog() {
   if (!ensureLoggedIn('登录后可举报视频')) return;
   reportDialog.visible = true;
+  reportDialog.targetType = 2;
+  reportDialog.targetId = currentVideoId.value;
+  reportDialog.title = '举报视频';
+  reportDialog.reason = '';
+  reportDialog.detail = '';
+}
+
+function openCommentReportDialog(comment) {
+  if (!ensureLoggedIn('登录后可举报评论')) return;
+  if (!comment?.commentId) {
+    return;
+  }
+  reportDialog.visible = true;
+  reportDialog.targetType = 3;
+  reportDialog.targetId = Number(comment.commentId);
+  reportDialog.title = '举报评论';
   reportDialog.reason = '';
   reportDialog.detail = '';
 }
@@ -1387,7 +1687,10 @@ function closeReportDialog() {
   reportDialog.detail = '';
 }
 
-async function submitReport() {
+async function submitReportDialog() {
+  if (!reportDialog.targetId) {
+    return;
+  }
   if (!reportDialog.reason.trim()) {
     ElMessage.warning('请选择举报原因');
     return;
@@ -1399,12 +1702,13 @@ async function submitReport() {
 
   reportDialog.submitting = true;
   try {
-    await reportVideo({
-      targetType: 2,
-      targetId: currentVideoId.value,
+    await submitReportRequest({
+      targetType: reportDialog.targetType,
+      targetId: reportDialog.targetId,
       reason: reportDialog.reason,
       detail: reportDialog.detail
     });
+    reportDialog.submitting = false;
     closeReportDialog();
     ElMessage.success('举报提交成功，我们会尽快处理');
   } catch (error) {
@@ -1415,10 +1719,66 @@ async function submitReport() {
   }
 }
 
+function openBlockDialog(targetUserId, username) {
+  if (!ensureLoggedIn('登录后可将用户加入黑名单')) return;
+  if (!targetUserId) {
+    return;
+  }
+  blockDialog.visible = true;
+  blockDialog.targetUserId = Number(targetUserId);
+  blockDialog.username = username || '';
+}
+
+function closeBlockDialog() {
+  if (blockDialog.submitting) {
+    return;
+  }
+  blockDialog.visible = false;
+  blockDialog.targetUserId = null;
+  blockDialog.username = '';
+}
+
+async function confirmBlockUser() {
+  if (!blockDialog.targetUserId) {
+    return;
+  }
+
+  blockDialog.submitting = true;
+  try {
+    await blockUser({
+      targetUserId: blockDialog.targetUserId,
+      operation: 1
+    });
+
+    if (Number(videoInfo.value.userId || 0) === Number(blockDialog.targetUserId)) {
+      const wasFollow = Boolean(videoInfo.value.isFollow);
+      videoInfo.value.isFollow = false;
+      if (wasFollow) {
+        videoInfo.value.fansCount = Math.max(0, Number(videoInfo.value.fansCount || 0) - 1);
+      }
+    }
+
+    blockDialog.submitting = false;
+    closeBlockDialog();
+    ElMessage.success('已加入黑名单');
+  } catch (error) {
+    console.error('加入黑名单失败:', error);
+    ElMessage.error(error.message || '加入黑名单失败');
+  } finally {
+    blockDialog.submitting = false;
+  }
+}
+
 function goToUserProfile() {
   if (!ensureLoggedIn('登录后可查看用户主页')) return;
   if (!videoInfo.value.userId) return;
   router.push(`/user/${videoInfo.value.userId}`);
+}
+
+function goToCommentUserProfile(user) {
+  if (!ensureLoggedIn('登录后可查看用户主页')) return;
+  if (!user?.userId) return;
+  router.push(`/user/${user.userId}`);
 }
 
 async function handlePlaybackTimeUpdate(payload) {
@@ -1650,5 +2010,33 @@ onBeforeUnmount(() => {
 
 .reply-pagination__summary {
   color: #1f2937;
+}
+
+.comment-more {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.comment-item:hover:not(:has(.comment-item:hover)) > .comment-row > .comment-body > .comment-action-row > .comment-more,
+.comment-action-row:hover > .comment-more,
+.comment-more:hover,
+.comment-more:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.comment-more-panel {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.comment-more:hover .comment-more-panel,
+.comment-more:focus-within .comment-more-panel {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>

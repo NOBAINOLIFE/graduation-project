@@ -26,6 +26,18 @@
               <span>视频审核</span>
             </button>
 
+            <!-- 用户管理 -->
+            <button
+              class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left"
+              :class="activeTab === 'userManage' ? 'bg-[#00a1d6] text-white' : 'text-gray-700 hover:bg-gray-100'"
+              @click="activeTab = 'userManage'"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 0 0-4-4h-1M9 20H4v-2a4 4 0 0 1 4-4h1m0-4a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/>
+              </svg>
+              <span>用户管理</span>
+            </button>
+
             <!-- 举报管理 -->
             <button
               class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left"
@@ -44,6 +56,7 @@
       <!-- 右侧内容区 -->
       <main class="flex-1 min-h-[calc(100vh-60px)] p-6">
         <ManagerVideoAuditTab v-if="activeTab === 'videoAudit'" />
+        <ManagerUserTab v-else-if="activeTab === 'userManage'" />
         <ManagerReportTab v-else />
       </main>
     </div>
@@ -53,6 +66,7 @@
 <script setup>
 import { ref } from 'vue';
 import ManagerReportTab from './ManagerReportTab.vue';
+import ManagerUserTab from './ManagerUserTab.vue';
 import ManagerVideoAuditTab from './ManagerVideoAuditTab.vue';
 import AdminMenu from './AdminMenu.vue';
 

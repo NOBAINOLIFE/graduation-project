@@ -26,6 +26,10 @@ public class PrivateMessageVo {
 
     private Integer status;
 
+    private Integer failReason;
+
+    private String failReasonText;
+
     private LocalDateTime createTime;
 
     private LocalDateTime deliveredTime;

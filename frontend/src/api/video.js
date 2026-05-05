@@ -73,6 +73,19 @@ export function submitVideoComment(payload) {
   });
 }
 
+export function deleteComment(commentId) {
+  return request(`/graduation-project/interact/comment/delete/${commentId}`, {
+    method: 'POST'
+  });
+}
+
+export function topComment(payload) {
+  return request('/graduation-project/interact/comment/top', {
+    method: 'POST',
+    json: payload
+  });
+}
+
 export function likeVideo(payload) {
   return request('/graduation-project/interact/likeVideo', {
     method: 'POST',
@@ -115,12 +128,21 @@ export function followUser(payload) {
   });
 }
 
-export function reportVideo(payload) {
+export function blockUser(payload) {
+  return request('/graduation-project/interact/block', {
+    method: 'POST',
+    json: payload
+  });
+}
+
+export function submitReport(payload) {
   return request('/graduation-project/interact/report', {
     method: 'POST',
     json: payload
   });
 }
+
+export const reportVideo = submitReport;
 
 export function shareVideo(videoId) {
   return request(`/graduation-project/interact/shareVideo/${videoId}`, {
