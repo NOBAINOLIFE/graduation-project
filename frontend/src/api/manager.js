@@ -21,6 +21,20 @@ export function queryUserList(payload) {
   });
 }
 
+export function queryVideoPartitionList(payload) {
+  return request('/graduation-project/manager/video/partition/list', {
+    method: 'POST',
+    json: payload
+  });
+}
+
+export function queryVideoTagList(payload) {
+  return request('/graduation-project/manager/video/tag/list', {
+    method: 'POST',
+    json: payload
+  });
+}
+
 export function queryReportList(payload) {
   return request('/graduation-project/manager/report/list', {
     method: 'POST',
@@ -56,6 +70,18 @@ export function banVideo(videoId) {
 export function unbanVideo(videoId) {
   return request(`/graduation-project/manager/video/unban/${videoId}`, {
     method: 'POST'
+  });
+}
+
+export function deleteVideoPartition(partitionId) {
+  return request(`/graduation-project/manager/video/partition/${partitionId}`, {
+    method: 'DELETE'
+  });
+}
+
+export function deleteVideoTag(tagId) {
+  return request(`/graduation-project/manager/video/tag/${tagId}`, {
+    method: 'DELETE'
   });
 }
 

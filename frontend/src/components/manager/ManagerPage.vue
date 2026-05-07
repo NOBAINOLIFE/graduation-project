@@ -49,6 +49,28 @@
               </svg>
               <span>举报管理</span>
             </button>
+
+            <button
+              class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left"
+              :class="activeTab === 'partitionManage' ? 'bg-[#00a1d6] text-white' : 'text-gray-700 hover:bg-gray-100'"
+              @click="activeTab = 'partitionManage'"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 12h12M10 17h4"/>
+              </svg>
+              <span>分区管理</span>
+            </button>
+
+            <button
+              class="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left"
+              :class="activeTab === 'tagManage' ? 'bg-[#00a1d6] text-white' : 'text-gray-700 hover:bg-gray-100'"
+              @click="activeTab = 'tagManage'"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h6l8 8-8 8-8-8V3h2z"/>
+              </svg>
+              <span>标签管理</span>
+            </button>
           </div>
         </nav>
       </aside>
@@ -57,7 +79,9 @@
       <main class="flex-1 min-h-[calc(100vh-60px)] p-6">
         <ManagerVideoAuditTab v-if="activeTab === 'videoAudit'" />
         <ManagerUserTab v-else-if="activeTab === 'userManage'" />
-        <ManagerReportTab v-else />
+        <ManagerReportTab v-else-if="activeTab === 'reportManage'" />
+        <ManagerPartitionTab v-else-if="activeTab === 'partitionManage'" />
+        <ManagerTagTab v-else />
       </main>
     </div>
   </div>
@@ -65,7 +89,9 @@
 
 <script setup>
 import { ref } from 'vue';
+import ManagerPartitionTab from './ManagerPartitionTab.vue';
 import ManagerReportTab from './ManagerReportTab.vue';
+import ManagerTagTab from './ManagerTagTab.vue';
 import ManagerUserTab from './ManagerUserTab.vue';
 import ManagerVideoAuditTab from './ManagerVideoAuditTab.vue';
 import AdminMenu from './AdminMenu.vue';

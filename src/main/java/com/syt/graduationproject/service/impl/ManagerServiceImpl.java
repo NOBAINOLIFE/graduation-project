@@ -13,8 +13,12 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
+import com.syt.graduationproject.model.request.ManagerVideoPartitionListRequest;
 import com.syt.graduationproject.model.request.ManagerUserListRequest;
+import com.syt.graduationproject.model.request.ManagerVideoTagListRequest;
+import com.syt.graduationproject.model.vo.ManagerVideoPartitionVo;
 import com.syt.graduationproject.model.vo.ManagerUserVo;
+import com.syt.graduationproject.model.vo.ManagerVideoTagVo;
 import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.CommentReportInfoVo;
@@ -236,6 +240,100 @@ public class ManagerServiceImpl implements ManagerService {
 				.build();
 	}
 
+	@Override
+	public PageVo<ManagerVideoPartitionVo> queryVideoPartitionList(ManagerVideoPartitionListRequest request) {
+		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
+		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
+		String keyword = request == null ? null : StringUtils.trimToNull(request.getKeyword());
+
+		Page<VideoPartitionPo> page = new Page<>(pageNum, pageSize);
+		Page<VideoPartitionPo> result = videoPartitionMapper.selectPage(page, new LambdaQueryWrapper<VideoPartitionPo>()
+				.like(StringUtils.isNotBlank(keyword), VideoPartitionPo::getPartitionName, keyword)
+				.orderByDesc(VideoPartitionPo::getUpdateTime)
+				.orderByDesc(VideoPartitionPo::getId));
+
+		List<VideoPartitionPo> partitionList = result.getRecords();
+		if (CollectionUtils.isEmpty(partitionList)) {
+			return PageVo.<ManagerVideoPartitionVo>builder()
+					.total(result.getTotal())
+					.pageNum(pageNum)
+					.pageSize(pageSize)
+					.records(Collections.emptyList())
+					.build();
+		}
+
+		Set<Long> partitionIdSet = partitionList.stream()
+				.map(VideoPartitionPo::getId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, Long> relatedVideoCountMap = queryPartitionVideoCountMap(partitionIdSet);
+
+		List<ManagerVideoPartitionVo> records = partitionList.stream()
+				.map(partitionPo -> ManagerVideoPartitionVo.builder()
+						.partitionId(partitionPo.getId())
+						.partitionName(partitionPo.getPartitionName())
+						.relatedVideoCount(relatedVideoCountMap.getOrDefault(partitionPo.getId(), 0L))
+						.createTime(partitionPo.getCreateTime())
+						.updateTime(partitionPo.getUpdateTime())
+						.build())
+				.collect(Collectors.toList());
+
+		return PageVo.<ManagerVideoPartitionVo>builder()
+				.total(result.getTotal())
+				.pageNum(pageNum)
+				.pageSize(pageSize)
+				.records(records)
+				.build();
+	}
+
+	@Override
+	public PageVo<ManagerVideoTagVo> queryVideoTagList(ManagerVideoTagListRequest request) {
+		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
+		int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
+		String keyword = request == null ? null : StringUtils.trimToNull(request.getKeyword());
+
+		Page<VideoTagPo> page = new Page<>(pageNum, pageSize);
+		Page<VideoTagPo> result = videoTagMapper.selectPage(page, new LambdaQueryWrapper<VideoTagPo>()
+				.like(StringUtils.isNotBlank(keyword), VideoTagPo::getTagName, keyword)
+				.orderByDesc(VideoTagPo::getHot)
+				.orderByDesc(VideoTagPo::getUpdateTime)
+				.orderByDesc(VideoTagPo::getId));
+
+		List<VideoTagPo> tagList = result.getRecords();
+		if (CollectionUtils.isEmpty(tagList)) {
+			return PageVo.<ManagerVideoTagVo>builder()
+					.total(result.getTotal())
+					.pageNum(pageNum)
+					.pageSize(pageSize)
+					.records(Collections.emptyList())
+					.build();
+		}
+
+		Set<Long> tagIdSet = tagList.stream()
+				.map(VideoTagPo::getId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toSet());
+		Map<Long, Long> relatedVideoCountMap = queryTagVideoCountMap(tagIdSet);
+
+		List<ManagerVideoTagVo> records = tagList.stream()
+				.map(tagPo -> ManagerVideoTagVo.builder()
+						.tagId(tagPo.getId())
+						.tagName(tagPo.getTagName())
+						.hot(defaultLong(tagPo.getHot()))
+						.relatedVideoCount(relatedVideoCountMap.getOrDefault(tagPo.getId(), 0L))
+						.createTime(tagPo.getCreateTime())
+						.updateTime(tagPo.getUpdateTime())
+						.build())
+				.collect(Collectors.toList());
+
+		return PageVo.<ManagerVideoTagVo>builder()
+				.total(result.getTotal())
+				.pageNum(pageNum)
+				.pageSize(pageSize)
+				.records(records)
+				.build();
+	}
+
 	private ManagerUserVo buildManagerUserVo(UserPo userPo, UserStatsPo statsPo) {
 		return ManagerUserVo.builder()
 				.userId(userPo.getId())
@@ -253,6 +351,28 @@ public class ManagerServiceImpl implements ManagerService {
 				.createTime(userPo.getCreateTime())
 				.updateTime(userPo.getUpdateTime())
 				.build();
+	}
+
+	private Map<Long, Long> queryPartitionVideoCountMap(Set<Long> partitionIdSet) {
+		if (partitionIdSet == null || partitionIdSet.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return videoMapper.selectList(new LambdaQueryWrapper<VideoPo>()
+						.in(VideoPo::getPartitionId, partitionIdSet))
+				.stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.groupingBy(VideoPo::getPartitionId, Collectors.counting()));
+	}
+
+	private Map<Long, Long> queryTagVideoCountMap(Set<Long> tagIdSet) {
+		if (tagIdSet == null || tagIdSet.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return videoTagRelMapper.selectList(new LambdaQueryWrapper<VideoTagRelPo>()
+						.in(VideoTagRelPo::getTagId, tagIdSet))
+				.stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.groupingBy(VideoTagRelPo::getTagId, Collectors.counting()));
 	}
 
 	private String userStatusText(Integer status) {
@@ -741,6 +861,55 @@ public class ManagerServiceImpl implements ManagerService {
 		int updated = videoRepository.updateVideoStatus(videoId, VideoStatusEnum.BANNED.getCode(), VideoStatusEnum.AUDITING.getCode());
 		if (updated > 0) {
 			createAuditingRecord(videoId, videoPo.getUserId());
+		}
+	}
+
+	@Override
+	@Transactional(rollbackFor = Exception.class)
+	public void deleteVideoPartition(Long partitionId) {
+		if (partitionId == null) {
+			throw new CustomException("分区ID不能为空");
+		}
+		VideoPartitionPo partitionPo = videoPartitionMapper.selectById(partitionId);
+		if (partitionPo == null) {
+			throw new CustomException("视频分区不存在");
+		}
+		Long relatedVideoCount = videoMapper.selectCount(new LambdaQueryWrapper<VideoPo>()
+				.eq(VideoPo::getPartitionId, partitionId));
+		if (relatedVideoCount != null && relatedVideoCount > 0) {
+			throw new CustomException("该分区下已有视频，不能删除");
+		}
+		videoPartitionMapper.deleteById(partitionId);
+	}
+
+	@Override
+	@Transactional(rollbackFor = Exception.class)
+	public void deleteVideoTag(Long tagId) {
+		if (tagId == null) {
+			throw new CustomException("标签ID不能为空");
+		}
+		VideoTagPo tagPo = videoTagMapper.selectById(tagId);
+		if (tagPo == null) {
+			throw new CustomException("视频标签不存在");
+		}
+
+		List<VideoTagRelPo> relList = videoTagRelMapper.selectList(new LambdaQueryWrapper<VideoTagRelPo>()
+				.eq(VideoTagRelPo::getTagId, tagId));
+		List<Long> affectedVideoIdList = relList.stream()
+				.map(VideoTagRelPo::getVideoId)
+				.filter(Objects::nonNull)
+				.distinct()
+				.collect(Collectors.toList());
+
+		videoTagRelMapper.delete(new LambdaQueryWrapper<VideoTagRelPo>()
+				.eq(VideoTagRelPo::getTagId, tagId));
+		videoTagMapper.deleteById(tagId);
+
+		for (Long videoId : affectedVideoIdList) {
+			VideoPo videoPo = videoRepository.queryVideoById(videoId);
+			if (videoPo != null && Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
+				esSyncService.syncVideo(videoId);
+			}
 		}
 	}
 

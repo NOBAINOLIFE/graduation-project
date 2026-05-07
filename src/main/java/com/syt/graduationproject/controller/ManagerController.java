@@ -7,8 +7,12 @@ import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
 import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
 import com.syt.graduationproject.model.request.ManagerUserListRequest;
+import com.syt.graduationproject.model.request.ManagerVideoPartitionListRequest;
+import com.syt.graduationproject.model.request.ManagerVideoTagListRequest;
 import com.syt.graduationproject.model.response.Response;
+import com.syt.graduationproject.model.vo.ManagerVideoPartitionVo;
 import com.syt.graduationproject.model.vo.ManagerUserVo;
+import com.syt.graduationproject.model.vo.ManagerVideoTagVo;
 import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
@@ -52,6 +56,34 @@ public class ManagerController {
         } catch (Exception e) {
             log.error("查询用户列表失败，request:{}", request, e);
             return Response.fail("查询用户列表失败，系统异常");
+        }
+    }
+
+    @PostMapping("/video/partition/list")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<PageVo<ManagerVideoPartitionVo>> queryVideoPartitionList(@RequestBody(required = false) ManagerVideoPartitionListRequest request) {
+        try {
+            return Response.success(managerService.queryVideoPartitionList(request));
+        } catch (CustomException e) {
+            log.warn("查询视频分区列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询视频分区列表失败，request:{}", request, e);
+            return Response.fail("查询视频分区列表失败，系统异常");
+        }
+    }
+
+    @PostMapping("/video/tag/list")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<PageVo<ManagerVideoTagVo>> queryVideoTagList(@RequestBody(required = false) ManagerVideoTagListRequest request) {
+        try {
+            return Response.success(managerService.queryVideoTagList(request));
+        } catch (CustomException e) {
+            log.warn("查询视频标签列表失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("查询视频标签列表失败，request:{}", request, e);
+            return Response.fail("查询视频标签列表失败，系统异常");
         }
     }
 
@@ -141,6 +173,36 @@ public class ManagerController {
         } catch (Exception e) {
             log.error("解禁视频失败，videoId:{}", videoId, e);
             return Response.fail("解禁视频失败，系统异常");
+        }
+    }
+
+    @DeleteMapping("/video/partition/{partitionId}")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<Object> deleteVideoPartition(@PathVariable Long partitionId) {
+        try {
+            managerService.deleteVideoPartition(partitionId);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("删除视频分区失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("删除视频分区失败，partitionId:{}", partitionId, e);
+            return Response.fail("删除视频分区失败，系统异常");
+        }
+    }
+
+    @DeleteMapping("/video/tag/{tagId}")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<Object> deleteVideoTag(@PathVariable Long tagId) {
+        try {
+            managerService.deleteVideoTag(tagId);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("删除视频标签失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("删除视频标签失败，tagId:{}", tagId, e);
+            return Response.fail("删除视频标签失败，系统异常");
         }
     }
 
