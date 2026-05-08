@@ -806,6 +806,18 @@ public class ManagerServiceImpl implements ManagerService {
 	}
 
 	@Override
+	public void deleteComment(Long commentId) {
+		if (commentId == null) {
+			throw new ErrorParamException("评论ID不能为空");
+		}
+		CommentPo commentPo = commentMapper.selectById(commentId);
+		if (commentPo == null || commentPo.getIsDeleted() != 0) {
+			throw new NotFoundException("评论不存在或已删除");
+		}
+		removeCommentByReport(commentId);
+	}
+
+	@Override
 	public void banUser(Long userId) {
 		UserPo userPo = userRepository.queryUserAnyStatusById(userId);
 		if (userPo == null) {

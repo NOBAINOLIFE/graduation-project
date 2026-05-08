@@ -1,5 +1,6 @@
 package com.syt.graduationproject.controller;
 
+import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
@@ -25,6 +26,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/graduation-project/video")
 @RequiredArgsConstructor
+@RequirePermission("USER")
 public class VideoController {
 
     private final VideoService videoService;

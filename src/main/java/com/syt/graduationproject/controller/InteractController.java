@@ -1,5 +1,6 @@
 package com.syt.graduationproject.controller;
 
+import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.constant.ChatWsConstant;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.*;
@@ -23,6 +24,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/graduation-project/interact")
+@RequirePermission("USER")
 public class InteractController {
 
     private final InteractService interactService;

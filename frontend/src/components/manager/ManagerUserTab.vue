@@ -19,12 +19,12 @@
         <input
           v-model.trim="filters.keyword"
           type="text"
-          class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#00a1d6]"
+          class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#00AEEC]"
           placeholder="按用户名搜索"
           @keyup.enter="reloadFirstPage"
         />
         <button
-          class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-[#00a1d6]"
+          class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-[#00AEEC]"
           type="button"
           @click="reloadFirstPage"
         >
@@ -36,7 +36,7 @@
 
       <select
         v-model.number="filters.status"
-        class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-[#00a1d6] focus:outline-none"
+        class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-[#00AEEC] focus:outline-none"
       >
         <option :value="-1">全部状态</option>
         <option :value="0">正常</option>
@@ -48,71 +48,77 @@
       <article
         v-for="item in records"
         :key="item.userId"
-        class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[minmax(0,1fr)_220px]"
+        class="overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-md"
+        :class="userStatusBorderClass(item.status)"
       >
-        <div class="min-w-0">
-          <div class="flex items-start gap-4">
-            <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-500 ring-1 ring-slate-200">
-              <img
-                v-if="item.avatarUrl"
-                :src="item.avatarUrl"
-                :alt="item.username || '用户头像'"
-                class="h-full w-full object-cover"
-                @error="handleImageError"
-              />
-              <span v-else>{{ getInitial(item.username) }}</span>
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <h3 class="truncate text-base font-semibold text-slate-900">{{ item.username || '未知用户' }}</h3>
-                <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" :class="getUserStatusClass(item.status)">
-                  {{ item.statusText || userStatusText(item.status) }}
-                </span>
+        <div class="flex flex-col gap-4 p-4 lg:flex-row">
+          <!-- User info -->
+          <div class="min-w-0 flex-1">
+            <div class="flex items-start gap-4">
+              <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-500 ring-1 ring-slate-200">
+                <img
+                  v-if="item.avatarUrl"
+                  :src="item.avatarUrl"
+                  :alt="item.username || '用户头像'"
+                  class="h-full w-full object-cover"
+                  @error="handleImageError"
+                />
+                <span v-else>{{ getInitial(item.username) }}</span>
               </div>
-              <p class="mt-1 text-xs text-slate-500">用户 ID：{{ item.userId }} · 账号：{{ item.account || '-' }}</p>
-              <p class="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{{ item.bio || '暂无个人简介' }}</p>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="truncate text-base font-semibold text-slate-900">{{ item.username || '未知用户' }}</h3>
+                  <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1" :class="getUserStatusClass(item.status)">
+                    {{ item.statusText || userStatusText(item.status) }}
+                  </span>
+                </div>
+                <p class="mt-1 text-xs text-slate-500">UID:{{ item.userId }} · 账号：{{ item.account || '-' }}</p>
+                <p class="mt-1.5 line-clamp-2 text-sm leading-6 text-slate-600">{{ item.bio || '暂无个人简介' }}</p>
+              </div>
             </div>
-          </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">投稿</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.videoNum) }}</p>
+            <!-- Stats -->
+            <div class="mt-4 flex flex-wrap gap-3">
+              <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
+                <p class="text-xs text-slate-400">投稿</p>
+                <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.videoNum) }}</p>
+              </div>
+              <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
+                <p class="text-xs text-slate-400">粉丝</p>
+                <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.fansNum) }}</p>
+              </div>
+              <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
+                <p class="text-xs text-slate-400">关注</p>
+                <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.followNum) }}</p>
+              </div>
+              <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
+                <p class="text-xs text-slate-400">获赞</p>
+                <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.likeNum) }}</p>
+              </div>
+              <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
+                <p class="text-xs text-slate-400">播放</p>
+                <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.playNum) }}</p>
+              </div>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">关注</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.followNum) }}</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">粉丝</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.fansNum) }}</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">获赞</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.likeNum) }}</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">播放</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.playNum) }}</p>
-            </div>
-          </div>
 
-          <p class="mt-3 text-xs text-slate-500">
-            注册时间：{{ formatTime(item.createTime) }} · 更新时间：{{ formatTime(item.updateTime) }}
-          </p>
-        </div>
-
-        <div class="flex flex-col justify-between gap-3 rounded-2xl bg-slate-50 p-4">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">操作</p>
-            <p class="mt-2 text-sm text-slate-600">
-              {{ item.status === 1 ? '该用户当前已封禁，可在确认后恢复账号。' : '封禁后用户将无法正常登录和展示。' }}
+            <p class="mt-3 text-xs text-slate-400">
+              注册于 {{ formatTime(item.createTime) }} · 更新于 {{ formatTime(item.updateTime) }}
             </p>
           </div>
-          <div class="flex flex-wrap gap-2">
+
+          <!-- Actions -->
+          <div class="flex shrink-0 flex-row items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-col lg:justify-center">
+            <div class="text-center">
+              <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                {{ item.status === 1 ? '已封禁' : '正常' }}
+              </p>
+              <p class="mt-1 text-xs text-slate-500">
+                {{ item.status === 1 ? '可解禁恢复' : '可封禁该账号' }}
+              </p>
+            </div>
             <button
               v-if="item.status === 1"
-              class="rounded-lg bg-emerald-500 px-4 py-2 text-sm text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+              class="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
               :disabled="operatingUserId === item.userId"
               @click="unbanTarget(item)"
             >
@@ -120,7 +126,7 @@
             </button>
             <button
               v-else
-              class="rounded-lg bg-rose-500 px-4 py-2 text-sm text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+              class="w-full rounded-lg bg-[#FB7299] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#FB7299]/80 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
               :disabled="operatingUserId === item.userId"
               @click="banTarget(item)"
             >
@@ -194,10 +200,17 @@ function userStatusText(status) {
 }
 
 function getUserStatusClass(status) {
-  if (status === 0) return 'bg-emerald-50 text-emerald-600';
-  if (status === 1) return 'bg-rose-50 text-rose-600';
-  if (status === 2) return 'bg-slate-100 text-slate-500';
-  return 'bg-amber-50 text-amber-600';
+  if (status === 0) return 'bg-emerald-50 text-emerald-700 ring-emerald-300';
+  if (status === 1) return 'bg-rose-50 text-rose-700 ring-rose-300';
+  if (status === 2) return 'bg-slate-100 text-slate-500 ring-slate-300';
+  return 'bg-amber-50 text-amber-600 ring-amber-300';
+}
+
+function userStatusBorderClass(status) {
+  if (status === 0) return 'border-l-[3px] border-l-emerald-400';
+  if (status === 1) return 'border-l-[3px] border-l-rose-400';
+  if (status === 2) return 'border-l-[3px] border-l-slate-300';
+  return 'border-slate-200';
 }
 
 function formatCount(value) {

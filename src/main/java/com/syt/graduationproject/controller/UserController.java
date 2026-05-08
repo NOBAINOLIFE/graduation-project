@@ -1,5 +1,6 @@
 package com.syt.graduationproject.controller;
 
+import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
@@ -26,6 +27,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/graduation-project/user")
+@RequirePermission("USER")
 public class UserController {
 
     private final UserService userService;

@@ -93,7 +93,8 @@ async function submitLogin() {
     isSubmitting.value = true;
     const data = await login({
       account: form.account,
-      password: form.password
+      password: form.password,
+      isAdminLogin: true
     });
 
     if (!data?.token) {

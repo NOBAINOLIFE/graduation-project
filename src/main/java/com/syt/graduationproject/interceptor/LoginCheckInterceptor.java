@@ -1,6 +1,5 @@
 package com.syt.graduationproject.interceptor;
 
-import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.model.dto.UserDto;
 import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.util.*;
@@ -73,12 +72,6 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
                 return false;
             }
 
-            if (RoleEnum.ADMIN.getRoleCode().equalsIgnoreCase(userDto.getRoleCode())
-                    && !isManagerAllowedPath(uri)) {
-                editResponseMessage(response, "管理员仅可访问后台管理接口");
-                return false;
-            }
-
             refreshTokenIfNecessary(response, jwtToken, claims, userDto.getUserId());
             UserHolderUtil.saveUser(userDto);
         } catch (Exception e) {
@@ -114,10 +107,6 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
                 .roleId(claims.get(ROLE_ID, Long.class))
                 .roleCode(claims.get(ROLE_CODE, String.class))
                 .build();
-    }
-
-    private boolean isManagerAllowedPath(String uri) {
-        return uri.startsWith("/graduation-project/manager") || uri.equals("/graduation-project/user/logout");
     }
 
     private boolean isPublicPath(String uri) {

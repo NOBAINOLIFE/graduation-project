@@ -51,4 +51,9 @@ public interface ManagerService {
 	 * 完成最新一条审核中记录
 	 */
 	void completeLatestAuditingRecord(Long videoId, Integer targetStatus, Long reviewerId, String reviewNote);
+
+	/**
+	 * 管理员删除评论
+	 */
+	void deleteComment(Long commentId);
 }

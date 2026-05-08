@@ -85,3 +85,9 @@ export function deleteVideoTag(tagId) {
   });
 }
 
+export function deleteComment(commentId) {
+  return request(`/graduation-project/manager/comment/delete/${commentId}`, {
+    method: 'POST'
+  });
+}
+

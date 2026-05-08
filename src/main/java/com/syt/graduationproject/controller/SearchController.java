@@ -1,5 +1,6 @@
 package com.syt.graduationproject.controller;
 
+import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.SearchUserRequest;
 import com.syt.graduationproject.model.request.SearchVideoRequest;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/graduation-project/search")
 @RequiredArgsConstructor
+@RequirePermission("USER")
 public class SearchController {
 
     private final SearchService searchService;

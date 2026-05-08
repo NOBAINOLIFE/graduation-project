@@ -4,7 +4,7 @@
       <h2 class="text-lg font-semibold text-slate-900">视频审核</h2>
       <select
         v-model.number="filters.status"
-        class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:border-[#00a1d6] focus:outline-none"
+        class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:border-[#00AEEC] focus:outline-none"
       >
         <option :value="-1">全部</option>
         <option :value="0">审核中</option>
@@ -18,9 +18,11 @@
       <article
         v-for="item in records"
         :key="item.videoId"
-        class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        class="overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-md"
+        :class="statusBorderClass(item.status)"
       >
-        <div class="flex flex-wrap items-center gap-4 p-4 md:flex-nowrap">
+        <div class="flex flex-wrap items-start gap-4 p-4 md:flex-nowrap">
+          <!-- Cover -->
           <div class="relative h-[108px] w-[192px] shrink-0 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
             <img :src="item.coverUrl || fallbackCover" class="h-full w-full object-cover" alt="cover" />
             <span class="absolute bottom-2 right-2 rounded-md bg-black/75 px-2 py-0.5 text-xs text-white">
@@ -28,56 +30,96 @@
             </span>
           </div>
 
-          <div class="min-w-[220px] flex-1">
-            <div class="flex items-center gap-3">
-              <img :src="resolveAvatar(item.avatar)" class="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200" alt="avatar" />
-              <div class="min-w-0">
-                <p class="truncate font-medium text-slate-900">{{ item.username || '未知用户' }}</p>
-                <p class="text-xs text-slate-500">用户 ID：{{ item.userId || '-' }}</p>
-              </div>
+          <!-- Info -->
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h3 class="truncate text-base font-semibold text-slate-900" :title="item.title">
+                {{ item.title || '无标题' }}
+              </h3>
+              <span
+                class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                :class="statusBadgeClass(item.status)"
+              >
+                {{ statusText(item.status) }}
+              </span>
             </div>
-            <p class="mt-3 line-clamp-1 text-sm text-slate-700">{{ item.title || '-' }}</p>
-            <p class="mt-1 text-xs text-slate-500">
-              状态：{{ statusText(item.status) }} · 提交时间：{{ formatTime(item.createTime) }}
+
+            <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+              <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-slate-600">
+                {{ item.partitionName || '未分区' }}
+              </span>
+              <span
+                v-for="tag in (item.tagList || [])"
+                :key="tag.tagId || tag.tagName"
+                class="inline-flex items-center rounded-full bg-[#00AEEC]/10 px-2 py-0.5 text-[#00AEEC]"
+              >
+                {{ tag.tagName }}
+              </span>
+            </div>
+
+            <div class="mt-2.5 flex items-center gap-2">
+              <img
+                :src="resolveAvatar(item.avatar)"
+                class="h-6 w-6 rounded-full object-cover ring-1 ring-slate-200"
+                alt="avatar"
+              />
+              <span class="text-sm font-medium text-slate-700">{{ item.username || '未知用户' }}</span>
+              <span class="text-xs text-slate-400">UID:{{ item.userId || '-' }}</span>
+            </div>
+
+            <p class="mt-1.5 text-xs text-slate-400">
+              提交于 {{ formatTime(item.createTime) }}
+              <template v-if="item.videoId">
+                · ID: {{ item.videoId }}
+              </template>
             </p>
           </div>
 
+          <!-- Actions -->
           <div class="flex shrink-0 items-center gap-2">
-            <div v-if="item.status === 0" class="flex items-center gap-2">
+            <!-- Pending: action buttons -->
+            <template v-if="item.status === 0">
               <button
-                class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
                 :disabled="operatingVideoId === item.videoId"
                 @click="submitAudit(item.videoId, 1, '')"
               >
                 通过
               </button>
               <button
-                class="rounded-lg bg-rose-500 px-3 py-1.5 text-xs text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                class="rounded-lg bg-[#FB7299] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#FB7299]/80 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
                 :disabled="operatingVideoId === item.videoId"
                 @click="openRejectDialog(item.videoId)"
               >
                 驳回
               </button>
-            </div>
+            </template>
 
-            <div v-else class="min-w-[220px]">
-              <div class="flex items-center gap-2">
-                <img
-                  :src="resolveAvatar(item.reviewerAvatar)"
-                  class="h-8 w-8 rounded-full object-cover ring-1 ring-slate-200"
-                  alt="reviewer-avatar"
-                />
-                <div class="leading-tight">
-                  <p class="text-sm font-medium text-slate-800">{{ item.reviewerName || '未知管理员' }}</p>
-                  <p class="text-xs text-slate-500">管理员 ID：{{ item.reviewerId || '-' }}</p>
-                </div>
+            <!-- Reviewed: reviewer info -->
+            <div v-else class="min-w-[180px] text-right">
+              <div class="flex items-center justify-end gap-1.5">
+                <svg v-if="item.status === 1" class="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <svg v-else class="h-4 w-4 text-rose-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
+                </svg>
+                <span class="text-sm font-medium text-slate-700">
+                  {{ item.status === 1 ? '已通过' : '已驳回' }}
+                </span>
               </div>
-              <p class="mt-1 text-xs text-slate-500">审核时间：{{ formatTime(item.updateTime) }}</p>
-              <p v-if="item.status === 2" class="mt-1 text-xs text-rose-500">驳回原因：{{ item.reviewNote || '-' }}</p>
+              <p class="mt-0.5 text-xs text-slate-400">
+                {{ item.reviewerName || '未知管理员' }}
+                <template v-if="item.reviewerId">· ID:{{ item.reviewerId }}</template>
+              </p>
+              <p class="text-xs text-slate-400">审核于 {{ formatTime(item.updateTime) }}</p>
+              <p v-if="item.status === 2 && item.reviewNote" class="mt-1 text-xs leading-relaxed text-rose-500">
+                驳回原因：{{ item.reviewNote }}
+              </p>
             </div>
 
             <button
-              class="ml-1 flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+              class="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
               @click="toggleExpand(item.videoId)"
             >
               <svg
@@ -94,39 +136,37 @@
           </div>
         </div>
 
+        <!-- Expand section -->
         <div v-if="expandedVideoId === item.videoId" class="border-t border-slate-200 bg-slate-50 p-4">
-          <div class="grid gap-4 lg:grid-cols-[1fr_240px]">
-            <div class="space-y-2 text-sm text-slate-700">
-              <p><span class="text-slate-500">标题：</span>{{ item.title || '-' }}</p>
-              <p><span class="text-slate-500">简介：</span>{{ item.description || '-' }}</p>
-              <p><span class="text-slate-500">视频 ID：</span>{{ item.videoId }}</p>
-              <p><span class="text-slate-500">分区：</span>{{ item.partitionName || '-' }}</p>
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="text-slate-500">标签：</span>
-                <span
-                  v-for="tag in item.tagList || []"
-                  :key="tag.tagId || tag.tagName"
-                  class="rounded-full bg-[#e8f7fd] px-2 py-0.5 text-xs text-[#00a1d6]"
-                >
-                  {{ tag.tagName }}
-                </span>
-                <span v-if="!item.tagList || !item.tagList.length" class="text-slate-400">-</span>
+          <div class="grid gap-4 lg:grid-cols-[1fr_200px]">
+            <div class="space-y-3 text-sm">
+              <div>
+                <p class="mb-1 text-xs font-medium text-slate-400 uppercase">视频简介</p>
+                <p class="leading-relaxed text-slate-700">{{ item.description || '暂无简介' }}</p>
+              </div>
+              <div class="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
+                <span>视频 ID：{{ item.videoId }}</span>
+                <span>分区：{{ item.partitionName || '-' }}</span>
+                <span>播放源：{{ (item.videoSourceList || []).length || 0 }} 个</span>
               </div>
             </div>
 
             <div>
-              <button class="group block w-full overflow-hidden rounded-xl ring-1 ring-slate-200" @click="openCoverPreview(item.coverUrl)">
+              <button
+                class="group block w-full overflow-hidden rounded-xl ring-1 ring-slate-200"
+                @click="openCoverPreview(item.coverUrl)"
+              >
                 <img
                   :src="item.coverUrl || fallbackCover"
-                  class="h-32 w-full object-cover transition group-hover:scale-[1.02]"
+                  class="h-28 w-full object-cover transition group-hover:scale-[1.02]"
                   alt="cover"
                 />
               </button>
-              <p class="mt-1 text-center text-xs text-slate-500">点击放大封面</p>
+              <p class="mt-1 text-center text-xs text-slate-400">点击放大封面</p>
             </div>
           </div>
 
-          <div class="mt-4 bg-black p-2 shadow-[0_24px_50px_rgba(15,23,42,0.2)]">
+          <div class="mt-4 overflow-hidden rounded-xl bg-black shadow-[0_24px_50px_rgba(15,23,42,0.2)]">
             <div class="aspect-video">
               <AppVideoPlayer
                 compact
@@ -166,6 +206,7 @@
     </div>
   </section>
 
+  <!-- Cover preview modal -->
   <div
     v-if="previewCoverUrl"
     class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4"
@@ -174,6 +215,7 @@
     <img :src="previewCoverUrl" class="max-h-[90vh] max-w-[90vw] rounded-2xl bg-white" alt="cover-preview" />
   </div>
 
+  <!-- Reject dialog -->
   <div
     v-if="rejectDialog.visible"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
@@ -182,7 +224,7 @@
     <div class="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
       <div class="mb-4 flex items-center justify-between">
         <h3 class="text-xl font-semibold text-slate-900">驳回原因</h3>
-        <button class="text-slate-400 transition hover:text-slate-600" @click="closeRejectDialog">×</button>
+        <button class="text-slate-400 transition hover:text-slate-600" @click="closeRejectDialog">&times;</button>
       </div>
 
       <p class="mb-3 text-sm text-slate-500">请选择违规原因</p>
@@ -190,9 +232,9 @@
         <label
           v-for="option in rejectReasonOptions"
           :key="option"
-          class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-[#00a1d6]"
+          class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-[#00AEEC]"
         >
-          <input v-model="rejectDialog.reason" type="radio" :value="option" class="accent-[#00a1d6]" />
+          <input v-model="rejectDialog.reason" type="radio" :value="option" class="accent-[#00AEEC]" />
           <span>{{ option }}</span>
         </label>
       </div>
@@ -204,7 +246,7 @@
           maxlength="400"
           rows="4"
           placeholder="请填写驳回原因详情，方便投稿用户修改后重新提交"
-          class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00a1d6] focus:outline-none"
+          class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00AEEC] focus:outline-none"
         ></textarea>
         <p class="mt-1 text-right text-xs text-slate-400">{{ rejectDialog.detail.length }}/400</p>
       </div>
@@ -214,7 +256,7 @@
           取消
         </button>
         <button
-          class="rounded-lg bg-[#00a1d6] px-6 py-2 text-sm text-white transition hover:bg-[#00b5e5] disabled:cursor-not-allowed disabled:bg-slate-300"
+          class="rounded-lg bg-[#00AEEC] px-6 py-2 text-sm text-white transition hover:bg-[#0095CC] disabled:cursor-not-allowed disabled:bg-slate-300"
           :disabled="operatingVideoId === rejectDialog.videoId"
           @click="confirmReject"
         >
@@ -289,6 +331,20 @@ function statusText(status) {
   return `状态 ${status}`;
 }
 
+function statusBorderClass(status) {
+  if (status === 0) return 'border-l-[3px] border-l-amber-400';
+  if (status === 1) return 'border-l-[3px] border-l-emerald-400';
+  if (status === 2) return 'border-l-[3px] border-l-rose-400';
+  return 'border-slate-200';
+}
+
+function statusBadgeClass(status) {
+  if (status === 0) return 'bg-amber-50 text-amber-700 ring-1 ring-amber-300';
+  if (status === 1) return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300';
+  if (status === 2) return 'bg-rose-50 text-rose-700 ring-1 ring-rose-300';
+  return 'bg-slate-50 text-slate-600 ring-1 ring-slate-300';
+}
+
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return '--:--';
   const total = Math.floor(seconds);
@@ -302,7 +358,9 @@ function formatDuration(seconds) {
 }
 
 function formatDurationLabel(videoId) {
-  return formatDuration(durationMap.value[videoId]);
+  const dur = durationMap.value[videoId];
+  if (dur === undefined) return '...';
+  return formatDuration(dur);
 }
 
 function formatTime(time) {
@@ -447,15 +505,3 @@ watch(
 
 onMounted(fetchList);
 </script>
-
-<style scoped>
-.line-clamp-1 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-1 {
-  -webkit-line-clamp: 1;
-}
-</style>

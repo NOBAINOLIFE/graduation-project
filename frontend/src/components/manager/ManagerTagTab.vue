@@ -19,12 +19,12 @@
         <input
           v-model.trim="filters.keyword"
           type="text"
-          class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#00a1d6]"
+          class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#00AEEC]"
           placeholder="按标签名搜索"
           @keyup.enter="reloadFirstPage"
         />
         <button
-          class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-[#00a1d6]"
+          class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-[#00AEEC]"
           type="button"
           @click="reloadFirstPage"
         >
@@ -33,61 +33,55 @@
           </svg>
         </button>
       </label>
-      <span class="text-xs text-slate-400">删除标签后，会同步清理对应视频上的该标签展示。</span>
+      <span class="text-xs text-slate-400">删除标签后会清理所有视频上的该标签</span>
     </div>
 
     <div class="space-y-4">
       <article
         v-for="item in records"
         :key="item.tagId"
-        class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[minmax(0,1fr)_220px]"
+        class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md lg:flex-row lg:items-center"
       >
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-3">
-            <span class="rounded-full bg-sky-50 px-3 py-1 text-sm font-medium text-sky-600">
-              #{{ item.tagName || '未命名标签' }}
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-sm font-medium text-sky-700 ring-1 ring-sky-200">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
+              </svg>
+              {{ item.tagName || '未命名标签' }}
             </span>
-            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
-              标签 ID：{{ item.tagId }}
-            </span>
+            <span class="text-xs text-slate-400">ID: {{ item.tagId }}</span>
           </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">热度</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.hot) }}</p>
+          <div class="mt-4 flex flex-wrap gap-3">
+            <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-amber-50 p-3">
+              <p class="text-xs text-amber-500">热度</p>
+              <p class="mt-1 text-xl font-semibold text-amber-700">{{ formatCount(item.hot) }}</p>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
-              <p class="text-xs text-slate-400">关联视频</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.relatedVideoCount) }}</p>
+            <div class="flex min-w-[80px] flex-1 flex-col rounded-xl bg-sky-50 p-3">
+              <p class="text-xs text-sky-500">关联视频</p>
+              <p class="mt-1 text-xl font-semibold text-sky-700">{{ formatCount(item.relatedVideoCount) }}</p>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
+            <div class="flex min-w-[120px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
               <p class="text-xs text-slate-400">创建时间</p>
-              <p class="mt-1 text-sm font-medium text-slate-900">{{ formatTime(item.createTime) }}</p>
+              <p class="mt-1 text-sm font-medium text-slate-700">{{ formatTime(item.createTime) }}</p>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
+            <div class="flex min-w-[120px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
               <p class="text-xs text-slate-400">更新时间</p>
-              <p class="mt-1 text-sm font-medium text-slate-900">{{ formatTime(item.updateTime) }}</p>
+              <p class="mt-1 text-sm font-medium text-slate-700">{{ formatTime(item.updateTime) }}</p>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-col justify-between gap-3 rounded-2xl bg-slate-50 p-4">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">操作提示</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              删除后会移除所有视频与该标签的关联关系，已发布视频的搜索索引也会同步刷新。
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button
-              class="rounded-lg bg-rose-500 px-4 py-2 text-sm text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-              :disabled="operatingTagId === item.tagId"
-              @click="removeTag(item)"
-            >
-              {{ operatingTagId === item.tagId ? '删除中...' : '删除标签' }}
-            </button>
-          </div>
+        <div class="flex shrink-0 flex-row items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-col lg:w-[180px]">
+          <p class="text-xs text-slate-500">删除后同步清理关联</p>
+          <button
+            class="w-full rounded-lg bg-[#FB7299] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#FB7299]/80 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+            :disabled="operatingTagId === item.tagId"
+            @click="removeTag(item)"
+          >
+            {{ operatingTagId === item.tagId ? '删除中...' : '删除标签' }}
+          </button>
         </div>
       </article>
 

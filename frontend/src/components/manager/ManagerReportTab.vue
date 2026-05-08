@@ -6,7 +6,7 @@
           v-for="tab in tabs"
           :key="tab.type"
           class="border-b-2 px-4 py-3 text-sm font-medium transition"
-          :class="activeTab === tab.type ? 'border-[#00a1d6] text-[#00a1d6]' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'"
+          :class="activeTab === tab.type ? 'border-[#00AEEC] text-[#00AEEC]' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'"
           @click="switchTab(tab.type)"
         >
           {{ tab.label }}
@@ -18,7 +18,7 @@
     <div class="mb-5 flex flex-wrap items-center gap-3">
       <select
         v-model.number="filters.status"
-        class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:border-[#00a1d6] focus:outline-none"
+        class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:border-[#00AEEC] focus:outline-none"
       >
         <option :value="null">全部状态</option>
         <option :value="0">待审核</option>
@@ -32,298 +32,298 @@
       <article
         v-for="item in records"
         :key="item.reportId"
-        class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
+        class="overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-md"
+        :class="reportStatusBorderClass(item.status)"
       >
-        <div class="border-b border-slate-100 bg-slate-50/70 px-5 py-3">
-          <div class="flex flex-wrap items-center gap-3 text-sm">
-            <span class="rounded-full bg-white px-2.5 py-1 font-medium text-slate-700 ring-1 ring-slate-200">
-              {{ getReportTypeLabel(item.reportType) }}
-            </span>
-            <span class="rounded-full px-2.5 py-1 text-xs font-medium" :class="getStatusClass(item.status)">
-              {{ statusText(item.status) }}
-            </span>
-            <span class="text-slate-500">举报单号：{{ item.reportId }}</span>
-            <span class="text-slate-500">创建时间：{{ formatTime(item.createTime) }}</span>
-            <span class="text-slate-500">更新时间：{{ formatTime(item.updateTime) }}</span>
-          </div>
+        <!-- Header -->
+        <div class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 text-xs">
+          <span class="rounded-full bg-white px-2.5 py-0.5 font-medium text-slate-700 ring-1 ring-slate-200">
+            {{ getReportTypeLabel(item.reportType) }}
+          </span>
+          <span class="rounded-full px-2 py-0.5 font-medium" :class="getStatusClass(item.status)">
+            {{ statusText(item.status) }}
+          </span>
+          <span class="text-slate-400">#{{ item.reportId }}</span>
+          <span class="hidden text-slate-400 sm:inline">创建：{{ formatTime(item.createTime) }}</span>
+          <span class="hidden text-slate-400 sm:inline">更新：{{ formatTime(item.updateTime) }}</span>
         </div>
 
-        <div class="grid gap-4 p-5 xl:grid-cols-[280px_minmax(0,1fr)_240px]">
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">举报人</p>
+        <div class="grid gap-4 p-4 xl:grid-cols-[260px_minmax(0,1fr)_200px]">
+          <!-- Reporter -->
+          <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <p class="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">举报人</p>
             <div class="flex items-center gap-3">
               <img
                 v-if="item.reporterAvatar"
                 :src="item.reporterAvatar"
                 :alt="item.reporterName || '举报人头像'"
-                class="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+                class="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
               />
               <div
                 v-else
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#00a1d6] to-[#0088b3] text-base font-medium text-white"
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#00AEEC] to-[#0095CC] text-sm font-medium text-white"
               >
                 {{ getInitial(item.reporterName, 'U') }}
               </div>
               <div class="min-w-0">
                 <p class="truncate text-sm font-medium text-slate-900">{{ item.reporterName || '未知用户' }}</p>
-                <p class="text-xs text-slate-500">用户 ID：{{ item.reporterId || '-' }}</p>
+                <p class="text-xs text-slate-400">ID:{{ item.reporterId || '-' }}</p>
               </div>
             </div>
-            <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reporterBio || '暂无个人简介' }}</p>
+            <p class="mt-2 text-xs leading-5 text-slate-500">{{ item.reporterBio || '暂无简介' }}</p>
 
-            <div class="mt-4 space-y-2 text-sm text-slate-600">
-              <p><span class="text-slate-500">举报原因：</span><span class="font-medium text-slate-900">{{ item.reason || '-' }}</span></p>
-              <p class="leading-6"><span class="text-slate-500">举报详情：</span>{{ item.detail || '-' }}</p>
+            <div class="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-xs">
+              <p class="font-medium text-slate-700">{{ item.reason || '-' }}</p>
+              <p class="leading-5 text-slate-500">{{ item.detail || '未填写详细说明' }}</p>
             </div>
           </div>
 
+          <!-- Target info -->
           <div class="space-y-4">
-            <div v-if="item.reportType === 1" class="rounded-2xl border border-slate-200 p-4">
-              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">被举报用户</p>
+            <!-- User report target -->
+            <div v-if="item.reportType === 1" class="rounded-xl border border-slate-200 p-4">
+              <p class="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">被举报用户</p>
               <div class="flex items-start gap-4">
                 <img
                   v-if="item.reportInfo?.avatarUrl"
                   :src="item.reportInfo.avatarUrl"
-                  :alt="item.reportInfo.username || '用户头像'"
-                  class="h-16 w-16 rounded-full object-cover ring-1 ring-slate-200"
+                  :alt="item.reportInfo?.username || '用户头像'"
+                  class="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
                 />
                 <div
                   v-else
-                  class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-200 text-lg font-medium text-slate-600"
+                  class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-200 text-base font-medium text-slate-500"
                 >
                   {{ getInitial(item.reportInfo?.username, 'U') }}
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <p class="text-base font-semibold text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
-                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200">
                       {{ userStatusText(item.reportInfo?.status) }}
                     </span>
                   </div>
-                  <p class="mt-1 text-sm text-slate-500">用户 ID：{{ item.reportInfo?.userId || '-' }}</p>
-                  <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
+                  <p class="mt-1 text-xs text-slate-400">UID:{{ item.reportInfo?.userId || '-' }}</p>
+                  <p class="mt-1.5 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
                 </div>
               </div>
 
-              <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-xl bg-slate-50 p-3">
-                  <p class="text-xs text-slate-400">投稿数</p>
-                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.videoNum) }}</p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <div class="flex min-w-[60px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                  <p class="text-xs text-slate-400">投稿</p>
+                  <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.videoNum) }}</p>
                 </div>
-                <div class="rounded-xl bg-slate-50 p-3">
-                  <p class="text-xs text-slate-400">粉丝数</p>
-                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.fansNum) }}</p>
+                <div class="flex min-w-[60px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                  <p class="text-xs text-slate-400">粉丝</p>
+                  <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.fansNum) }}</p>
                 </div>
-                <div class="rounded-xl bg-slate-50 p-3">
-                  <p class="text-xs text-slate-400">获赞数</p>
-                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.likeNum) }}</p>
+                <div class="flex min-w-[60px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                  <p class="text-xs text-slate-400">获赞</p>
+                  <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.likeNum) }}</p>
                 </div>
-                <div class="rounded-xl bg-slate-50 p-3">
-                  <p class="text-xs text-slate-400">总播放</p>
-                  <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.playNum) }}</p>
+                <div class="flex min-w-[60px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                  <p class="text-xs text-slate-400">播放</p>
+                  <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.playNum) }}</p>
                 </div>
               </div>
 
-              <p class="mt-3 text-xs text-slate-500">注册时间：{{ formatTime(item.reportInfo?.createTime) }}</p>
+              <p class="mt-3 text-xs text-slate-400">注册时间：{{ formatTime(item.reportInfo?.createTime) }}</p>
             </div>
 
+            <!-- Video report target -->
             <div v-else-if="item.reportType === 2" class="space-y-4">
-              <div class="rounded-2xl border border-slate-200 p-4">
-                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">被举报视频</p>
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">被举报视频</p>
                 <div class="flex flex-col gap-4 lg:flex-row">
                   <img
                     v-if="item.reportInfo?.coverUrl"
                     :src="item.reportInfo.coverUrl"
                     :alt="item.reportInfo?.title || '视频封面'"
-                    class="h-44 w-full rounded-2xl object-cover ring-1 ring-slate-200 lg:w-72"
+                    class="h-36 w-full shrink-0 rounded-xl object-cover ring-1 ring-slate-200 lg:w-60"
                   />
                   <div class="min-w-0 flex-1">
                     <p class="text-base font-semibold text-slate-900">{{ item.reportInfo?.title || '未知视频' }}</p>
-                    <p class="mt-1 text-sm text-slate-500">视频 ID：{{ item.reportInfo?.videoId || '-' }}</p>
-                    <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.description || '暂无视频简介' }}</p>
+                    <p class="mt-1 text-xs text-slate-400">视频 ID：{{ item.reportInfo?.videoId || '-' }}</p>
+                    <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.reportInfo?.description || '暂无视频简介' }}</p>
 
-                    <div class="mt-4 flex flex-wrap gap-2">
+                    <div class="mt-3 flex flex-wrap gap-1.5">
                       <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
                         分区：{{ item.reportInfo?.partitionName || '-' }}
                       </span>
                       <span
                         v-for="tag in item.reportInfo?.tagList || []"
                         :key="tag"
-                        class="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-600"
+                        class="rounded-full bg-[#00AEEC]/10 px-2.5 py-1 text-xs text-[#00AEEC]"
                       >
                         {{ tag }}
                       </span>
-                      <span v-if="!(item.reportInfo?.tagList || []).length" class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
-                        暂无标签
-                      </span>
                     </div>
-
-                    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                      <div class="rounded-xl bg-slate-50 p-3">
-                        <p class="text-xs text-slate-400">播放</p>
-                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.playCount) }}</p>
-                      </div>
-                      <div class="rounded-xl bg-slate-50 p-3">
-                        <p class="text-xs text-slate-400">点赞</p>
-                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.likeCount) }}</p>
-                      </div>
-                      <div class="rounded-xl bg-slate-50 p-3">
-                        <p class="text-xs text-slate-400">收藏</p>
-                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.collectCount) }}</p>
-                      </div>
-                      <div class="rounded-xl bg-slate-50 p-3">
-                        <p class="text-xs text-slate-400">评论</p>
-                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.commentCount) }}</p>
-                      </div>
-                      <div class="rounded-xl bg-slate-50 p-3">
-                        <p class="text-xs text-slate-400">分享</p>
-                        <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.reportInfo?.shareCount) }}</p>
-                      </div>
-                    </div>
-
-                    <p class="mt-3 text-xs text-slate-500">投稿时间：{{ formatTime(item.reportInfo?.createTime) }}</p>
                   </div>
                 </div>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <div class="flex min-w-[55px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                    <p class="text-xs text-slate-400">播放</p>
+                    <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.playCount) }}</p>
+                  </div>
+                  <div class="flex min-w-[55px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                    <p class="text-xs text-slate-400">点赞</p>
+                    <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.likeCount) }}</p>
+                  </div>
+                  <div class="flex min-w-[55px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                    <p class="text-xs text-slate-400">收藏</p>
+                    <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.collectCount) }}</p>
+                  </div>
+                  <div class="flex min-w-[55px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                    <p class="text-xs text-slate-400">评论</p>
+                    <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.commentCount) }}</p>
+                  </div>
+                  <div class="flex min-w-[55px] flex-1 flex-col rounded-lg bg-slate-100 p-2.5">
+                    <p class="text-xs text-slate-400">分享</p>
+                    <p class="mt-0.5 text-base font-semibold text-slate-900">{{ formatCount(item.reportInfo?.shareCount) }}</p>
+                  </div>
+                </div>
+
+                <p class="mt-3 text-xs text-slate-400">投稿时间：{{ formatTime(item.reportInfo?.createTime) }}</p>
               </div>
 
-              <div class="rounded-2xl border border-slate-200 p-4">
-                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">视频作者</p>
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">视频作者</p>
                 <div class="flex items-center gap-3">
                   <img
                     v-if="item.reportInfo?.avatarUrl"
                     :src="item.reportInfo.avatarUrl"
                     :alt="item.reportInfo?.username || '作者头像'"
-                    class="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+                    class="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200"
                   />
-                  <div
-                    v-else
-                    class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-base font-medium text-slate-600"
-                  >
+                  <div v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-500">
                     {{ getInitial(item.reportInfo?.username, 'U') }}
                   </div>
-                  <div class="min-w-0">
+                  <div>
                     <div class="flex flex-wrap items-center gap-2">
-                      <p class="truncate text-sm font-medium text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
-                      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      <p class="text-sm font-medium text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
+                      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-slate-200">
                         {{ userStatusText(item.reportInfo?.status) }}
                       </span>
                     </div>
-                    <p class="text-xs text-slate-500">用户 ID：{{ item.reportInfo?.userId || '-' }}</p>
+                    <p class="text-xs text-slate-400">UID:{{ item.reportInfo?.userId || '-' }}</p>
                   </div>
                 </div>
-                <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
+                <p class="mt-2 text-xs leading-5 text-slate-500">{{ item.reportInfo?.bio || '暂无简介' }}</p>
               </div>
 
-              <div class="rounded-2xl border border-slate-200 p-4">
-                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">视频源</p>
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">视频源</p>
                 <div v-if="item.reportInfo?.sourceList?.length" class="space-y-2">
                   <div
                     v-for="source in item.reportInfo.sourceList"
                     :key="`${source.resolution}-${source.playUrl}`"
-                    class="rounded-xl bg-slate-50 px-3 py-2"
+                    class="rounded-lg bg-slate-50 px-3 py-2"
                   >
-                    <p class="text-sm font-medium text-slate-800">{{ source.resolution || '未知清晰度' }}</p>
-                    <a
-                      v-if="source.playUrl"
-                      :href="source.playUrl"
-                      target="_blank"
-                      rel="noreferrer"
-                      class="mt-1 block break-all text-xs text-sky-600 hover:text-sky-700"
-                    >
-                      {{ source.playUrl }}
-                    </a>
-                    <p v-else class="mt-1 text-xs text-slate-500">无播放地址</p>
+                    <div class="flex items-center justify-between gap-2">
+                      <p class="text-sm font-medium text-slate-700">{{ source.resolution || '未知清晰度' }}</p>
+                      <a
+                        v-if="source.playUrl"
+                        :href="source.playUrl"
+                        target="_blank"
+                        rel="noreferrer"
+                        class="shrink-0 rounded-md bg-[#00AEEC]/10 px-2 py-0.5 text-xs text-[#00AEEC] transition hover:bg-[#00AEEC]/20"
+                      >
+                        播放
+                      </a>
+                      <span v-else class="text-xs text-slate-400">无地址</span>
+                    </div>
                   </div>
                 </div>
-                <p v-else class="text-sm text-slate-500">暂无可用视频源</p>
+                <p v-else class="text-sm text-slate-400">暂无可用视频源</p>
               </div>
             </div>
 
+            <!-- Comment report target -->
             <div v-else-if="item.reportType === 3" class="space-y-4">
-              <div class="rounded-2xl border border-slate-200 p-4">
-                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">评论作者</p>
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">评论作者</p>
                 <div class="flex items-center gap-3">
                   <img
                     v-if="item.reportInfo?.avatarUrl"
                     :src="item.reportInfo.avatarUrl"
                     :alt="item.reportInfo?.username || '评论作者头像'"
-                    class="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+                    class="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200"
                   />
-                  <div
-                    v-else
-                    class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-base font-medium text-slate-600"
-                  >
+                  <div v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-500">
                     {{ getInitial(item.reportInfo?.username, 'U') }}
                   </div>
-                  <div class="min-w-0">
+                  <div>
                     <div class="flex flex-wrap items-center gap-2">
-                      <p class="truncate text-sm font-medium text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
-                      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      <p class="text-sm font-medium text-slate-900">{{ item.reportInfo?.username || '未知用户' }}</p>
+                      <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-slate-200">
                         {{ userStatusText(item.reportInfo?.status) }}
                       </span>
                     </div>
-                    <p class="text-xs text-slate-500">用户 ID：{{ item.reportInfo?.userId || '-' }}</p>
+                    <p class="text-xs text-slate-400">UID:{{ item.reportInfo?.userId || '-' }}</p>
                   </div>
                 </div>
-                <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.bio || '暂无个人简介' }}</p>
+                <p class="mt-2 text-xs leading-5 text-slate-500">{{ item.reportInfo?.bio || '暂无简介' }}</p>
               </div>
 
-              <div class="rounded-2xl border border-slate-200 p-4">
-                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">被举报评论</p>
-                <div class="rounded-2xl bg-slate-50 p-4">
-                  <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">被举报评论</p>
+                <div class="rounded-xl bg-slate-50 p-4">
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                     <span>评论 ID：{{ item.reportInfo?.commentId || '-' }}</span>
-                    <span>发布时间：{{ formatTime(item.reportInfo?.createTime) }}</span>
-                    <span class="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
-                      {{ item.reportInfo?.isRootComment ? '根评论' : '回复评论' }}
+                    <span>发布于 {{ formatTime(item.reportInfo?.createTime) }}</span>
+                    <span class="rounded-full bg-white px-2 py-0.5 ring-1 ring-slate-200">
+                      {{ item.reportInfo?.isRootComment ? '根评论' : '回复' }}
                     </span>
                   </div>
-                  <p class="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                  <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                     {{ item.reportInfo?.content || '评论内容为空' }}
                   </p>
-                  <div v-if="item.reportInfo?.rootCommentContent" class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2">
-                    <p class="text-xs text-slate-400">根评论内容</p>
+                  <div v-if="item.reportInfo?.rootCommentContent" class="mt-3 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2">
+                    <p class="text-xs text-slate-400">引用的根评论</p>
                     <p class="mt-1 text-sm leading-6 text-slate-600">{{ item.reportInfo.rootCommentContent }}</p>
                   </div>
                 </div>
               </div>
 
-              <div class="rounded-2xl border border-slate-200 p-4">
-                <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">关联视频</p>
-                <div class="flex flex-col gap-4 lg:flex-row">
+              <div class="rounded-xl border border-slate-200 p-4">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">关联视频</p>
+                <div class="flex flex-col gap-3 lg:flex-row">
                   <img
                     v-if="item.reportInfo?.coverUrl"
                     :src="item.reportInfo.coverUrl"
                     :alt="item.reportInfo?.title || '关联视频封面'"
-                    class="h-32 w-full rounded-2xl object-cover ring-1 ring-slate-200 lg:w-60"
+                    class="h-28 w-full shrink-0 rounded-xl object-cover ring-1 ring-slate-200 lg:w-52"
                   />
                   <div class="min-w-0 flex-1">
-                    <p class="text-base font-semibold text-slate-900">{{ item.reportInfo?.title || '未知视频' }}</p>
-                    <p class="mt-1 text-sm text-slate-500">视频 ID：{{ item.reportInfo?.videoId || '-' }}</p>
-                    <p class="mt-3 text-sm leading-6 text-slate-600">{{ item.reportInfo?.description || '暂无视频简介' }}</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ item.reportInfo?.title || '未知视频' }}</p>
+                    <p class="mt-1 text-xs text-slate-400">视频 ID：{{ item.reportInfo?.videoId || '-' }}</p>
+                    <p class="mt-1.5 text-xs leading-5 text-slate-500">{{ item.reportInfo?.description || '暂无视频简介' }}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div v-else class="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+            <div v-else class="rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-slate-400">
               暂无可展示的举报目标信息
             </div>
           </div>
 
-          <div class="flex flex-col gap-4">
-            <div v-if="item.status === 0" class="rounded-2xl border border-slate-200 p-4">
-              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">审核操作</p>
+          <!-- Actions -->
+          <div class="flex flex-col gap-3">
+            <!-- Review actions -->
+            <div v-if="item.status === 0" class="rounded-xl border border-slate-200 p-4">
+              <p class="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">审核</p>
               <div class="flex flex-col gap-2">
                 <button
-                  class="rounded-lg bg-emerald-500 px-4 py-2 text-sm text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
                   :disabled="operatingId === item.reportId"
                   @click="openReviewDialog(item, 1)"
                 >
                   通过举报
                 </button>
                 <button
-                  class="rounded-lg bg-rose-500 px-4 py-2 text-sm text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  class="rounded-lg bg-[#FB7299] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#FB7299]/80 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
                   :disabled="operatingId === item.reportId"
                   @click="openReviewDialog(item, 0)"
                 >
@@ -332,47 +332,52 @@
               </div>
             </div>
 
-            <div v-else class="rounded-2xl border border-slate-200 p-4">
-              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">审核结果</p>
-              <div class="flex items-center gap-3">
-                <img
-                  v-if="item.reviewerAvatar"
-                  :src="item.reviewerAvatar"
-                  :alt="item.reviewerName || '管理员头像'"
-                  class="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-                />
-                <div
-                  v-else
-                  class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-medium text-slate-600"
-                >
-                  {{ getInitial(item.reviewerName, 'A') }}
-                </div>
-                <div class="min-w-0">
-                  <p class="truncate text-sm font-medium text-slate-900">{{ item.reviewerName || '未知管理员' }}</p>
-                  <p class="text-xs text-slate-500">管理员 ID：{{ item.reviewerId || '-' }}</p>
-                </div>
+            <!-- Review result -->
+            <div v-else class="rounded-xl border border-slate-200 p-4">
+              <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">审核结果</p>
+              <div class="flex items-center gap-2">
+                <svg v-if="item.status === 1" class="h-4 w-4 shrink-0 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <svg v-else class="h-4 w-4 shrink-0 text-rose-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
+                </svg>
+                <span class="text-sm font-medium text-slate-700">{{ item.status === 1 ? '已通过' : '已驳回' }}</span>
               </div>
-              <p class="mt-3 text-xs text-slate-500">审核时间：{{ formatTime(item.updateTime) }}</p>
-              <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.reviewNote || '未填写审核备注' }}</p>
+              <p class="mt-1 text-xs text-slate-400">{{ item.reviewerName || '未知管理员' }}</p>
+              <p class="text-xs text-slate-400">{{ formatTime(item.updateTime) }}</p>
+              <p class="mt-2 text-xs leading-5 text-slate-600">{{ item.reviewNote || '未填写审核备注' }}</p>
             </div>
 
-            <div v-if="item.reportType !== 3" class="rounded-2xl border border-slate-200 p-4">
-              <p class="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">手动处置</p>
+            <!-- Manual actions (only when report is pending) -->
+            <div v-if="item.status === 0" class="rounded-xl border border-slate-200 p-4">
+              <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">手动处置</p>
               <div class="flex flex-col gap-2">
-                <button
-                  class="rounded-lg border border-amber-400 px-3 py-2 text-sm text-amber-600 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-300"
-                  :disabled="operatingId === item.reportId"
-                  @click="banTarget(item)"
-                >
-                  {{ item.reportType === 1 ? '封禁用户' : '封禁视频' }}
-                </button>
-                <button
-                  class="rounded-lg border border-sky-400 px-3 py-2 text-sm text-sky-600 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-300"
-                  :disabled="operatingId === item.reportId"
-                  @click="unbanTarget(item)"
-                >
-                  {{ item.reportType === 1 ? '解禁用户' : '解禁视频' }}
-                </button>
+                <template v-if="item.reportType === 1 || item.reportType === 2">
+                  <button
+                    class="rounded-lg border border-amber-400 px-3 py-2 text-xs font-medium text-amber-600 transition hover:bg-amber-50 active:scale-95 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                    :disabled="operatingId === item.reportId"
+                    @click="banTarget(item)"
+                  >
+                    {{ item.reportType === 1 ? '封禁用户' : '封禁视频' }}
+                  </button>
+                  <button
+                    class="rounded-lg border border-sky-400 px-3 py-2 text-xs font-medium text-sky-600 transition hover:bg-sky-50 active:scale-95 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                    :disabled="operatingId === item.reportId"
+                    @click="unbanTarget(item)"
+                  >
+                    {{ item.reportType === 1 ? '解禁用户' : '解禁视频' }}
+                  </button>
+                </template>
+                <template v-else-if="item.reportType === 3">
+                  <button
+                    class="rounded-lg border border-rose-400 px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50 active:scale-95 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                    :disabled="operatingId === item.reportId"
+                    @click="deleteTargetComment(item)"
+                  >
+                    删除评论
+                  </button>
+                </template>
               </div>
             </div>
           </div>
@@ -409,6 +414,7 @@
     </div>
   </section>
 
+  <!-- Review dialog -->
   <div
     v-if="reviewDialog.visible"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
@@ -419,31 +425,31 @@
         <h3 class="text-xl font-semibold text-slate-900">
           {{ reviewDialog.operation === 1 ? '通过举报' : '驳回举报' }}
         </h3>
-        <button class="text-slate-400 transition hover:text-slate-600" @click="closeReviewDialog">×</button>
+        <button class="text-slate-400 transition hover:text-slate-600" @click="closeReviewDialog">&times;</button>
       </div>
 
-      <div class="mb-4 rounded-2xl bg-slate-50 p-4">
+      <div class="mb-4 rounded-xl bg-slate-50 p-4">
         <p class="text-sm text-slate-700">
-          <span class="text-slate-500">举报人：</span>{{ reviewDialog.currentItem?.reporterName || '-' }}
+          <span class="text-slate-400">举报人：</span>{{ reviewDialog.currentItem?.reporterName || '-' }}
         </p>
         <p class="mt-2 text-sm text-slate-700">
-          <span class="text-slate-500">举报目标：</span>{{ buildReviewTargetText(reviewDialog.currentItem) }}
+          <span class="text-slate-400">举报目标：</span>{{ buildReviewTargetText(reviewDialog.currentItem) }}
         </p>
         <p class="mt-2 text-sm text-slate-700">
-          <span class="text-slate-500">举报原因：</span>{{ reviewDialog.currentItem?.reason || '-' }}
+          <span class="text-slate-400">举报原因：</span>{{ reviewDialog.currentItem?.reason || '-' }}
         </p>
         <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
-          <span class="text-slate-500">举报详情：</span>{{ reviewDialog.currentItem?.detail || '-' }}
+          <span class="text-slate-400">举报详情：</span>{{ reviewDialog.currentItem?.detail || '-' }}
         </p>
       </div>
 
-      <p class="mb-3 text-sm text-slate-500">请填写审核备注（可选）</p>
+      <p class="mb-2 text-sm text-slate-500">审核备注（可选）</p>
       <textarea
         v-model="reviewDialog.note"
         maxlength="200"
         rows="3"
         placeholder="请输入审核备注，方便后续追溯"
-        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00a1d6] focus:outline-none"
+        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[#00AEEC] focus:outline-none"
       ></textarea>
       <p class="mt-1 text-right text-xs text-slate-400">{{ reviewDialog.note.length }}/200</p>
 
@@ -455,8 +461,8 @@
           取消
         </button>
         <button
-          class="rounded-lg px-6 py-2 text-sm text-white transition disabled:cursor-not-allowed disabled:bg-slate-300"
-          :class="reviewDialog.operation === 1 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'"
+          class="rounded-lg px-6 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-slate-300"
+          :class="reviewDialog.operation === 1 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-[#FB7299] hover:bg-[#FB7299]/80'"
           :disabled="operatingId === reviewDialog.currentItem?.reportId"
           @click="confirmReview"
         >
@@ -473,6 +479,7 @@ import { ElMessage } from 'element-plus';
 import {
   banUser,
   banVideo,
+  deleteComment,
   queryReportList,
   reviewReport,
   unbanUser,
@@ -549,10 +556,17 @@ function statusText(status) {
 }
 
 function getStatusClass(status) {
-  if (status === 0) return 'bg-amber-50 text-amber-600';
-  if (status === 1) return 'bg-emerald-50 text-emerald-600';
-  if (status === 2) return 'bg-rose-50 text-rose-600';
+  if (status === 0) return 'bg-amber-50 text-amber-700';
+  if (status === 1) return 'bg-emerald-50 text-emerald-700';
+  if (status === 2) return 'bg-rose-50 text-rose-700';
   return 'bg-slate-100 text-slate-600';
+}
+
+function reportStatusBorderClass(status) {
+  if (status === 0) return 'border-l-[3px] border-l-amber-400';
+  if (status === 1) return 'border-l-[3px] border-l-emerald-400';
+  if (status === 2) return 'border-l-[3px] border-l-rose-400';
+  return 'border-slate-200';
 }
 
 function formatTime(time) {
@@ -729,6 +743,25 @@ async function unbanTarget(item) {
     await refreshTabCounts();
   } catch (error) {
     ElMessage.error(error.message || '解禁失败');
+  } finally {
+    operatingId.value = null;
+  }
+}
+
+async function deleteTargetComment(item) {
+  const commentId = item?.reportInfo?.commentId;
+  if (!commentId) {
+    ElMessage.error('未找到可删除的评论');
+    return;
+  }
+  try {
+    operatingId.value = item.reportId;
+    await deleteComment(commentId);
+    ElMessage.success('评论删除成功');
+    await fetchList();
+    await refreshTabCounts();
+  } catch (error) {
+    ElMessage.error(error.message || '删除评论失败');
   } finally {
     operatingId.value = null;
   }

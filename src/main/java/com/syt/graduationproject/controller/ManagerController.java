@@ -220,5 +220,20 @@ public class ManagerController {
             return Response.fail("审核视频失败，系统异常");
         }
     }
+
+    @PostMapping("/comment/delete/{commentId}")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<Object> deleteComment(@PathVariable Long commentId) {
+        try {
+            managerService.deleteComment(commentId);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("删除评论失败，commentId：{}，原因：{}", commentId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("删除评论失败，commentId：{}", commentId, e);
+            return Response.fail("删除评论失败，系统异常");
+        }
+    }
 }
 

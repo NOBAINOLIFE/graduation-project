@@ -1,5 +1,6 @@
 package com.syt.graduationproject.controller;
 
+import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.MultipartUploadCompleteRequest;
 import com.syt.graduationproject.model.request.MultipartUploadInitRequest;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/graduation-project/upload")
 @RequiredArgsConstructor
+@RequirePermission("USER")
 public class UploadController {
 
     private final MinioService minioService;

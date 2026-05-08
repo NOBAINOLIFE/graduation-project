@@ -177,6 +177,17 @@ public class UserServiceImpl implements UserService {
         }
         RoleEnum roleEnum = RoleEnum.fromRoleId(roleId);
         String roleCode = roleEnum == null ? RoleEnum.USER.getRoleCode() : roleEnum.getRoleCode();
+
+        // 管理员和用户登录入口分离：管理员只能从后台登录，用户只能从前台登录
+        boolean isAdmin = RoleEnum.ADMIN.getRoleCode().equalsIgnoreCase(roleCode);
+        boolean isAdminLogin = Boolean.TRUE.equals(request.getIsAdminLogin());
+        if (isAdmin && !isAdminLogin) {
+            throw new ErrorOperationException("管理员请使用管理后台登录");
+        }
+        if (!isAdmin && isAdminLogin) {
+            throw new ErrorOperationException("该账号不是管理员");
+        }
+
         claimMap.put(USER_ID, userId);
         claimMap.put(USERNAME, userPo.getUsername());
         claimMap.put(ROLE_ID, roleId);

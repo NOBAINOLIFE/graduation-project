@@ -298,7 +298,8 @@ async function handleLogin() {
   try {
     const result = await login({
       account: normalizeAccount(loginForm.value.account),
-      password: loginForm.value.password
+      password: loginForm.value.password,
+      isAdminLogin: false
     });
 
     saveUserLogin(result);

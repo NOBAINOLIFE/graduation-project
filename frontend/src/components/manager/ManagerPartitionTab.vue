@@ -19,12 +19,12 @@
         <input
           v-model.trim="filters.keyword"
           type="text"
-          class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#00a1d6]"
+          class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm text-slate-700 outline-none transition focus:border-[#00AEEC]"
           placeholder="按分区名搜索"
           @keyup.enter="reloadFirstPage"
         />
         <button
-          class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-[#00a1d6]"
+          class="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-[#00AEEC]"
           type="button"
           @click="reloadFirstPage"
         >
@@ -33,57 +33,54 @@
           </svg>
         </button>
       </label>
-      <span class="text-xs text-slate-400">只要分区下已有视频，后端会直接拦截删除。</span>
+      <span class="text-xs text-slate-400">分区下已有视频时无法删除</span>
     </div>
 
     <div class="space-y-4">
       <article
         v-for="item in records"
         :key="item.partitionId"
-        class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[minmax(0,1fr)_220px]"
+        class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md lg:flex-row lg:items-center"
       >
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-3">
-            <span class="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-600">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2 6H0v5h.01L0 20c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V6H2zm5 11H5v-4h2v4zm4 0H9v-4h2v4zm4 0h-2v-4h2v4z"/>
+              </svg>
               {{ item.partitionName || '未命名分区' }}
             </span>
-            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
-              分区 ID：{{ item.partitionId }}
-            </span>
+            <span class="text-xs text-slate-400">ID: {{ item.partitionId }}</span>
           </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div class="rounded-xl bg-slate-50 p-3">
+          <div class="mt-4 flex flex-wrap gap-3">
+            <div class="flex min-w-[100px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
               <p class="text-xs text-slate-400">关联视频</p>
-              <p class="mt-1 text-lg font-semibold text-slate-900">{{ formatCount(item.relatedVideoCount) }}</p>
+              <p class="mt-1 text-xl font-semibold text-slate-900">{{ formatCount(item.relatedVideoCount) }}</p>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
+            <div class="flex min-w-[120px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
               <p class="text-xs text-slate-400">创建时间</p>
-              <p class="mt-1 text-sm font-medium text-slate-900">{{ formatTime(item.createTime) }}</p>
+              <p class="mt-1 text-sm font-medium text-slate-700">{{ formatTime(item.createTime) }}</p>
             </div>
-            <div class="rounded-xl bg-slate-50 p-3">
+            <div class="flex min-w-[120px] flex-1 flex-col rounded-xl bg-slate-50 p-3">
               <p class="text-xs text-slate-400">更新时间</p>
-              <p class="mt-1 text-sm font-medium text-slate-900">{{ formatTime(item.updateTime) }}</p>
+              <p class="mt-1 text-sm font-medium text-slate-700">{{ formatTime(item.updateTime) }}</p>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-col justify-between gap-3 rounded-2xl bg-slate-50 p-4">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">删除规则</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              当前分区关联视频数为 {{ formatCount(item.relatedVideoCount) }}。只有未被任何视频使用时，才允许删除。
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button
-              class="rounded-lg bg-rose-500 px-4 py-2 text-sm text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-              :disabled="operatingPartitionId === item.partitionId"
-              @click="removePartition(item)"
-            >
-              {{ operatingPartitionId === item.partitionId ? '删除中...' : '删除分区' }}
-            </button>
-          </div>
+        <div class="flex shrink-0 flex-row items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-col lg:w-[180px]">
+          <p class="text-xs text-slate-500">
+            <span v-if="item.relatedVideoCount > 0" class="text-amber-600">有关联视频，不可删除</span>
+            <span v-else class="text-emerald-600">可安全删除</span>
+          </p>
+          <button
+            class="w-full rounded-lg bg-[#FB7299] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#FB7299]/80 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+            :disabled="operatingPartitionId === item.partitionId || item.relatedVideoCount > 0"
+            @click="removePartition(item)"
+          >
+            {{ operatingPartitionId === item.partitionId ? '删除中...' : '删除分区' }}
+          </button>
         </div>
       </article>
 

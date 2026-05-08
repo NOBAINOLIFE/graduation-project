@@ -16,6 +16,8 @@ public interface UserConstant {
 
     String ADMIN_PERMISSION = "ADMIN";
 
+    String USER_PERMISSION = "USER";
+
     String DEFAULT_BIO = "这个人很懒，什么都没有留下";
 
     String DEFAULT_AVATAR = "https://picsum.photos/200/200";
