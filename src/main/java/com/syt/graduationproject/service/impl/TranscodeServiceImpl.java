@@ -2,7 +2,8 @@ package com.syt.graduationproject.service.impl;
 
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
-import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.exception.ErrorOperationException;
+import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.po.VideoPo;
 import com.syt.graduationproject.model.po.VideoSourcePo;
@@ -59,7 +60,7 @@ public class TranscodeServiceImpl implements TranscodeService {
         try {
             VideoPo videoPo = videoRepository.queryVideoById(videoId);
             if (videoPo == null) {
-                throw new CustomException("视频不存在");
+                throw new NotFoundException("视频不存在");
             }
             if (VideoStatusEnum.WAITING_TRANSCODE.getCode() != videoPo.getStatus()
                     && VideoStatusEnum.TRANSCODE_FAILED.getCode() != videoPo.getStatus()) {
@@ -73,7 +74,7 @@ public class TranscodeServiceImpl implements TranscodeService {
 
             List<VideoSourcePo> sourcePoList = videoRepository.queryVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode(), false);
             if (sourcePoList == null || sourcePoList.isEmpty()) {
-                throw new CustomException("原视频资源不存在");
+                throw new NotFoundException("原视频资源不存在");
             }
             String sourceObjectName = sourcePoList.get(0).getPlayUrl();
             log.info("获取到原视频资源，sourceObjectName:{}", sourceObjectName);
@@ -158,13 +159,13 @@ public class TranscodeServiceImpl implements TranscodeService {
         boolean finished = process.waitFor(30, TimeUnit.MINUTES);
         if (!finished) {
             process.destroyForcibly();
-            throw new CustomException("FFmpeg转码超时，可能发生阻塞");
+            throw new ErrorOperationException("FFmpeg转码超时，可能发生阻塞");
         }
 
         outputReader.join(3000);
         int exitCode = process.exitValue();
         if (exitCode != 0) {
-            throw new CustomException("FFmpeg转码失败(exitCode=" + exitCode + "), lastOutput=" + lastLine.get());
+            throw new ErrorOperationException("FFmpeg转码失败(exitCode=" + exitCode + "), lastOutput=" + lastLine.get());
         }
     }
 

@@ -5,8 +5,9 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.*;
-import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.exception.ErrorOperationException;
 import com.syt.graduationproject.exception.ErrorParamException;
+import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
@@ -751,14 +752,14 @@ public class ManagerServiceImpl implements ManagerService {
 	@Transactional(rollbackFor = Exception.class)
 	public void reviewReport(ManagerReviewReportRequest request) {
 		if (request == null || request.getReportId() == null || request.getOperation() == null) {
-			throw new CustomException("举报审核参数不完整");
+			throw new ErrorParamException("举报审核参数不完整");
 		}
 		ReportPo reportPo = reportMapper.selectById(request.getReportId());
 		if (reportPo == null) {
-			throw new CustomException("举报记录不存在");
+			throw new NotFoundException("举报记录不存在");
 		}
 		if (!ReportStatusEnum.WAITING_AUDIT.getCode().equals(reportPo.getStatus())) {
-			throw new CustomException("该举报已审核");
+			throw new ErrorOperationException("该举报已审核");
 		}
 
 		boolean approved = request.getOperation() == 1;
@@ -783,7 +784,7 @@ public class ManagerServiceImpl implements ManagerService {
 			removeCommentByReport(reportPo.getTargetId());
 			return;
 		}
-		throw new CustomException("举报目标类型非法");
+		throw new ErrorParamException("举报目标类型非法");
 	}
 
 	private void removeCommentByReport(Long commentId) {
@@ -808,10 +809,10 @@ public class ManagerServiceImpl implements ManagerService {
 	public void banUser(Long userId) {
 		UserPo userPo = userRepository.queryUserAnyStatusById(userId);
 		if (userPo == null) {
-			throw new CustomException("用户不存在");
+			throw new NotFoundException("用户不存在");
 		}
 		if (UserStatusEnum.DELETED.getCode() == userPo.getStatus()) {
-			throw new CustomException("用户已删除");
+			throw new ErrorOperationException("用户已删除");
 		}
 		LambdaUpdateWrapper<UserPo> updateWrapper = new LambdaUpdateWrapper<>();
 		updateWrapper.eq(UserPo::getId, userId)
@@ -825,7 +826,7 @@ public class ManagerServiceImpl implements ManagerService {
 	public void unbanUser(Long userId) {
 		UserPo userPo = userRepository.queryUserAnyStatusById(userId);
 		if (userPo == null) {
-			throw new CustomException("用户不存在");
+			throw new NotFoundException("用户不存在");
 		}
 		LambdaUpdateWrapper<UserPo> updateWrapper = new LambdaUpdateWrapper<>();
 		updateWrapper.eq(UserPo::getId, userId)
@@ -838,7 +839,7 @@ public class ManagerServiceImpl implements ManagerService {
 	public void banVideo(Long videoId) {
 		VideoPo videoPo = videoRepository.queryVideoById(videoId);
 		if (videoPo == null) {
-			throw new CustomException("视频不存在");
+			throw new NotFoundException("视频不存在");
 		}
 		boolean publishedBeforeBan = Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode());
 		videoRepository.updateVideoStatus(videoId, null, VideoStatusEnum.BANNED.getCode());
@@ -853,10 +854,10 @@ public class ManagerServiceImpl implements ManagerService {
 	public void unbanVideo(Long videoId) {
 		VideoPo videoPo = videoRepository.queryVideoById(videoId);
 		if (videoPo == null) {
-			throw new CustomException("视频不存在");
+			throw new NotFoundException("视频不存在");
 		}
 		if (VideoStatusEnum.BANNED.getCode() != videoPo.getStatus()) {
-			throw new CustomException("该视频未被封禁");
+			throw new ErrorOperationException("该视频未被封禁");
 		}
 		int updated = videoRepository.updateVideoStatus(videoId, VideoStatusEnum.BANNED.getCode(), VideoStatusEnum.AUDITING.getCode());
 		if (updated > 0) {
@@ -868,16 +869,16 @@ public class ManagerServiceImpl implements ManagerService {
 	@Transactional(rollbackFor = Exception.class)
 	public void deleteVideoPartition(Long partitionId) {
 		if (partitionId == null) {
-			throw new CustomException("分区ID不能为空");
+			throw new ErrorParamException("分区ID不能为空");
 		}
 		VideoPartitionPo partitionPo = videoPartitionMapper.selectById(partitionId);
 		if (partitionPo == null) {
-			throw new CustomException("视频分区不存在");
+			throw new NotFoundException("视频分区不存在");
 		}
 		Long relatedVideoCount = videoMapper.selectCount(new LambdaQueryWrapper<VideoPo>()
 				.eq(VideoPo::getPartitionId, partitionId));
 		if (relatedVideoCount != null && relatedVideoCount > 0) {
-			throw new CustomException("该分区下已有视频，不能删除");
+			throw new ErrorOperationException("该分区下已有视频，不能删除");
 		}
 		videoPartitionMapper.deleteById(partitionId);
 	}
@@ -886,11 +887,11 @@ public class ManagerServiceImpl implements ManagerService {
 	@Transactional(rollbackFor = Exception.class)
 	public void deleteVideoTag(Long tagId) {
 		if (tagId == null) {
-			throw new CustomException("标签ID不能为空");
+			throw new ErrorParamException("标签ID不能为空");
 		}
 		VideoTagPo tagPo = videoTagMapper.selectById(tagId);
 		if (tagPo == null) {
-			throw new CustomException("视频标签不存在");
+			throw new NotFoundException("视频标签不存在");
 		}
 
 		List<VideoTagRelPo> relList = videoTagRelMapper.selectList(new LambdaQueryWrapper<VideoTagRelPo>()
@@ -921,14 +922,14 @@ public class ManagerServiceImpl implements ManagerService {
 		}
 		Long videoId = request.getVideoId();
 		if (videoId == null || request.getOperation() == null) {
-			throw new CustomException("视频审核参数不完整");
+			throw new ErrorParamException("视频审核参数不完整");
 		}
 		VideoPo videoPo = videoRepository.queryVideoById(videoId);
 		if (videoPo == null) {
-			throw new CustomException("视频不存在");
+			throw new NotFoundException("视频不存在");
 		}
 		if (VideoStatusEnum.AUDITING.getCode() != videoPo.getStatus()) {
-			throw new CustomException("当前视频不在审核中");
+			throw new ErrorOperationException("当前视频不在审核中");
 		}
 
 		Long userId = UserHolderUtil.getUser().getUserId();
@@ -936,7 +937,7 @@ public class ManagerServiceImpl implements ManagerService {
 			int updated = videoRepository.updateVideoStatus(videoId,
 					VideoStatusEnum.AUDITING.getCode(), VideoStatusEnum.AUDIT_PASSED.getCode());
 			if (updated <= 0) {
-				throw new CustomException("视频审核状态更新失败");
+				throw new ErrorOperationException("视频审核状态更新失败");
 			}
 			completeLatestAuditingRecord(videoId,
 					VideoAuditRecordStatusEnum.PASSED.getCode(), userId, request.getReviewNote());
@@ -999,7 +1000,7 @@ public class ManagerServiceImpl implements ManagerService {
 		int updated = videoRepository.updateVideoStatus(videoId,
 				VideoStatusEnum.AUDIT_PASSED.getCode(), VideoStatusEnum.PUBLISHED.getCode());
 		if (updated <= 0) {
-			throw new CustomException("视频发布失败，请稍后重试");
+			throw new ErrorOperationException("视频发布失败，请稍后重试");
 		}
 
 		VideoPo videoPo = videoRepository.queryVideoById(videoId);

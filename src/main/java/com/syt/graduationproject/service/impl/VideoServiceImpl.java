@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.config.KafkaConfig;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoStatusEnum;
-import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.exception.ErrorOperationException;
+import com.syt.graduationproject.exception.ErrorParamException;
+import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.mapper.VideoPartitionMapper;
 import com.syt.graduationproject.mapper.VideoStatsMapper;
 import com.syt.graduationproject.mapper.VideoTagMapper;
@@ -108,10 +110,10 @@ public class VideoServiceImpl implements VideoService {
         Long myId = getCurrentUserIdOrNull();
         VideoPo videoPo = videoRepository.queryVideoById(videoId);
         if (Objects.isNull(videoPo)) {
-            throw new CustomException("视频不存在");
+            throw new NotFoundException("视频不存在");
         }
         if (VideoStatusEnum.PUBLISHED.getCode() != videoPo.getStatus()) {
-            throw new CustomException("视频暂未发布");
+            throw new ErrorOperationException("视频暂未发布");
         }
         // 查询视频元信息
         VideoPlayDetailVo videoPlayDetailVo = VideoPlayDetailVo.builder()
@@ -207,19 +209,19 @@ public class VideoServiceImpl implements VideoService {
         if (request == null || request.getVideoId() == null || StringUtils.isBlank(request.getTitle())
                 || StringUtils.isBlank(request.getCoverUrl()) || request.getDuration() == null || request.getDuration() <= 0
                 || request.getPartitionId() == null) {
-            throw new CustomException("投稿参数不完整");
+            throw new ErrorParamException("投稿参数不完整");
         }
 
         VideoPartitionPo partitionPo = videoPartitionMapper.selectById(request.getPartitionId());
         if (partitionPo == null) {
-            throw new CustomException("视频分区不存在");
+            throw new NotFoundException("视频分区不存在");
         }
         List<String> normalizedTagList = normalizeTagList(request.getTagList());
 
         Long userId = UserHolderUtil.getUser().getUserId();
         VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(request.getVideoId(), userId);
         if (videoPo == null) {
-            throw new CustomException("视频不存在或无权限投稿");
+            throw new ErrorOperationException("视频不存在或无权限投稿");
         }
 
         int updated = videoRepository.submitVideo(
@@ -232,7 +234,7 @@ public class VideoServiceImpl implements VideoService {
                 request.getPartitionId()
         );
         if (updated <= 0) {
-            throw new CustomException("当前视频状态不允许投稿");
+            throw new ErrorOperationException("当前视频状态不允许投稿");
         }
 
         bindVideoTags(request.getVideoId(), normalizedTagList);
@@ -245,19 +247,19 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public void publishVideo(Long videoId) {
         if (videoId == null) {
-            throw new CustomException("发布参数不完整");
+            throw new ErrorParamException("发布参数不完整");
         }
         Long userId = UserHolderUtil.getUser().getUserId();
         VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(videoId, userId);
         if (videoPo == null) {
-            throw new CustomException("视频不存在或无权限发布");
+            throw new ErrorOperationException("视频不存在或无权限发布");
         }
 
         if (VideoStatusEnum.TRANSCODE_SUCCESS.getCode() == videoPo.getStatus()
                 || VideoStatusEnum.AUDIT_REJECTED.getCode() == videoPo.getStatus()) {
             int updated = videoRepository.updateVideoStatus(videoId, videoPo.getStatus(), VideoStatusEnum.AUDITING.getCode());
             if (updated <= 0) {
-                throw new CustomException("提交审核失败，请稍后重试");
+                throw new ErrorOperationException("提交审核失败，请稍后重试");
             }
             managerService.createAuditingRecord(videoId, userId);
             return;
@@ -265,22 +267,22 @@ public class VideoServiceImpl implements VideoService {
         if (VideoStatusEnum.AUDITING.getCode() == videoPo.getStatus()) {
             return;
         }
-        throw new CustomException("当前视频状态不允许提交审核");
+        throw new ErrorOperationException("当前视频状态不允许提交审核");
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void reportPlayProgress(VideoPlayProgressRequest request) {
         if (request == null || request.getVideoId() == null || request.getLastPlayTime() == null) {
-            throw new CustomException("播放进度参数不完整");
+            throw new ErrorParamException("播放进度参数不完整");
         }
         Long userId = UserHolderUtil.getUser().getUserId();
         VideoPo videoPo = videoRepository.queryVideoById(request.getVideoId());
         if (videoPo == null) {
-            throw new CustomException("视频不存在");
+            throw new NotFoundException("视频不存在");
         }
         if (VideoStatusEnum.PUBLISHED.getCode() != videoPo.getStatus()) {
-            throw new CustomException("视频暂不可播放");
+            throw new ErrorOperationException("视频暂不可播放");
         }
 
         int duration = videoPo.getDuration() == null ? 0 : Math.max(videoPo.getDuration(), 0);
@@ -341,7 +343,7 @@ public class VideoServiceImpl implements VideoService {
 
     private List<String> normalizeTagList(List<String> tagList) {
         if (tagList == null || tagList.isEmpty()) {
-            throw new CustomException("视频标签不能为空");
+            throw new ErrorParamException("视频标签不能为空");
         }
         List<String> normalizedTagList = tagList.stream()
                 .filter(Objects::nonNull)
@@ -350,10 +352,10 @@ public class VideoServiceImpl implements VideoService {
                 .distinct()
                 .collect(Collectors.toList());
         if (normalizedTagList.isEmpty()) {
-            throw new CustomException("视频标签不能为空");
+            throw new ErrorParamException("视频标签不能为空");
         }
         if (normalizedTagList.size() > MAX_TAG_COUNT) {
-            throw new CustomException("视频标签最多可填写10个");
+            throw new ErrorParamException("视频标签最多可填写10个");
         }
         return normalizedTagList;
     }
@@ -390,7 +392,7 @@ public class VideoServiceImpl implements VideoService {
             existedTagList = videoTagMapper.selectList(reQueryWrapper);
         }
         if (existedTagList == null || existedTagList.size() != tagNameList.size()) {
-            throw new CustomException("创建视频标签失败，请稍后重试");
+            throw new ErrorOperationException("创建视频标签失败，请稍后重试");
         }
         return existedTagList;
     }

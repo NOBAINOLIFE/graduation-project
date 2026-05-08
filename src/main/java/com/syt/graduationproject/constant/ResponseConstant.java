@@ -10,4 +10,6 @@ public interface ResponseConstant {
     String NO_PERMISSION = "无权限访问";
 
     String ERROR_OPERATION = "操作异常";
+
+    String NOT_FOUND = "资源不存在";
 }

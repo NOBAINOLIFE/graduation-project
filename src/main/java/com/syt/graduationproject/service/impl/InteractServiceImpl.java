@@ -3,7 +3,10 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.enums.*;
-import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.exception.ErrorOperationException;
+import com.syt.graduationproject.exception.ErrorParamException;
+import com.syt.graduationproject.exception.NoPermissionException;
+import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
@@ -146,16 +149,16 @@ public class InteractServiceImpl implements InteractService {
         Integer operation = request.getOperation(); // 1: 关注, 0: 取关
         boolean fansChanged = false;
         if (followeeId == null || operation == null) {
-            throw new CustomException("关注参数不完整");
+            throw new ErrorParamException("关注参数不完整");
         }
         if (Objects.equals(myId, followeeId)) {
-            throw new CustomException("不能关注自己");
+            throw new ErrorOperationException("不能关注自己");
         }
         if (operation != OPERATION_ON && operation != OPERATION_OFF) {
-            throw new CustomException("关注操作类型非法");
+            throw new ErrorParamException("关注操作类型非法");
         }
         if (hasMutualBlock(myId, followeeId)) {
-            throw new CustomException("由于隐私设置，无法关注该用户");
+            throw new ErrorOperationException("由于隐私设置，无法关注该用户");
         }
 
         // 查询记录
@@ -204,18 +207,18 @@ public class InteractServiceImpl implements InteractService {
     public void blockUser(BlockUserRequest request) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getTargetUserId() == null || request.getOperation() == null) {
-            throw new CustomException("拉黑参数不完整");
+            throw new ErrorParamException("拉黑参数不完整");
         }
         Long targetUserId = request.getTargetUserId();
         if (Objects.equals(myId, targetUserId)) {
-            throw new CustomException("不能拉黑自己");
+            throw new ErrorOperationException("不能拉黑自己");
         }
         UserPo targetUser = userMapper.selectById(targetUserId);
         if (targetUser == null) {
-            throw new CustomException("用户不存在");
+            throw new NotFoundException("用户不存在");
         }
         if (request.getOperation() != OPERATION_ON && request.getOperation() != OPERATION_OFF) {
-            throw new CustomException("拉黑操作类型非法");
+            throw new ErrorParamException("拉黑操作类型非法");
         }
 
         LambdaQueryWrapper<UserBlockPo> wrapper = new LambdaQueryWrapper<UserBlockPo>()
@@ -343,19 +346,19 @@ public class InteractServiceImpl implements InteractService {
     public void deleteComment(Long commentId) {
         Long currentUserId = UserHolderUtil.getUser().getUserId();
         if (commentId == null) {
-            throw new CustomException("评论ID不能为空");
+            throw new ErrorParamException("评论ID不能为空");
         }
 
         CommentPo commentPo = commentMapper.selectById(commentId);
         if (commentPo == null || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
-            throw new CustomException("评论不存在");
+            throw new NotFoundException("评论不存在");
         }
 
         VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
         boolean canDelete = Objects.equals(commentPo.getUserId(), currentUserId)
                 || (videoPo != null && Objects.equals(videoPo.getUserId(), currentUserId));
         if (!canDelete) {
-            throw new CustomException("无权限删除该评论");
+            throw new NoPermissionException("无权限删除该评论");
         }
 
         doDeleteComment(commentPo);
@@ -366,20 +369,20 @@ public class InteractServiceImpl implements InteractService {
     public void topComment(CommentTopRequest request) {
         Long currentUserId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getCommentId() == null) {
-            throw new CustomException("评论ID不能为空");
+            throw new ErrorParamException("评论ID不能为空");
         }
 
         CommentPo commentPo = commentMapper.selectById(request.getCommentId());
         if (commentPo == null || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
-            throw new CustomException("评论不存在");
+            throw new NotFoundException("评论不存在");
         }
         if (!Objects.equals(commentPo.getRootId(), 0L)) {
-            throw new CustomException("仅支持置顶主评论");
+            throw new ErrorOperationException("仅支持置顶主评论");
         }
 
         VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
         if (videoPo == null || !Objects.equals(videoPo.getUserId(), currentUserId)) {
-            throw new CustomException("只有视频作者可以置顶评论");
+            throw new NoPermissionException("只有视频作者可以置顶评论");
         }
 
         Integer operation = Optional.ofNullable(request.getOperation()).orElse(1);
@@ -402,10 +405,10 @@ public class InteractServiceImpl implements InteractService {
         Integer operation = request.getOperation();
         VideoPo videoPo = videoMapper.selectById(videoId);
         if (videoPo == null) {
-            throw new CustomException("视频不存在");
+            throw new NotFoundException("视频不存在");
         }
         if (!videoPo.getStatus().equals(VideoStatusEnum.PUBLISHED.getCode())) {
-            throw new CustomException("视频状态异常");
+            throw new ErrorOperationException("视频状态异常");
         }
 
         if (operation == 1) {
@@ -433,7 +436,7 @@ public class InteractServiceImpl implements InteractService {
                 interactRepository.updateUserLikeNum(videoPo.getUserId(), -1L);
             }
         } else {
-            throw new CustomException("操作类型非法");
+            throw new ErrorParamException("操作类型非法");
         }
     }
 
@@ -511,15 +514,15 @@ public class InteractServiceImpl implements InteractService {
 
         Long toUserId = request.getToUserId();
         if (Objects.equals(fromUserId, toUserId)) {
-            throw new CustomException("不能给自己发送私信");
+            throw new ErrorOperationException("不能给自己发送私信");
         }
         UserPo senderUser = userMapper.selectById(fromUserId);
         UserPo targetUser = userMapper.selectById(toUserId);
         if (senderUser == null) {
-            throw new CustomException("发送方用户不存在");
+            throw new NotFoundException("发送方用户不存在");
         }
         if (targetUser == null) {
-            throw new CustomException("接收方用户不存在");
+            throw new NotFoundException("接收方用户不存在");
         }
         PrivateMessageFailReasonEnum failReason = resolvePrivateMessageFailReason(fromUserId, toUserId, senderUser, targetUser);
         boolean failed = !Objects.equals(failReason, PrivateMessageFailReasonEnum.NONE);
@@ -1019,14 +1022,14 @@ public class InteractServiceImpl implements InteractService {
     public LikeReceivedDetailVo queryLikeReceivedDetail(String targetType, Long targetId) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (targetId == null || targetType == null) {
-            throw new CustomException("点赞消息参数不完整");
+            throw new ErrorParamException("点赞消息参数不完整");
         }
 
         String normalizedType = targetType.trim().toLowerCase();
         if ("comment".equals(normalizedType)) {
             CommentPo commentPo = commentMapper.selectById(targetId);
             if (commentPo == null || !Objects.equals(commentPo.getUserId(), myId) || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
-                throw new CustomException("评论不存在或无权限查看");
+                throw new NotFoundException("评论不存在或无权限查看");
             }
             List<LikeCommentPo> recentLikes = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
                     .eq(LikeCommentPo::getCommentId, targetId)
@@ -1059,7 +1062,7 @@ public class InteractServiceImpl implements InteractService {
         if ("video".equals(normalizedType)) {
             VideoPo videoPo = videoMapper.selectById(targetId);
             if (videoPo == null || !Objects.equals(videoPo.getUserId(), myId)) {
-                throw new CustomException("视频不存在或无权限查看");
+                throw new NotFoundException("视频不存在或无权限查看");
             }
             List<LikeVideoPo> recentLikes = likeVideoMapper.selectList(new LambdaQueryWrapper<LikeVideoPo>()
                     .eq(LikeVideoPo::getVideoId, targetId)
@@ -1086,14 +1089,14 @@ public class InteractServiceImpl implements InteractService {
                     .build();
         }
 
-        throw new CustomException("点赞消息类型非法");
+        throw new ErrorParamException("点赞消息类型非法");
     }
 
     @Override
     public List<UserSimpleInfoVo> queryFansList(Long userId) {
         Long currentUserId = UserHolderUtil.getUser().getUserId();
         if (!Objects.equals(currentUserId, userId) && hasMutualBlock(currentUserId, userId)) {
-            throw new CustomException("由于隐私设置，无法查看该用户粉丝列表");
+            throw new ErrorOperationException("由于隐私设置，无法查看该用户粉丝列表");
         }
         // 查询粉丝列表
         List<FollowRecordPo> fans = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
@@ -1121,7 +1124,7 @@ public class InteractServiceImpl implements InteractService {
     public List<UserSimpleInfoVo> queryFollowList(Long userId) {
         Long currentUserId = UserHolderUtil.getUser().getUserId();
         if (!Objects.equals(currentUserId, userId) && hasMutualBlock(currentUserId, userId)) {
-            throw new CustomException("由于隐私设置，无法查看该用户关注列表");
+            throw new ErrorOperationException("由于隐私设置，无法查看该用户关注列表");
         }
         // 查询关注列表
         List<FollowRecordPo> follows = followRecordMapper.selectList(new QueryWrapper<FollowRecordPo>().lambda()
@@ -1150,7 +1153,7 @@ public class InteractServiceImpl implements InteractService {
     public void collectVideo(CollectVideoRequest request) {
         Long userId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getVideoId() == null) {
-            throw new CustomException("收藏参数不完整");
+            throw new ErrorParamException("收藏参数不完整");
         }
         Long videoId = request.getVideoId();
         List<Long> collectDirectoryIdList = request.getCollectDirectoryIdList();
@@ -1158,7 +1161,7 @@ public class InteractServiceImpl implements InteractService {
 
         VideoPo videoPo = videoMapper.selectById(videoId);
         if (videoPo == null || videoPo.getStatus() != VideoStatusEnum.PUBLISHED.getCode()) {
-            throw new CustomException("视频不存在或不可收藏");
+            throw new NotFoundException("视频不存在或不可收藏");
         }
 
         List<Long> directoryIdList = Optional
@@ -1180,7 +1183,7 @@ public class InteractServiceImpl implements InteractService {
             if (CollectionUtils.isNotEmpty(collectionItemPos)) {
                 CollectionItemPo itemPo = collectionItemPos.get(0);
                 if (itemPo.getIsDeleted().equals(NOT_DELETED)) {
-                    throw new CustomException("该收藏夹已收藏该视频");
+                    throw new ErrorOperationException("该收藏夹已收藏该视频");
                 } else {
                     itemPo.setIsDeleted(NOT_DELETED);
                     collectionItemMapper.updateById(itemPo);
@@ -1226,34 +1229,34 @@ public class InteractServiceImpl implements InteractService {
     public void submitReport(ReportSubmitRequest request) {
         Long reporterId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getTargetType() == null || request.getTargetId() == null) {
-            throw new CustomException("举报参数不完整");
+            throw new ErrorParamException("举报参数不完整");
         }
         if (request.getReason() == null || request.getReason().trim().isEmpty()) {
-            throw new CustomException("举报原因不能为空");
+            throw new ErrorParamException("举报原因不能为空");
         }
 
         Integer targetType = request.getTargetType();
         Long targetId = request.getTargetId();
         if (ReportTargetTypeEnum.USER.getCode().equals(targetType)) {
             if (Objects.equals(reporterId, targetId)) {
-                throw new CustomException("不能举报自己");
+                throw new ErrorOperationException("不能举报自己");
             }
             UserPo targetUser = userMapper.selectById(targetId);
             if (targetUser == null) {
-                throw new CustomException("被举报用户不存在");
+                throw new NotFoundException("被举报用户不存在");
             }
         } else if (ReportTargetTypeEnum.VIDEO.getCode().equals(targetType)) {
             VideoPo targetVideo = videoMapper.selectById(targetId);
             if (targetVideo == null) {
-                throw new CustomException("被举报视频不存在");
+                throw new NotFoundException("被举报视频不存在");
             }
         } else if (ReportTargetTypeEnum.COMMENT.getCode().equals(targetType)) {
             CommentPo targetComment = commentMapper.selectById(targetId);
             if (targetComment == null || !NOT_DELETED.equals(targetComment.getIsDeleted())) {
-                throw new CustomException("被举报评论不存在");
+                throw new NotFoundException("被举报评论不存在");
             }
         } else {
-            throw new CustomException("举报类型非法");
+            throw new ErrorParamException("举报类型非法");
         }
 
         ReportPo reportPo = ReportPo.builder()
@@ -1272,7 +1275,7 @@ public class InteractServiceImpl implements InteractService {
     public Long createCollectionDirectory(CollectionDirectoryCreateRequest request) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new CustomException("收藏夹名称不能为空");
+            throw new ErrorParamException("收藏夹名称不能为空");
         }
         CollectionDirectoryPo po = CollectionDirectoryPo.builder()
                 .userId(myId)
@@ -1292,11 +1295,11 @@ public class InteractServiceImpl implements InteractService {
     public void updateCollectionDirectory(CollectionDirectoryUpdateRequest request) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getDirectoryId() == null) {
-            throw new CustomException("收藏夹参数不完整");
+            throw new ErrorParamException("收藏夹参数不完整");
         }
         CollectionDirectoryPo po = queryOwnedDirectory(myId, request.getDirectoryId());
         if (po == null) {
-            throw new CustomException("收藏夹不存在或无权限");
+            throw new NotFoundException("收藏夹不存在或无权限");
         }
         if (request.getName() != null && !request.getName().trim().isEmpty()) {
             po.setName(request.getName().trim());
@@ -1318,7 +1321,7 @@ public class InteractServiceImpl implements InteractService {
         Long myId = UserHolderUtil.getUser().getUserId();
         Long ownerId = targetUserId == null ? myId : targetUserId;
         if (!Objects.equals(myId, ownerId) && hasMutualBlock(myId, ownerId)) {
-            throw new CustomException("由于隐私设置，无法查看收藏夹");
+            throw new ErrorOperationException("由于隐私设置，无法查看收藏夹");
         }
         LambdaQueryWrapper<CollectionDirectoryPo> wrapper = new LambdaQueryWrapper<CollectionDirectoryPo>()
                 .eq(CollectionDirectoryPo::getUserId, ownerId)
@@ -1355,7 +1358,7 @@ public class InteractServiceImpl implements InteractService {
     public List<VideoDirectoryRelationVo> queryVideoDirectoryRelations(Long videoId) {
         Long userId = UserHolderUtil.getUser().getUserId();
         if (videoId == null) {
-            throw new CustomException("视频ID不能为空");
+            throw new ErrorParamException("视频ID不能为空");
         }
         List<CollectionDirectoryPo> directories = interactRepository.queryUserCollectionDirectory(userId);
         List<CollectionItemPo> items = interactRepository.queryUserCollectionItemWithVideo(userId, videoId);
@@ -1386,15 +1389,15 @@ public class InteractServiceImpl implements InteractService {
         Long userId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getSourceDirectoryId() == null || request.getOperation() == null
                 || request.getTargetDirectoryId() == null || CollectionUtils.isEmpty(request.getVideoIds())) {
-            throw new CustomException("批量操作参数不完整");
+            throw new ErrorParamException("批量操作参数不完整");
         }
         CollectionDirectoryPo sourceDirectory = queryOwnedDirectory(userId, request.getSourceDirectoryId());
         if (sourceDirectory == null) {
-            throw new CustomException("来源收藏夹不存在或无权限");
+            throw new NotFoundException("来源收藏夹不存在或无权限");
         }
         CollectionDirectoryPo targetDirectory = queryOwnedDirectory(userId, request.getTargetDirectoryId());
         if (targetDirectory == null) {
-            throw new CustomException("目标收藏夹不存在或无权限");
+            throw new NotFoundException("目标收藏夹不存在或无权限");
         }
 
         Integer operation = request.getOperation();
@@ -1405,7 +1408,7 @@ public class InteractServiceImpl implements InteractService {
             int canceled1 = interactRepository.batchCollectVideo(userId, sourceDirectory.getId(), videoIdList);
             int canceled2 = videoRepository.batchAddVideoCollectCount(videoIdList, -1L);
             if (canceled1 != videoIdList.size() || canceled2 != videoIdList.size()) {
-                throw new CustomException("批量操作失败");
+                throw new ErrorOperationException("批量操作失败");
             }
             return canceled1;
         }
@@ -1414,7 +1417,7 @@ public class InteractServiceImpl implements InteractService {
         if (operation.equals(BatchCollectOperationEnum.COPY.getCode())) {
             int added = interactRepository.batchCollectVideo(userId, targetDirectory.getId(), videoIdList);
             if (added != videoIdList.size()) {
-                throw new CustomException("批量操作失败");
+                throw new ErrorOperationException("批量操作失败");
             }
             return added;
         }
@@ -1424,12 +1427,12 @@ public class InteractServiceImpl implements InteractService {
             int canceled = interactRepository.batchCancelCollectVideo(userId, sourceDirectory.getId(), videoIdList);
             int added = interactRepository.batchCollectVideo(userId, targetDirectory.getId(), videoIdList);
             if (canceled != added) {
-                throw new CustomException("批量操作失败");
+                throw new ErrorOperationException("批量操作失败");
             }
             return canceled;
         }
 
-        throw new CustomException("批量操作参数错误");
+        throw new ErrorParamException("批量操作参数错误");
     }
 
     @Override
@@ -1437,11 +1440,11 @@ public class InteractServiceImpl implements InteractService {
     public Integer clearInvalidCollectionItems(Long directoryId) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (directoryId == null) {
-            throw new CustomException("收藏夹ID不能为空");
+            throw new ErrorParamException("收藏夹ID不能为空");
         }
         CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
         if (directoryPo == null) {
-            throw new CustomException("收藏夹不存在或无权限");
+            throw new NotFoundException("收藏夹不存在或无权限");
         }
 
         LambdaQueryWrapper<CollectionItemPo> wrapper = new LambdaQueryWrapper<CollectionItemPo>()
@@ -1472,14 +1475,14 @@ public class InteractServiceImpl implements InteractService {
     public void coinVideo(CoinVideoRequest request) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getVideoId() == null || request.getAmount() == null) {
-            throw new CustomException("投币参数不完整");
+            throw new ErrorParamException("投币参数不完整");
         }
         if (request.getAmount() != 1 && request.getAmount() != 2) {
-            throw new CustomException("投币数量只能为1或2");
+            throw new ErrorParamException("投币数量只能为1或2");
         }
         VideoPo videoPo = videoMapper.selectById(request.getVideoId());
         if (videoPo == null || videoPo.getStatus() != VideoStatusEnum.PUBLISHED.getCode()) {
-            throw new CustomException("视频不存在或不可投币");
+            throw new NotFoundException("视频不存在或不可投币");
         }
 
         ensureWalletRow(myId);
@@ -1489,12 +1492,12 @@ public class InteractServiceImpl implements InteractService {
         }
         int targetAmount = oldAmount + request.getAmount();
         if (targetAmount > 2) {
-            throw new CustomException("单个视频最多投币2个");
+            throw new ErrorOperationException("单个视频最多投币2个");
         }
 
         int deducted = userWalletMapper.deductCoinIfEnough(myId, request.getAmount().longValue());
         if (deducted <= 0) {
-            throw new CustomException("硬币余额不足");
+            throw new ErrorOperationException("硬币余额不足");
         }
 
         recordCoinChangeLog(myId, -request.getAmount(), COIN_CHANGE_TYPE_VIDEO_REWARD, request.getVideoId());
@@ -1541,7 +1544,7 @@ public class InteractServiceImpl implements InteractService {
     @Transactional(rollbackFor = Exception.class)
     public void tripleAction(TripleActionRequest request) {
         if (request == null || request.getVideoId() == null) {
-            throw new CustomException("一键三连参数不完整");
+            throw new ErrorParamException("一键三连参数不完整");
         }
         likeVideo(LikeRequest.builder().targetId(request.getVideoId()).operation(1).build());
         coinVideo(CoinVideoRequest.builder().videoId(request.getVideoId()).amount(1).build());
@@ -1558,11 +1561,11 @@ public class InteractServiceImpl implements InteractService {
     public boolean shareVideo(Long videoId) {
         Long userId = UserHolderUtil.getUser().getUserId();
         if (videoId == null) {
-            throw new CustomException("视频ID不能为空");
+            throw new ErrorParamException("视频ID不能为空");
         }
         VideoPo videoPo = videoMapper.selectById(videoId);
         if (videoPo == null || !Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
-            throw new CustomException("视频不存在或不可分享");
+            throw new NotFoundException("视频不存在或不可分享");
         }
 
         String shareDedupKey = RedisKeyUtil.videoShareDedupKey(videoId, userId);
@@ -1586,7 +1589,7 @@ public class InteractServiceImpl implements InteractService {
                     .build());
             int updated = videoStatsMapper.updateShareCount(videoId, 1);
             if (updated <= 0) {
-                throw new CustomException("分享计数更新失败");
+                throw new ErrorOperationException("分享计数更新失败");
             }
             rebuildVideoShareDedupCache(shareDedupKey);
             return true;
@@ -1728,7 +1731,7 @@ public class InteractServiceImpl implements InteractService {
         Long currentUserId = UserHolderUtil.getUser().getUserId();
         CollectionDirectoryPo directoryPo = queryVisibleDirectory(currentUserId, directoryId);
         if (directoryPo == null) {
-            throw new CustomException("收藏夹不存在或无权限查看");
+            throw new NotFoundException("收藏夹不存在或无权限查看");
         }
 
         List<CollectionItemPo> items = collectionItemMapper.selectList(new LambdaQueryWrapper<CollectionItemPo>().eq(CollectionItemPo::getDirectoryId, directoryId).eq(CollectionItemPo::getIsDeleted, NOT_DELETED).orderByDesc(CollectionItemPo::getCreateTime));
@@ -1779,14 +1782,14 @@ public class InteractServiceImpl implements InteractService {
     public void deleteCollectionDirectory(Long directoryId) {
         Long myId = UserHolderUtil.getUser().getUserId();
         if (directoryId == null) {
-            throw new CustomException("收藏夹ID不能为空");
+            throw new ErrorParamException("收藏夹ID不能为空");
         }
         CollectionDirectoryPo directoryPo = queryOwnedDirectory(myId, directoryId);
         if (directoryPo == null) {
-            throw new CustomException("收藏夹不存在或无权限");
+            throw new NotFoundException("收藏夹不存在或无权限");
         }
         if (Objects.equals(directoryPo.getIsDefault(), 1)) {
-            throw new CustomException("默认收藏夹无法删除");
+            throw new ErrorOperationException("默认收藏夹无法删除");
         }
         directoryPo.setIsDeleted(1);
         collectionDirectoryMapper.updateById(directoryPo);
@@ -1936,12 +1939,12 @@ public class InteractServiceImpl implements InteractService {
     public CommentPageVo listVideoComments(CommentListRequest request) {
         Long videoId = request.getVideoId();
         if (videoId == null) {
-            throw new CustomException("视频ID不能为空");
+            throw new ErrorParamException("视频ID不能为空");
         }
         int safePageSize = request.getPageSize() == null ? 20 : Math.min(Math.max(request.getPageSize(), 1), 50);
         VideoPo videoPo = videoMapper.selectById(videoId);
         if (videoPo == null || !Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
-            throw new CustomException("视频不存在或未发布");
+            throw new NotFoundException("视频不存在或未发布");
         }
 
         Long myId = getCurrentUserIdOrNull();
@@ -1977,13 +1980,13 @@ public class InteractServiceImpl implements InteractService {
     @Override
     public PageVo<CommentVo> listCommentReplies(Long rootCommentId, Integer pageNum, Integer pageSize) {
         if (rootCommentId == null) {
-            throw new CustomException("主评论ID不能为空");
+            throw new ErrorParamException("主评论ID不能为空");
         }
         int safePageNum = pageNum == null || pageNum < 1 ? 1 : pageNum;
         int safePageSize = pageSize == null ? 10 : Math.min(Math.max(pageSize, 1), 50);
         CommentPo rootComment = commentMapper.selectById(rootCommentId);
         if (rootComment == null || !Objects.equals(rootComment.getIsDeleted(), NOT_DELETED) || !Objects.equals(rootComment.getRootId(), 0L)) {
-            throw new CustomException("主评论不存在");
+            throw new NotFoundException("主评论不存在");
         }
 
         Long myId = getCurrentUserIdOrNull();
@@ -2036,7 +2039,7 @@ public class InteractServiceImpl implements InteractService {
         if (videoId != null) {
             VideoPo videoPo = videoMapper.selectById(videoId);
             if (videoPo == null || !Objects.equals(videoPo.getUserId(), userId)) {
-                throw new CustomException("视频不存在或无权查看评论");
+                throw new NotFoundException("视频不存在或无权查看评论");
             }
         }
 
@@ -2127,21 +2130,21 @@ public class InteractServiceImpl implements InteractService {
     public void deleteCreatorComment(Long commentId) {
         Long currentUserId = UserHolderUtil.getUser().getUserId();
         if (commentId == null) {
-            throw new CustomException("评论ID不能为空");
+            throw new ErrorParamException("评论ID不能为空");
         }
 
         CommentPo commentPo = commentMapper.selectById(commentId);
         if (commentPo == null || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
-            throw new CustomException("评论不存在");
+            throw new NotFoundException("评论不存在");
         }
 
         VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
         if (videoPo == null) {
-            throw new CustomException("评论对应的视频不存在");
+            throw new NotFoundException("评论对应的视频不存在");
         }
         boolean canDelete = Objects.equals(videoPo.getUserId(), currentUserId) || Objects.equals(commentPo.getUserId(), currentUserId);
         if (!canDelete) {
-            throw new CustomException("无权限删除该评论");
+            throw new NoPermissionException("无权限删除该评论");
         }
 
         doDeleteComment(commentPo);

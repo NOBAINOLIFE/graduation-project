@@ -368,7 +368,7 @@ public class UserServiceImpl implements UserService {
         PasswordUtil.validate(request.getNewPassword());
 
         if (!userPo.getPassword().equals(PasswordUtil.md5(request.getOldPassword()))) {
-            throw new IllegalArgumentException("原密码错误");
+            throw new ErrorParamException("原密码错误");
         }
         userPo.setPassword(PasswordUtil.md5(request.getNewPassword()));
         userMapper.updateById(userPo);

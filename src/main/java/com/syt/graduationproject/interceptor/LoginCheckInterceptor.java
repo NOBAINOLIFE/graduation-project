@@ -1,6 +1,5 @@
 package com.syt.graduationproject.interceptor;
 
-import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.model.dto.UserDto;
 import com.syt.graduationproject.model.response.Response;
@@ -12,7 +11,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
@@ -24,7 +22,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.syt.graduationproject.constant.UserConstant.ADMIN_PERMISSION;
 import static com.syt.graduationproject.constant.UserConstant.ROLE_CODE;
 import static com.syt.graduationproject.constant.UserConstant.ROLE_ID;
 import static com.syt.graduationproject.constant.UserConstant.USERNAME;
@@ -82,11 +79,6 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
                 return false;
             }
 
-            if (!hasPermission(handler, userDto)) {
-                editResponseMessage(response, "无权限访问");
-                return false;
-            }
-
             refreshTokenIfNecessary(response, jwtToken, claims, userDto.getUserId());
             UserHolderUtil.saveUser(userDto);
         } catch (Exception e) {
@@ -136,21 +128,6 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
                 || uri.startsWith("/graduation-project/video/videoInfo/")
                 || uri.equals("/graduation-project/interact/comment/list")
                 || uri.equals("/graduation-project/search/video");
-    }
-
-    private boolean hasPermission(Object handler, UserDto userDto) {
-        if (!(handler instanceof HandlerMethod)) {
-            return true;
-        }
-        HandlerMethod handlerMethod = (HandlerMethod) handler;
-        RequirePermission requirePermission = handlerMethod.getMethodAnnotation(RequirePermission.class);
-        if (requirePermission == null) {
-            return true;
-        }
-        if (ADMIN_PERMISSION.equalsIgnoreCase(requirePermission.value())) {
-            return RoleEnum.ADMIN.getRoleCode().equalsIgnoreCase(userDto.getRoleCode());
-        }
-        return true;
     }
 
     /**

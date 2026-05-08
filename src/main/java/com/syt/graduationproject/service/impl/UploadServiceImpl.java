@@ -2,7 +2,10 @@ package com.syt.graduationproject.service.impl;
 
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
-import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.exception.ErrorOperationException;
+import com.syt.graduationproject.exception.ErrorParamException;
+import com.syt.graduationproject.exception.NoPermissionException;
+import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.model.dto.MultipartUploadSessionDto;
 import com.syt.graduationproject.model.po.VideoPo;
 import com.syt.graduationproject.model.po.VideoSourcePo;
@@ -74,15 +77,15 @@ public class UploadServiceImpl implements UploadService {
     @Override
     public void uploadMultipartChunk(Long videoId, String uploadToken, Integer chunkIndex, MultipartFile file) {
         if (videoId == null || chunkIndex == null || StringUtils.isBlank(uploadToken) || file == null || file.isEmpty()) {
-            throw new CustomException("分片参数非法");
+            throw new ErrorParamException("分片参数非法");
         }
         MultipartUploadSessionDto sessionDto = getSession(videoId, uploadToken);
         Long userId = UserHolderUtil.getUser().getUserId();
         if (!userId.equals(sessionDto.getUserId())) {
-            throw new CustomException("无权上传该视频分片");
+            throw new NoPermissionException("无权上传该视频分片");
         }
         if (chunkIndex < 0 || chunkIndex >= sessionDto.getTotalChunks()) {
-            throw new CustomException("分片索引越界");
+            throw new ErrorParamException("分片索引越界");
         }
 
         String chunkObjectName = buildChunkObjectName(videoId, uploadToken, chunkIndex);
@@ -96,28 +99,28 @@ public class UploadServiceImpl implements UploadService {
     @Override
     public void completeMultipartUpload(MultipartUploadCompleteRequest request) {
         if (request == null || request.getVideoId() == null || StringUtils.isBlank(request.getUploadToken())) {
-            throw new CustomException("分片合并参数非法");
+            throw new ErrorParamException("分片合并参数非法");
         }
         Long videoId = request.getVideoId();
         String uploadToken = request.getUploadToken();
         MultipartUploadSessionDto sessionDto = getSession(videoId, uploadToken);
         Long userId = UserHolderUtil.getUser().getUserId();
         if (!userId.equals(sessionDto.getUserId())) {
-            throw new CustomException("无权完成该视频上传");
+            throw new NoPermissionException("无权完成该视频上传");
         }
 
         VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(videoId, userId);
         if (videoPo == null) {
-            throw new CustomException("视频不存在");
+            throw new NotFoundException("视频不存在");
         }
         if (VideoStatusEnum.UPLOADING.getCode() != videoPo.getStatus()) {
-            throw new CustomException("当前视频状态不允许合并分片");
+            throw new ErrorOperationException("当前视频状态不允许合并分片");
         }
 
         String partKey = RedisKeyUtil.videoUploadPartsKey(videoId, uploadToken);
         Map<Object, Object> partMap = stringRedisTemplate.opsForHash().entries(partKey);
         if (partMap.size() != sessionDto.getTotalChunks()) {
-            throw new CustomException("分片数量不完整");
+            throw new ErrorOperationException("分片数量不完整");
         }
 
         List<Integer> indexes = new ArrayList<>();
@@ -127,7 +130,7 @@ public class UploadServiceImpl implements UploadService {
         Collections.sort(indexes);
         for (int i = 0; i < sessionDto.getTotalChunks(); i++) {
             if (!indexes.get(i).equals(i)) {
-                throw new CustomException("分片缺失，无法合并");
+                throw new ErrorOperationException("分片缺失，无法合并");
             }
         }
 
@@ -143,7 +146,7 @@ public class UploadServiceImpl implements UploadService {
                 VideoStatusEnum.UPLOADING.getCode(),
                 VideoStatusEnum.UPLOAD_SUCCESS.getCode());
         if (updated <= 0) {
-            throw new CustomException("更新上传状态失败");
+            throw new ErrorOperationException("更新上传状态失败");
         }
 
         videoRepository.deleteVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode());
@@ -164,14 +167,14 @@ public class UploadServiceImpl implements UploadService {
         String sessionKey = RedisKeyUtil.videoUploadSessionKey(videoId, uploadToken);
         String sessionJson = stringRedisTemplate.opsForValue().get(sessionKey);
         if (StringUtils.isBlank(sessionJson)) {
-            throw new CustomException("上传会话不存在或已过期");
+            throw new NotFoundException("上传会话不存在或已过期");
         }
         return JsonUtil.fromJson(sessionJson, MultipartUploadSessionDto.class);
     }
 
     private void validateInitRequest(MultipartUploadInitRequest request) {
         if (request == null || StringUtils.isBlank(request.getFileName()) || request.getTotalChunks() == null || request.getTotalChunks() <= 0) {
-            throw new CustomException("初始化分片上传参数非法");
+            throw new ErrorParamException("初始化分片上传参数非法");
         }
     }
 

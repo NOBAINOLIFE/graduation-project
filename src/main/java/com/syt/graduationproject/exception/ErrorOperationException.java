@@ -11,6 +11,7 @@ public class ErrorOperationException extends CustomException {
     public ErrorOperationException() {
         super(ERROR_OPERATION);
     }
+
     public ErrorOperationException(String message) {
         super(message);
     }
