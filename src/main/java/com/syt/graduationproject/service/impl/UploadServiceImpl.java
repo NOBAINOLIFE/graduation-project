@@ -153,9 +153,6 @@ public class UploadServiceImpl implements UploadService {
                 .playUrl(mergedObjectName)
                 .format("mp4")
                 .codec("")
-                .fileSize(null)
-                .width(null)
-                .height(null)
                 .build();
         videoRepository.saveVideoSource(sourcePo);
 

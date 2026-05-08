@@ -1,11 +1,9 @@
 package com.syt.graduationproject.util;
 
-import lombok.Data;
 
 /**
  * 私聊 Redis Key 规范
  */
-@Data
 public class RedisKeyUtil {
 
     /**

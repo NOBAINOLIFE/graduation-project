@@ -58,24 +58,6 @@ public class VideoSourcePo {
     private String codec;
 
     /**
-     * 文件大小(Byte)
-     */
-    @TableField(value = "file_size")
-    private Long fileSize;
-
-    /**
-     * 视频宽度
-     */
-    @TableField(value = "width")
-    private Integer width;
-
-    /**
-     * 视频高度
-     */
-    @TableField(value = "height")
-    private Integer height;
-
-    /**
      * 状态 0-未删除 1-已删除
      */
     @TableField(value = "is_deleted")

@@ -12,7 +12,7 @@ import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.po.CollectionDirectoryPo;
 import com.syt.graduationproject.model.po.UserCoinChangeLogPo;
 import com.syt.graduationproject.model.po.UserPo;
-import com.syt.graduationproject.model.po.UserRolePo;
+import com.syt.graduationproject.model.po.UserRoleRelPo;
 import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
@@ -30,6 +30,7 @@ import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.UserService;
 import com.syt.graduationproject.util.JwtUtil;
+import com.syt.graduationproject.util.PasswordUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
@@ -94,6 +95,8 @@ public class UserServiceImpl implements UserService {
         String password = request.getPassword();
         String username = request.getUsername();
 
+        PasswordUtil.validate(password);
+
         // 判断用户是否存在
         UserPo userPo = userRepository.queryUserByAccount(account);
         if (Objects.nonNull(userPo)) {
@@ -104,18 +107,18 @@ public class UserServiceImpl implements UserService {
         // 添加用户
         UserPo newUser = UserPo.builder()
                 .account(account)
-                .password(password)
+                .password(PasswordUtil.md5(password))
                 .username(username)
                 .avatarUrl(DEFAULT_AVATAR)
                 .bio(DEFAULT_BIO)
                 .build();
         userMapper.insert(newUser);
 
-        UserRolePo userRolePo = UserRolePo.builder()
+        UserRoleRelPo userRoleRelPo = UserRoleRelPo.builder()
                 .userId(newUser.getId())
                 .roleId(RoleEnum.USER.getRoleId())
                 .build();
-        userRoleMapper.insert(userRolePo);
+        userRoleMapper.insert(userRoleRelPo);
 
         // 初始化用户数据统计信息
         interactRepository.initUserStats(newUser.getId());
@@ -158,7 +161,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 校验密码
-        if (!userPo.getPassword().equals(password)) {
+        if (!userPo.getPassword().equals(PasswordUtil.md5(password))) {
             throw new ErrorParamException("账号或密码错误");
         }
 
@@ -166,11 +169,11 @@ public class UserServiceImpl implements UserService {
         Map<String, Object> claimMap = new HashMap<>();
         Long userId = userPo.getId();
         Long roleId = RoleEnum.USER.getRoleId();
-        UserRolePo userRolePo = userRoleMapper.selectOne(new QueryWrapper<UserRolePo>()
+        UserRoleRelPo userRoleRelPo = userRoleMapper.selectOne(new QueryWrapper<UserRoleRelPo>()
                 .lambda()
-                .eq(UserRolePo::getUserId, userId));
-        if (userRolePo != null && userRolePo.getRoleId() != null) {
-            roleId = userRolePo.getRoleId();
+                .eq(UserRoleRelPo::getUserId, userId));
+        if (userRoleRelPo != null && userRoleRelPo.getRoleId() != null) {
+            roleId = userRoleRelPo.getRoleId();
         }
         RoleEnum roleEnum = RoleEnum.fromRoleId(roleId);
         String roleCode = roleEnum == null ? RoleEnum.USER.getRoleCode() : roleEnum.getRoleCode();
@@ -342,7 +345,7 @@ public class UserServiceImpl implements UserService {
     public String uploadAvatar(MultipartFile file) {
         try {
             // 头像上传到 avatars 文件夹
-            return minioService.uploadFile(file, "avatars");
+            return minioService.uploadFile(file, "avatars/");
         } catch (Exception e) {
             log.error("上传头像到Minio失败", e);
             throw new ErrorOperationException("上传头像失败");
@@ -361,10 +364,13 @@ public class UserServiceImpl implements UserService {
         if (userPo == null) {
             throw new ErrorOperationException("用户不存在");
         }
-        if (!userPo.getPassword().equals(request.getOldPassword())) {
-            throw new ErrorParamException("原密码错误");
+
+        PasswordUtil.validate(request.getNewPassword());
+
+        if (!userPo.getPassword().equals(PasswordUtil.md5(request.getOldPassword()))) {
+            throw new IllegalArgumentException("原密码错误");
         }
-        userPo.setPassword(request.getNewPassword());
+        userPo.setPassword(PasswordUtil.md5(request.getNewPassword()));
         userMapper.updateById(userPo);
     }
 }

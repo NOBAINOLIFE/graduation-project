@@ -15,8 +15,8 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_user_role")
-public class UserRolePo {
+@TableName("tb_user_role_rel")
+public class UserRoleRelPo {
 
     /**
      * 主键自增
