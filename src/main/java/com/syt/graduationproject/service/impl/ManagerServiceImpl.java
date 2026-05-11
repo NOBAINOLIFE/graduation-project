@@ -108,6 +108,8 @@ public class ManagerServiceImpl implements ManagerService {
 
 	private final StringRedisTemplate stringRedisTemplate;
 
+	private final UserRoleMapper userRoleMapper;
+
 	@Override
 	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
 		int pageNum = normalizePageNum(request == null ? null : request.getPageNum());
@@ -215,10 +217,18 @@ public class ManagerServiceImpl implements ManagerService {
 		boolean queryAllStatus = status == null || status < 0;
 
 		Page<UserPo> page = new Page<>(pageNum, pageSize);
+		List<Long> adminUserIds = userRoleMapper.selectList(
+				new LambdaQueryWrapper<UserRoleRelPo>()
+						.eq(UserRoleRelPo::getRoleId, RoleEnum.ADMIN.getRoleId()))
+				.stream()
+				.map(UserRoleRelPo::getUserId)
+				.collect(Collectors.toList());
+
 		Page<UserPo> result = userMapper.selectPage(page, new LambdaQueryWrapper<UserPo>()
 				.like(StringUtils.isNotBlank(keyword), UserPo::getUsername, keyword)
 				.eq(!queryAllStatus, UserPo::getStatus, status)
 				.ne(queryAllStatus, UserPo::getStatus, UserStatusEnum.DELETED.getCode())
+				.notIn(CollectionUtils.isNotEmpty(adminUserIds), UserPo::getId, adminUserIds)
 				.orderByDesc(UserPo::getCreateTime)
 				.orderByDesc(UserPo::getId));
 
