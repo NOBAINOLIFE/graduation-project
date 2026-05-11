@@ -73,6 +73,13 @@ export function unbanVideo(videoId) {
   });
 }
 
+export function createVideoPartition(partitionName) {
+  return request('/graduation-project/manager/video/partition/create', {
+    method: 'POST',
+    json: { partitionName }
+  });
+}
+
 export function deleteVideoPartition(partitionId) {
   return request(`/graduation-project/manager/video/partition/${partitionId}`, {
     method: 'DELETE'

@@ -5,13 +5,21 @@
         <h2 class="text-lg font-semibold text-slate-900">视频分区管理</h2>
         <p class="mt-1 text-sm text-slate-500">查看分区信息，并在分区下没有视频时删除该分区。</p>
       </div>
-      <button
-        class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-        :disabled="loading"
-        @click="fetchList"
-      >
-        {{ loading ? '刷新中...' : '刷新' }}
-      </button>
+      <div class="flex gap-2">
+        <button
+          class="rounded-lg bg-[#00a1d6] px-4 py-2 text-sm text-white transition hover:bg-[#00b5e5]"
+          @click="openCreateDialog"
+        >
+          新增分区
+        </button>
+        <button
+          class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+          :disabled="loading"
+          @click="fetchList"
+        >
+          {{ loading ? '刷新中...' : '刷新' }}
+        </button>
+      </div>
     </div>
 
     <div class="mb-5 flex flex-wrap items-center gap-3">
@@ -108,13 +116,22 @@
         </button>
       </div>
     </div>
+
+    <!-- 新增分区弹窗 -->
+    <el-dialog v-model="createDialogVisible" title="新增分区" width="420px" :close-on-click-modal="false" @closed="resetCreateForm">
+      <el-input v-model="createPartitionName" placeholder="请输入分区名称" maxlength="20" show-word-limit @keyup.enter="confirmCreate" />
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createLoading" @click="confirmCreate">确定</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { deleteVideoPartition, queryVideoPartitionList } from '../../api/manager';
+import { createVideoPartition, deleteVideoPartition, queryVideoPartitionList } from '../../api/manager';
 
 const filters = reactive({
   keyword: ''
@@ -129,6 +146,11 @@ const pagination = reactive({
 const loading = ref(false);
 const operatingPartitionId = ref(null);
 const records = ref([]);
+
+// 新增分区
+const createDialogVisible = ref(false);
+const createLoading = ref(false);
+const createPartitionName = ref('');
 
 const totalPages = computed(() => {
   const pages = Math.ceil((pagination.total || 0) / pagination.pageSize);
@@ -167,6 +189,34 @@ async function fetchList() {
 function reloadFirstPage() {
   pagination.pageNum = 1;
   fetchList();
+}
+
+function openCreateDialog() {
+  createPartitionName.value = '';
+  createDialogVisible.value = true;
+}
+
+function resetCreateForm() {
+  createPartitionName.value = '';
+}
+
+async function confirmCreate() {
+  const name = createPartitionName.value.trim();
+  if (!name) {
+    ElMessage.warning('请输入分区名称');
+    return;
+  }
+  createLoading.value = true;
+  try {
+    await createVideoPartition(name);
+    ElMessage.success('分区创建成功');
+    createDialogVisible.value = false;
+    await fetchList();
+  } catch (error) {
+    ElMessage.error(error.message || '创建分区失败');
+  } finally {
+    createLoading.value = false;
+  }
 }
 
 function changePage(page) {

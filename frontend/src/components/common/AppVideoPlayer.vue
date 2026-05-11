@@ -64,7 +64,7 @@
     </div>
 
     <div
-      class="absolute inset-x-0 bottom-0 z-20 transition duration-200"
+      class="absolute inset-x-0 bottom-0 z-20 transition duration-200 pt-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent"
       :class="controlsVisible || !playerState.playing ? 'opacity-100' : 'opacity-0 md:pointer-events-none'"
     >
       <div class="relative px-3 pb-3 sm:px-5 sm:pb-4">

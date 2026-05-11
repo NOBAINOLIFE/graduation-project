@@ -166,6 +166,19 @@ public class VideoRepositoryImpl implements VideoRepository {
     }
 
     @Override
+    public int updateVideo(Long videoId, Long userId, String title, String description, String coverUrl, Long partitionId) {
+        LambdaUpdateWrapper<VideoPo> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(VideoPo::getId, videoId)
+                .eq(VideoPo::getUserId, userId)
+                .set(VideoPo::getTitle, title)
+                .set(VideoPo::getDescription, description)
+                .set(VideoPo::getCoverUrl, coverUrl)
+                .set(VideoPo::getPartitionId, partitionId)
+                .set(VideoPo::getUpdateTime, LocalDateTime.now());
+        return videoMapper.update(null, updateWrapper);
+    }
+
+    @Override
     public int insertVideoStatsIfAbsent(Long videoId) {
         LambdaQueryWrapper<VideoStatsPo> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(VideoStatsPo::getVideoId, videoId)

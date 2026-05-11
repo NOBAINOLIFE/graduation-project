@@ -21,6 +21,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 import static com.syt.graduationproject.constant.UserConstant.ADMIN_PERMISSION;
 
 @Slf4j
@@ -173,6 +175,21 @@ public class ManagerController {
         } catch (Exception e) {
             log.error("解禁视频失败，videoId:{}", videoId, e);
             return Response.fail("解禁视频失败，系统异常");
+        }
+    }
+
+    @PostMapping("/video/partition/create")
+    @RequirePermission(ADMIN_PERMISSION)
+    public Response<Object> createVideoPartition(@RequestBody Map<String, String> body) {
+        try {
+            managerService.createVideoPartition(body.get("partitionName"));
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("创建视频分区失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("创建视频分区失败", e);
+            return Response.fail("创建视频分区失败，系统异常");
         }
     }
 

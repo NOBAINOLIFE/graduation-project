@@ -36,6 +36,8 @@ public interface ManagerService {
 
 	void unbanVideo(Long videoId);
 
+	void createVideoPartition(String partitionName);
+
 	void deleteVideoPartition(Long partitionId);
 
 	void deleteVideoTag(Long tagId);

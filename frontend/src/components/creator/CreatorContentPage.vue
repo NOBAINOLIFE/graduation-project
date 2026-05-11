@@ -118,6 +118,11 @@
                       {{ video.status === 8 ? '重新提交审核' : '提交审核' }}
                     </el-button>
                     <el-button
+                      @click="openEditDialog(video)"
+                    >
+                      编辑
+                    </el-button>
+                    <el-button
                       v-if="video.status === 9"
                       @click="viewVideo(video.videoId)"
                     >
@@ -173,6 +178,82 @@
         </div>
       </section>
     </div>
+
+    <!-- 编辑弹窗 -->
+    <el-dialog v-model="editDialogVisible" title="编辑稿件" width="640px" :close-on-click-modal="false" @closed="resetEditForm">
+      <div class="space-y-6">
+        <!-- 封面 -->
+        <div class="flex">
+          <label class="w-20 shrink-0 text-sm font-medium leading-8"><span class="mr-1 text-red-500">*</span>封面</label>
+          <div class="flex-1">
+            <div class="flex gap-4">
+              <div class="relative aspect-[4/3] w-36 overflow-hidden rounded border border-slate-200 bg-slate-100">
+                <img v-if="editForm.coverUrl" :src="editForm.coverUrl" class="h-full w-full object-cover" />
+                <div v-else class="flex h-full items-center justify-center text-xs text-slate-400">暂无封面</div>
+              </div>
+              <div class="flex flex-col justify-center">
+                <input type="file" id="editCoverInput" class="hidden" accept="image/*" @change="onEditCoverChange" />
+                <el-button size="small" @click="document.getElementById('editCoverInput').click()" :loading="editCoverUploading">
+                  {{ editCoverUploading ? '上传中...' : '更换封面' }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 标题 -->
+        <div class="flex items-center">
+          <label class="w-20 shrink-0 text-sm font-medium"><span class="mr-1 text-red-500">*</span>标题</label>
+          <div class="relative flex-1">
+            <el-input v-model="editForm.title" maxlength="80" placeholder="请输入标题" show-word-limit />
+          </div>
+        </div>
+
+        <!-- 分区 -->
+        <div class="flex items-center">
+          <label class="w-20 shrink-0 text-sm font-medium"><span class="mr-1 text-red-500">*</span>分区</label>
+          <el-select v-model="editForm.partitionId" placeholder="请选择分区" class="flex-1">
+            <el-option v-for="p in editPartitions" :key="p.id" :label="p.partitionName" :value="p.id" />
+          </el-select>
+        </div>
+
+        <!-- 标签 -->
+        <div class="flex">
+          <label class="w-20 shrink-0 text-sm font-medium leading-8"><span class="mr-1 text-red-500">*</span>标签</label>
+          <div class="flex-1">
+            <div class="flex w-full flex-wrap items-center gap-2 rounded border border-slate-200 bg-white p-1.5 transition-all focus-within:border-[#00a1d6]">
+              <span
+                v-for="tag in editForm.tags"
+                :key="tag"
+                class="flex items-center gap-1 rounded bg-[#00a1d6] py-1 pl-2 pr-1 text-xs text-white"
+              >
+                {{ tag }}
+                <button type="button" class="flex h-4 w-4 items-center justify-center rounded-full hover:bg-black/10" @click="removeEditTag(tag)">×</button>
+              </span>
+              <input
+                v-model.trim="editTagDraft"
+                class="min-w-[100px] flex-1 px-1 text-sm outline-none bg-transparent"
+                placeholder="回车创建标签"
+                @keydown.enter.prevent="addEditTag"
+                @keydown.backspace="editTagDraft === '' && editForm.tags.pop()"
+              />
+              <span class="px-2 text-xs text-slate-400">{{ 10 - editForm.tags.length }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 简介 -->
+        <div class="flex">
+          <label class="w-20 shrink-0 text-sm font-medium">简介</label>
+          <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="填写更详细的简介" class="flex-1" />
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -180,8 +261,10 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getCreatorVideos, submitCreatorVideoAudit } from '../../api/creator';
+import { getCreatorVideos, submitCreatorVideoAudit, updateCreatorVideo } from '../../api/creator';
 import { getUserInfo } from '../../api/user';
+import { listPartitions } from '../../api/video';
+import { request } from '../../api/http';
 
 const router = useRouter();
 
@@ -191,6 +274,21 @@ const userInfo = ref(null);
 const pageData = ref({
   total: 0,
   records: []
+});
+
+// 编辑弹窗状态
+const editDialogVisible = ref(false);
+const editSaving = ref(false);
+const editCoverUploading = ref(false);
+const editTagDraft = ref('');
+const editPartitions = ref([]);
+const editingVideoId = ref(null);
+const editForm = reactive({
+  title: '',
+  description: '',
+  coverUrl: '',
+  partitionId: null,
+  tags: []
 });
 
 const query = reactive({
@@ -294,6 +392,96 @@ async function submitAudit(video) {
     ElMessage.error(error.message || '提交审核失败');
   } finally {
     actionLoadingId.value = null;
+  }
+}
+
+// ---- 编辑稿件 ----
+function openEditDialog(video) {
+  editingVideoId.value = video.videoId;
+  editForm.title = video.title || '';
+  editForm.description = video.description || '';
+  editForm.coverUrl = video.coverUrl || '';
+  editForm.partitionId = video.partitionId || null;
+  editForm.tags = [];
+  editTagDraft.value = '';
+  editDialogVisible.value = true;
+  if (editPartitions.value.length === 0) {
+    listPartitions().then(data => {
+      editPartitions.value = Array.isArray(data) ? data : [];
+    }).catch(() => {});
+  }
+}
+
+function resetEditForm() {
+  editingVideoId.value = null;
+  editForm.title = '';
+  editForm.description = '';
+  editForm.coverUrl = '';
+  editForm.partitionId = null;
+  editForm.tags = [];
+  editTagDraft.value = '';
+}
+
+function addEditTag() {
+  const val = editTagDraft.value.trim();
+  if (val && editForm.tags.length < 10 && !editForm.tags.includes(val)) {
+    editForm.tags.push(val);
+    editTagDraft.value = '';
+  }
+}
+
+function removeEditTag(tag) {
+  editForm.tags = editForm.tags.filter(t => t !== tag);
+}
+
+function onEditCoverChange(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  editCoverUploading.value = true;
+  const formData = new FormData();
+  formData.append('file', file);
+  request('/graduation-project/upload/image', { method: 'POST', formData })
+    .then(url => {
+      editForm.coverUrl = url;
+    })
+    .catch(err => {
+      ElMessage.error('封面上传失败：' + (err.message || '未知错误'));
+    })
+    .finally(() => {
+      editCoverUploading.value = false;
+    });
+}
+
+async function saveEdit() {
+  if (!editForm.title.trim()) {
+    ElMessage.warning('标题不能为空');
+    return;
+  }
+  if (!editForm.partitionId) {
+    ElMessage.warning('请选择分区');
+    return;
+  }
+  if (editForm.tags.length === 0) {
+    ElMessage.warning('至少需要添加1个标签');
+    return;
+  }
+
+  editSaving.value = true;
+  try {
+    await updateCreatorVideo(editingVideoId.value, {
+      title: editForm.title.trim(),
+      description: editForm.description,
+      coverUrl: editForm.coverUrl,
+      partitionId: editForm.partitionId,
+      tagList: [...editForm.tags]
+    });
+    ElMessage.success('修改已保存');
+    editDialogVisible.value = false;
+    await loadVideos();
+  } catch (error) {
+    ElMessage.error(error.message || '保存失败');
+  } finally {
+    editSaving.value = false;
   }
 }
 

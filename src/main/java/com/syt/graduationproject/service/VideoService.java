@@ -3,6 +3,7 @@ package com.syt.graduationproject.service;
 import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.request.VideoUpdateRequest;
 import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
@@ -27,6 +28,11 @@ public interface VideoService {
      * 投稿视频
      */
     void submitVideo(VideoSubmitRequest request);
+
+    /**
+     * 更新视频元信息
+     */
+    void updateVideo(Long videoId, VideoUpdateRequest request);
 
     /**
      * 发布视频

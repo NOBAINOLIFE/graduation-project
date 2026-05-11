@@ -59,6 +59,11 @@ public interface VideoRepository {
     int submitVideo(Long videoId, Long userId, String title, String description, String coverUrl, Integer duration, Long partitionId);
 
     /**
+     * 更新视频元信息（标题/封面/分区/简介）
+     */
+    int updateVideo(Long videoId, Long userId, String title, String description, String coverUrl, Long partitionId);
+
+    /**
      * 插入视频统计记录
      */
     int insertVideoStatsIfAbsent(Long videoId);

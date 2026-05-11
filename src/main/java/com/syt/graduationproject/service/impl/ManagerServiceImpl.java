@@ -901,6 +901,25 @@ public class ManagerServiceImpl implements ManagerService {
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
+	public void createVideoPartition(String partitionName) {
+		if (StringUtils.isBlank(partitionName)) {
+			throw new ErrorParamException("分区名称不能为空");
+		}
+		Long exists = videoPartitionMapper.selectCount(new LambdaQueryWrapper<VideoPartitionPo>()
+				.eq(VideoPartitionPo::getPartitionName, partitionName.trim()));
+		if (exists != null && exists > 0) {
+			throw new ErrorOperationException("分区名称已存在");
+		}
+		VideoPartitionPo po = VideoPartitionPo.builder()
+				.partitionName(partitionName.trim())
+				.createTime(LocalDateTime.now())
+				.updateTime(LocalDateTime.now())
+				.build();
+		videoPartitionMapper.insert(po);
+		stringRedisTemplate.delete(RedisKeyUtil.videoPartitionListKey());
+	}
+
+	@Override
 	public void deleteVideoPartition(Long partitionId) {
 		if (partitionId == null) {
 			throw new ErrorParamException("分区ID不能为空");

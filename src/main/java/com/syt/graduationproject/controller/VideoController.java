@@ -5,6 +5,7 @@ import com.syt.graduationproject.exception.CustomException;
 import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.request.VideoUpdateRequest;
 import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.response.Response;
@@ -61,6 +62,23 @@ public class VideoController {
         } catch (Exception e) {
             log.error("视频投稿失败，request:{}", request, e);
             return Response.fail("视频投稿失败，系统异常");
+        }
+    }
+
+    /**
+     * 更新视频元信息
+     */
+    @PostMapping("/update/{videoId}")
+    public Response<Object> updateVideo(@PathVariable Long videoId, @RequestBody VideoUpdateRequest request) {
+        try {
+            videoService.updateVideo(videoId, request);
+            return Response.success();
+        } catch (CustomException e) {
+            log.warn("更新视频信息失败，videoId:{}, 原因:{}", videoId, e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("更新视频信息失败，videoId:{}", videoId, e);
+            return Response.fail("更新视频信息失败，系统异常");
         }
     }
 

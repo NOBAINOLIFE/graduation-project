@@ -20,6 +20,7 @@ import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
+import com.syt.graduationproject.model.request.VideoUpdateRequest;
 import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.vo.SearchVideoVo;
@@ -33,6 +34,7 @@ import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
 import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
+import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.ManagerService;
@@ -102,6 +104,8 @@ public class VideoServiceImpl implements VideoService {
     private final VideoConverter videoConverter;
 
     private final InteractRelationService interactRelationService;
+
+    private final EsSyncService esSyncService;
 
     /**
      * 查询用户视频数
@@ -252,6 +256,43 @@ public class VideoServiceImpl implements VideoService {
         videoRepository.insertVideoStatsIfAbsent(request.getVideoId());
         kafkaTemplate.send(KafkaConfig.VIDEO_PROCESS_TOPIC,
                 VideoProcessMessage.builder().videoId(request.getVideoId()).userId(userId).build());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateVideo(Long videoId, VideoUpdateRequest request) {
+        if (videoId == null || request == null) {
+            throw new ErrorParamException("更新参数不完整");
+        }
+        if (StringUtils.isBlank(request.getTitle())) {
+            throw new ErrorParamException("标题不能为空");
+        }
+        if (request.getPartitionId() == null) {
+            throw new ErrorParamException("请选择分区");
+        }
+        Long userId = UserHolderUtil.getUser().getUserId();
+        VideoPo videoPo = videoRepository.queryVideoByIdAndUserId(videoId, userId);
+        if (videoPo == null) {
+            throw new ErrorOperationException("视频不存在或无权限编辑");
+        }
+
+        List<String> normalizedTagList = normalizeTagList(request.getTagList());
+        int updated = videoRepository.updateVideo(
+                videoId,
+                userId,
+                request.getTitle(),
+                request.getDescription(),
+                request.getCoverUrl(),
+                request.getPartitionId()
+        );
+        if (updated <= 0) {
+            throw new ErrorOperationException("更新失败，请稍后重试");
+        }
+        stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
+
+        bindVideoTags(videoId, normalizedTagList);
+
+        esSyncService.syncVideo(videoId);
     }
 
     @Override
@@ -577,6 +618,7 @@ public class VideoServiceImpl implements VideoService {
         }
         UserPo userPo = userRepository.queryUserById(userId);
         if (userPo != null) {
+            userPo.setPassword(null);
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(userPo),
                     USER_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         }
