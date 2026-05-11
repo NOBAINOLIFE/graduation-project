@@ -1043,7 +1043,7 @@ public class ManagerServiceImpl implements ManagerService {
 		if (StringUtils.isNotBlank(cachedJson)) {
 			return JsonUtil.fromJson(cachedJson, VideoPo.class);
 		}
-		VideoPo videoPo = queryVideoByIdWithCache(videoId);
+		VideoPo videoPo = videoRepository.queryVideoById(videoId);
 		if (videoPo != null) {
 			stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(videoPo),
 					VIDEO_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);

@@ -561,7 +561,7 @@ public class VideoServiceImpl implements VideoService {
         if (StringUtils.isNotBlank(cachedJson)) {
             return JsonUtil.fromJson(cachedJson, VideoPo.class);
         }
-        VideoPo videoPo = queryVideoByIdWithCache(videoId);
+        VideoPo videoPo = videoRepository.queryVideoById(videoId);
         if (videoPo != null) {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(videoPo),
                     VIDEO_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
@@ -575,7 +575,7 @@ public class VideoServiceImpl implements VideoService {
         if (StringUtils.isNotBlank(cachedJson)) {
             return JsonUtil.fromJson(cachedJson, UserPo.class);
         }
-        UserPo userPo = queryUserByIdWithCache(userId);
+        UserPo userPo = userRepository.queryUserById(userId);
         if (userPo != null) {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(userPo),
                     USER_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
