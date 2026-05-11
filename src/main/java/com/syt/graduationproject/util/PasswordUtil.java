@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public class PasswordUtil {
 
     private static final Pattern PASSWORD_PATTERN =
-            Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d]{6,16}$");
+            Pattern.compile("^(?=.*[a-zA-Z])(?=.*\\d)[a-zA-Z\\d]{6,16}$");
 
     public static String md5(String plaintext) {
         return DigestUtils.md5DigestAsHex(plaintext.getBytes(StandardCharsets.UTF_8));
