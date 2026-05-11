@@ -75,5 +75,26 @@ public class RedisKeyUtil {
     public static String videoShareDedupKey(Long videoId, Long userId) {
         return "video:share:dedup:" + videoId + ":" + userId;
     }
+
+    /**
+     * 视频分区列表缓存：video:partition:list
+     */
+    public static String videoPartitionListKey() {
+        return "video:partition:list";
+    }
+
+    /**
+     * 用户信息缓存：user:info:{userId}
+     */
+    public static String userInfoKey(Long userId) {
+        return "user:info:" + userId;
+    }
+
+    /**
+     * 视频元信息缓存：video:info:{videoId}
+     */
+    public static String videoInfoKey(Long videoId) {
+        return "video:info:" + videoId;
+    }
 }
 

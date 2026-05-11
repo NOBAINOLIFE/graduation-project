@@ -559,22 +559,6 @@ public class InteractController {
     }
 
     /**
-     * 查询当前用户的举报信息
-     */
-    @GetMapping("/report/my")
-    public Response<List<ManagerReportRecordVo>> listMyReports() {
-        try {
-            return Response.success(interactService.listMyReports());
-        } catch (CustomException e) {
-            log.warn("查询举报信息失败，原因：{}", e.getMessage());
-            return Response.fail(e.getMessage());
-        } catch (Exception e) {
-            log.error("查询举报信息失败", e);
-            return Response.fail("查询举报信息失败，系统异常");
-        }
-    }
-
-    /**
      * 查询收藏夹内视频
      */
     @GetMapping("/collection/item/list")

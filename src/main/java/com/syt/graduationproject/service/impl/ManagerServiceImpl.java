@@ -35,17 +35,21 @@ import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.ManagerService;
 import com.syt.graduationproject.service.minio.MinioService;
+import com.syt.graduationproject.util.JsonUtil;
+import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -65,6 +69,8 @@ public class ManagerServiceImpl implements ManagerService {
 	private static final int DEFAULT_PAGE_SIZE = 10;
 
 	private static final int MAX_PAGE_SIZE = 100;
+
+	private static final long VIDEO_INFO_CACHE_TTL_MINUTES = 30L;
 
 	private final ReportMapper reportMapper;
 
@@ -99,6 +105,8 @@ public class ManagerServiceImpl implements ManagerService {
 	private final InteractRepository interactRepository;
 
 	private final VideoConverter videoConverter;
+
+	private final StringRedisTemplate stringRedisTemplate;
 
 	@Override
 	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
@@ -831,6 +839,7 @@ public class ManagerServiceImpl implements ManagerService {
 				.set(UserPo::getStatus, UserStatusEnum.BANNED.getCode())
 				.set(UserPo::getUpdateTime, LocalDateTime.now());
 		userMapper.update(null, updateWrapper);
+		stringRedisTemplate.delete(RedisKeyUtil.userInfoKey(userId));
 		esSyncService.deleteUser(userId);
 	}
 
@@ -844,17 +853,19 @@ public class ManagerServiceImpl implements ManagerService {
 		updateWrapper.eq(UserPo::getId, userId)
 				.set(UserPo::getStatus, UserStatusEnum.NORMAL.getCode());
 		userMapper.update(null, updateWrapper);
+		stringRedisTemplate.delete(RedisKeyUtil.userInfoKey(userId));
 		esSyncService.syncUser(userId);
 	}
 
 	@Override
 	public void banVideo(Long videoId) {
-		VideoPo videoPo = videoRepository.queryVideoById(videoId);
+		VideoPo videoPo = queryVideoByIdWithCache(videoId);
 		if (videoPo == null) {
 			throw new NotFoundException("视频不存在");
 		}
 		boolean publishedBeforeBan = Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode());
 		videoRepository.updateVideoStatus(videoId, null, VideoStatusEnum.BANNED.getCode());
+		stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 		if (publishedBeforeBan) {
 			interactRepository.updateUserVideoNum(videoPo.getUserId(), -1L);
 			esSyncService.syncUser(videoPo.getUserId());
@@ -864,7 +875,7 @@ public class ManagerServiceImpl implements ManagerService {
 
 	@Override
 	public void unbanVideo(Long videoId) {
-		VideoPo videoPo = videoRepository.queryVideoById(videoId);
+		VideoPo videoPo = queryVideoByIdWithCache(videoId);
 		if (videoPo == null) {
 			throw new NotFoundException("视频不存在");
 		}
@@ -873,6 +884,7 @@ public class ManagerServiceImpl implements ManagerService {
 		}
 		int updated = videoRepository.updateVideoStatus(videoId, VideoStatusEnum.BANNED.getCode(), VideoStatusEnum.AUDITING.getCode());
 		if (updated > 0) {
+			stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 			createAuditingRecord(videoId, videoPo.getUserId());
 		}
 	}
@@ -893,6 +905,7 @@ public class ManagerServiceImpl implements ManagerService {
 			throw new ErrorOperationException("该分区下已有视频，不能删除");
 		}
 		videoPartitionMapper.deleteById(partitionId);
+		stringRedisTemplate.delete(RedisKeyUtil.videoPartitionListKey());
 	}
 
 	@Override
@@ -919,7 +932,7 @@ public class ManagerServiceImpl implements ManagerService {
 		videoTagMapper.deleteById(tagId);
 
 		for (Long videoId : affectedVideoIdList) {
-			VideoPo videoPo = videoRepository.queryVideoById(videoId);
+			VideoPo videoPo = queryVideoByIdWithCache(videoId);
 			if (videoPo != null && Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
 				esSyncService.syncVideo(videoId);
 			}
@@ -936,7 +949,7 @@ public class ManagerServiceImpl implements ManagerService {
 		if (videoId == null || request.getOperation() == null) {
 			throw new ErrorParamException("视频审核参数不完整");
 		}
-		VideoPo videoPo = videoRepository.queryVideoById(videoId);
+		VideoPo videoPo = queryVideoByIdWithCache(videoId);
 		if (videoPo == null) {
 			throw new NotFoundException("视频不存在");
 		}
@@ -951,6 +964,7 @@ public class ManagerServiceImpl implements ManagerService {
 			if (updated <= 0) {
 				throw new ErrorOperationException("视频审核状态更新失败");
 			}
+			stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 			completeLatestAuditingRecord(videoId,
 					VideoAuditRecordStatusEnum.PASSED.getCode(), userId, request.getReviewNote());
 			autoPublishVideo(videoId);
@@ -959,6 +973,7 @@ public class ManagerServiceImpl implements ManagerService {
 		int updated = videoRepository.updateVideoStatus(videoId,
 				VideoStatusEnum.AUDITING.getCode(), VideoStatusEnum.AUDIT_REJECTED.getCode());
 		if (updated > 0) {
+			stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 			completeLatestAuditingRecord(videoId,
 					VideoAuditRecordStatusEnum.REJECTED.getCode(), userId, request.getReviewNote());
 		}
@@ -1014,10 +1029,25 @@ public class ManagerServiceImpl implements ManagerService {
 		if (updated <= 0) {
 			throw new ErrorOperationException("视频发布失败，请稍后重试");
 		}
+		stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 
-		VideoPo videoPo = videoRepository.queryVideoById(videoId);
+		VideoPo videoPo = queryVideoByIdWithCache(videoId);
 		interactRepository.updateUserVideoNum(videoPo.getUserId(), 1L);
 		esSyncService.syncVideo(videoId);
 		esSyncService.syncUser(videoPo.getUserId());
+	}
+
+	private VideoPo queryVideoByIdWithCache(Long videoId) {
+		String cacheKey = RedisKeyUtil.videoInfoKey(videoId);
+		String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
+		if (StringUtils.isNotBlank(cachedJson)) {
+			return JsonUtil.fromJson(cachedJson, VideoPo.class);
+		}
+		VideoPo videoPo = queryVideoByIdWithCache(videoId);
+		if (videoPo != null) {
+			stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(videoPo),
+					VIDEO_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+		}
+		return videoPo;
 	}
 }

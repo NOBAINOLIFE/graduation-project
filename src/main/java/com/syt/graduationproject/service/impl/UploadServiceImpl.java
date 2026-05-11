@@ -148,6 +148,7 @@ public class UploadServiceImpl implements UploadService {
         if (updated <= 0) {
             throw new ErrorOperationException("更新上传状态失败");
         }
+        stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 
         videoRepository.deleteVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode());
         VideoSourcePo sourcePo = VideoSourcePo.builder()

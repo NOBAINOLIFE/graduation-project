@@ -70,6 +70,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             log.info("视频状态符合转码条件，开始转码，videoId:{}", videoId);
 
             videoRepository.updateVideoStatus(videoId, videoPo.getStatus(), VideoStatusEnum.TRANSCODING.getCode());
+            stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
             log.info("视频状态更新为转码中，videoId:{}", videoId);
 
             List<VideoSourcePo> sourcePoList = videoRepository.queryVideoSource(videoId, VideoResolutionEnum.ORIGINAL.getCode(), false);
@@ -97,6 +98,7 @@ public class TranscodeServiceImpl implements TranscodeService {
 
             int updated = videoRepository.updateVideoStatus(videoId, VideoStatusEnum.TRANSCODING.getCode(), VideoStatusEnum.AUDITING.getCode());
             if (updated > 0) {
+                stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
                 managerService.createAuditingRecord(videoId, userId);
                 log.info("视频转码任务完成，创建对应审核记录，状态更新为待审核，videoId:{}", videoId);
             } else {
@@ -105,6 +107,7 @@ public class TranscodeServiceImpl implements TranscodeService {
         } catch (Exception e) {
             log.error("视频转码失败，videoId:{}", videoId, e);
             videoRepository.updateVideoStatus(videoId, VideoStatusEnum.TRANSCODING.getCode(), VideoStatusEnum.TRANSCODE_FAILED.getCode());
+            stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
         } finally {
             cleanup(sourcePath);
             cleanup(outputDir);

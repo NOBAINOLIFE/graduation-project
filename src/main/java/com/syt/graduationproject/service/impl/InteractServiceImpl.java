@@ -1697,31 +1697,6 @@ public class InteractServiceImpl implements InteractService {
         }
     }
 
-    /**
-     * 查询当前用户的举报信息
-     */
-    @Override
-    public List<ManagerReportRecordVo> listMyReports() {
-        Long myId = UserHolderUtil.getUser().getUserId();
-        LambdaQueryWrapper<ReportPo> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ReportPo::getReporterId, myId)
-                .orderByDesc(ReportPo::getCreateTime);
-        List<ReportPo> reportList = reportMapper.selectList(wrapper);
-        if (reportList == null || reportList.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return reportList.stream().map(po -> ManagerReportRecordVo.builder()
-                .reportId(po.getId())
-                .reportType(po.getReportType())
-                .reason(po.getReason())
-                .detail(po.getDetail())
-                .status(po.getStatus())
-                .reviewNote(po.getReviewNote())
-                .createTime(po.getCreateTime())
-                .updateTime(po.getUpdateTime())
-                .build()).collect(Collectors.toList());
-    }
-
     @Override
     public List<SearchVideoVo> listCollectionItems(Long directoryId, Integer sortType) {
         if (directoryId == null) {

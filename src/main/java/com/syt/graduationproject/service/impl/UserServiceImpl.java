@@ -29,6 +29,7 @@ import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.service.UserService;
+import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.JwtUtil;
 import com.syt.graduationproject.util.PasswordUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
@@ -36,6 +37,7 @@ import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,6 +65,8 @@ public class UserServiceImpl implements UserService {
     private static final int COIN_CHANGE_TYPE_DAILY_REWARD = 1;
 
     private static final int COIN_CHANGE_TYPE_VIDEO_REWARD = 2;
+
+    private static final long USER_INFO_CACHE_TTL_MINUTES = 30L;
 
     private final InteractService interactService;
 
@@ -113,6 +117,7 @@ public class UserServiceImpl implements UserService {
                 .bio(DEFAULT_BIO)
                 .build();
         userMapper.insert(newUser);
+        stringRedisTemplate.delete(RedisKeyUtil.userInfoKey(newUser.getId()));
 
         UserRoleRelPo userRoleRelPo = UserRoleRelPo.builder()
                 .userId(newUser.getId())
@@ -217,7 +222,7 @@ public class UserServiceImpl implements UserService {
         Long myId = UserHolderUtil.getUser().getUserId();
 
         // 查询用户是否存在
-        UserPo userPo = userRepository.queryUserById(userId);
+        UserPo userPo = queryUserByIdWithCache(userId);
         if (Objects.isNull(userPo)) {
             log.warn("用户不存在，用户ID：{}", userId);
             throw new ErrorOperationException("用户不存在");
@@ -345,6 +350,7 @@ public class UserServiceImpl implements UserService {
         }
         if (changed) {
             userMapper.updateById(userPo);
+            stringRedisTemplate.delete(RedisKeyUtil.userInfoKey(userId));
             esSyncService.syncUser(userId);
             if (usernameChanged) {
                 esSyncService.syncPublishedVideosByUserId(userId);
@@ -383,5 +389,20 @@ public class UserServiceImpl implements UserService {
         }
         userPo.setPassword(PasswordUtil.md5(request.getNewPassword()));
         userMapper.updateById(userPo);
+        stringRedisTemplate.delete(RedisKeyUtil.userInfoKey(userId));
+    }
+
+    private UserPo queryUserByIdWithCache(Long userId) {
+        String cacheKey = RedisKeyUtil.userInfoKey(userId);
+        String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StringUtils.isNotBlank(cachedJson)) {
+            return JsonUtil.fromJson(cachedJson, UserPo.class);
+        }
+        UserPo userPo = userRepository.queryUserById(userId);
+        if (userPo != null) {
+            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(userPo),
+                    USER_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        }
+        return userPo;
     }
 }

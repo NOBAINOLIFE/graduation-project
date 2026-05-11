@@ -155,11 +155,6 @@ public interface InteractService {
 
     void submitReport(ReportSubmitRequest request);
 
-    /**
-     * 查询当前用户的举报信息
-     */
-    List<ManagerReportRecordVo> listMyReports();
-
     List<SearchVideoVo> listCollectionItems(Long directoryId, Integer sortType);
 
     void deleteCollectionDirectory(Long directoryId);

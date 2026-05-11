@@ -55,6 +55,9 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.syt.graduationproject.util.JsonUtil;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -65,6 +68,12 @@ public class VideoServiceImpl implements VideoService {
     private static final long PV_DEDUP_WINDOW_SECONDS = 30L;
 
     private static final long PV_DELTA_KEY_TTL_HOURS = 24L;
+
+    private static final long PARTITION_LIST_CACHE_TTL_HOURS = 1L;
+
+    private static final long VIDEO_INFO_CACHE_TTL_MINUTES = 30L;
+
+    private static final long USER_INFO_CACHE_TTL_MINUTES = 30L;
 
     private final UserRepository userRepository;
 
@@ -108,7 +117,7 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public VideoPlayDetailVo queryVideoInfo(Long videoId) {
         Long myId = getCurrentUserIdOrNull();
-        VideoPo videoPo = videoRepository.queryVideoById(videoId);
+        VideoPo videoPo = queryVideoByIdWithCache(videoId);
         if (Objects.isNull(videoPo)) {
             throw new NotFoundException("视频不存在");
         }
@@ -171,7 +180,7 @@ public class VideoServiceImpl implements VideoService {
                     .collect(Collectors.toList()));
         }
 
-        UserPo userPo = userRepository.queryUserById(videoPo.getUserId());
+        UserPo userPo = queryUserByIdWithCache(videoPo.getUserId());
         if (userPo != null) {
             videoPlayDetailVo.setUsername(userPo.getUsername());
             videoPlayDetailVo.setAvatarUrl(userPo.getAvatarUrl());
@@ -236,6 +245,7 @@ public class VideoServiceImpl implements VideoService {
         if (updated <= 0) {
             throw new ErrorOperationException("当前视频状态不允许投稿");
         }
+        stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(request.getVideoId()));
 
         bindVideoTags(request.getVideoId(), normalizedTagList);
 
@@ -261,6 +271,7 @@ public class VideoServiceImpl implements VideoService {
             if (updated <= 0) {
                 throw new ErrorOperationException("提交审核失败，请稍后重试");
             }
+            stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
             managerService.createAuditingRecord(videoId, userId);
             return;
         }
@@ -277,7 +288,7 @@ public class VideoServiceImpl implements VideoService {
             throw new ErrorParamException("播放进度参数不完整");
         }
         Long userId = UserHolderUtil.getUser().getUserId();
-        VideoPo videoPo = videoRepository.queryVideoById(request.getVideoId());
+        VideoPo videoPo = queryVideoByIdWithCache(request.getVideoId());
         if (videoPo == null) {
             throw new NotFoundException("视频不存在");
         }
@@ -399,13 +410,21 @@ public class VideoServiceImpl implements VideoService {
 
     @Override
     public List<VideoPartitionVo> listAllPartitions() {
+        String cacheKey = RedisKeyUtil.videoPartitionListKey();
+        String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StringUtils.isNotBlank(cachedJson)) {
+            return JsonUtil.fromJson(cachedJson, new TypeReference<List<VideoPartitionVo>>() {});
+        }
         List<VideoPartitionPo> partitionPoList = videoPartitionMapper.selectList(null);
-        return partitionPoList.stream()
+        List<VideoPartitionVo> result = partitionPoList.stream()
                 .map(po -> VideoPartitionVo.builder()
                         .id(po.getId())
                         .partitionName(po.getPartitionName())
                         .build())
                 .collect(Collectors.toList());
+        stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(result),
+                PARTITION_LIST_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        return result;
     }
 
     @Override
@@ -431,12 +450,12 @@ public class VideoServiceImpl implements VideoService {
                 continue;
             }
 
-            VideoPo videoPo = videoRepository.queryVideoById(historyPo.getVideoId());
+            VideoPo videoPo = queryVideoByIdWithCache(historyPo.getVideoId());
             if (videoPo == null) {
                 continue;
             }
 
-            UserPo userPo = userRepository.queryUserById(videoPo.getUserId());
+            UserPo userPo = queryUserByIdWithCache(videoPo.getUserId());
             result.add(UserVideoHistoryVo.builder()
                     .videoId(videoPo.getId())
                     .title(videoPo.getTitle())
@@ -534,5 +553,33 @@ public class VideoServiceImpl implements VideoService {
 
     private long defaultLong(Long value) {
         return value == null ? 0L : value;
+    }
+
+    private VideoPo queryVideoByIdWithCache(Long videoId) {
+        String cacheKey = RedisKeyUtil.videoInfoKey(videoId);
+        String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StringUtils.isNotBlank(cachedJson)) {
+            return JsonUtil.fromJson(cachedJson, VideoPo.class);
+        }
+        VideoPo videoPo = queryVideoByIdWithCache(videoId);
+        if (videoPo != null) {
+            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(videoPo),
+                    VIDEO_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        }
+        return videoPo;
+    }
+
+    private UserPo queryUserByIdWithCache(Long userId) {
+        String cacheKey = RedisKeyUtil.userInfoKey(userId);
+        String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StringUtils.isNotBlank(cachedJson)) {
+            return JsonUtil.fromJson(cachedJson, UserPo.class);
+        }
+        UserPo userPo = queryUserByIdWithCache(userId);
+        if (userPo != null) {
+            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(userPo),
+                    USER_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        }
+        return userPo;
     }
 }
