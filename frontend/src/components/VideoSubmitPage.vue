@@ -182,6 +182,7 @@
 <script setup>
 import { reactive, ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import { getToken, clearUserAuth, isUserLoggedIn, updateUserToken } from '../utils/auth';
 
 const router = useRouter();
@@ -247,7 +248,7 @@ async function request(path, { method = 'GET', json, formData } = {}) {
     payload.message.includes('登录失败')
   )) {
     clearUserAuth();
-    alert('登录已失效，请重新登录');
+    ElMessage.warning('登录已失效，请重新登录');
     router.push('/');
     return;
   }
@@ -380,7 +381,7 @@ async function uploadVideo() {
       json: { videoId: initData.videoId, uploadToken: initData.uploadToken }
     });
   } catch (error) {
-    alert(`上传失败：${error.message}`);
+    ElMessage.error(`上传失败：${error.message}`);
   } finally {
     isUploadingVideo.value = false;
   }
@@ -435,9 +436,10 @@ async function submitVideo() {
         tagList: [...tags.value]
       }
     });
-    alert('发布成功！');
+    ElMessage.success('发布成功！');
+    router.push('/creator/content');
   } catch (error) {
-    alert(error.message);
+    ElMessage.error(error.message || '提交失败');
   } finally {
     isSubmitting.value = false;
   }
@@ -461,7 +463,7 @@ function base64ToFile(dataUrl, filename) {
 onMounted(async () => {
   // 检查登录状态
   if (!isUserLoggedIn()) {
-    alert('请先登录');
+    ElMessage.warning('请先登录');
     router.push('/');
     return;
   }
