@@ -1,5 +1,12 @@
 import { request } from './http';
 
+export function adminLogin(payload) {
+  return request('/graduation-project/manager/login', {
+    method: 'POST',
+    json: payload
+  });
+}
+
 export function queryAuditVideoList(payload) {
   return request('/graduation-project/manager/video/audit/list', {
     method: 'POST',

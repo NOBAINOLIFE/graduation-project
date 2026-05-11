@@ -143,14 +143,14 @@
             <p class="mt-2 text-sm text-[#9499a0]">换个关键词或者调整筛选试试</p>
           </div>
 
-          <div v-else class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div v-else class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             <article
               v-for="video in videoResults"
               :key="video.videoId"
-              class="group cursor-pointer overflow-hidden rounded-2xl bg-white transition-all hover:-translate-y-1 hover:shadow-lg"
+              class="group cursor-pointer overflow-hidden rounded-lg bg-transparent"
               @click="goToVideo(video.videoId)"
             >
-              <div class="relative aspect-video overflow-hidden rounded-2xl bg-[#eef2f6]">
+              <div class="relative aspect-video overflow-hidden rounded-lg bg-[#eef2f6]">
                 <img
                   v-if="video.coverUrl"
                   :src="video.coverUrl"
@@ -159,21 +159,24 @@
                   @error="handleImageError"
                 />
                 <div v-else class="flex h-full items-center justify-center text-4xl text-[#c2cad3]">🎬</div>
-                <span class="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+                <span class="absolute bottom-2 right-2 text-sm text-white drop-shadow-lg">
                   {{ formatDuration(video.duration) }}
                 </span>
+                <span class="absolute bottom-2 left-2 flex items-center gap-1 text-sm text-white drop-shadow-lg">
+                  <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current">
+                    <path d="M8 5.14v13.72c0 .75.82 1.23 1.5.86l10.27-5.86a1 1 0 0 0 0-1.72L9.5 4.28A1 1 0 0 0 8 5.14Z"></path>
+                  </svg>
+                  {{ formatCount(video.playCount) }}
+                </span>
               </div>
-              <div class="px-1 pb-1 pt-3">
-                <h3 class="line-clamp-2 text-[15px] font-medium leading-6 text-[#18191c] transition-colors group-hover:text-[#00a1d6]">
-                  {{ video.title }}
+              <div class="mt-1">
+                <h3 class="line-clamp-2 min-h-[3rem] text-left text-sm font-medium leading-6 text-[#18191c] transition-colors group-hover:text-[#00a1d6]">
+                  <span v-if="video.highlightTitle" v-html="video.highlightTitle"></span>
+                  <span v-else>{{ video.title }}</span>
                 </h3>
-                <p class="mt-2 truncate text-sm text-[#61666d]">
-                  {{ video.username || '未知用户' }}
+                <p class="mt-1 truncate text-xs text-[#9499a0]">
+                  {{ video.username || '未知用户' }} · {{ formatDate(video.createTime) }}
                 </p>
-                <div class="mt-2 flex items-center justify-between text-xs text-[#9499a0]">
-                  <span>{{ formatCount(video.playCount) }} 播放</span>
-                  <span>{{ formatDate(video.createTime) }}</span>
-                </div>
               </div>
             </article>
           </div>
@@ -244,7 +247,8 @@
                     <!-- 用户信息 -->
                     <div class="min-w-0 flex-1">
                       <h3 class="text-lg font-bold text-[#18191c] line-clamp-1 group-hover:text-[#00a1d6] transition-colors">
-                        {{ user.username || '未知用户' }}
+                        <span v-if="user.highlightUsername" v-html="user.highlightUsername"></span>
+                        <span v-else>{{ user.username || '未知用户' }}</span>
                       </h3>
                       <p class="mt-1 text-xs text-[#61666d] line-clamp-1">
                         {{ formatCount(user.fansCount) }}粉丝 · {{ formatCount(user.videoCount) }}个视频 {{ user.bio || '官方账号' }}
@@ -747,5 +751,10 @@ watch(
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+:deep(em) {
+  font-style: normal;
+  color: #fb7299;
 }
 </style>

@@ -24,5 +24,10 @@ public class SearchUserVo {
     private String bio;
 
     private Boolean isFollow;
+
+    /**
+     * 命中的用户名高亮片段（含 em 标签）
+     */
+    private String highlightUsername;
 }
 

@@ -21,6 +21,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -70,8 +71,11 @@ public class SearchServiceImpl implements SearchService {
         SearchHits<VideoEsDoc> searchHits = searchRepository.commonSearch(query, VideoEsDoc.class, VIDEO_INDEX);
         List<SearchVideoVo> records = searchHits.getSearchHits()
                 .stream()
-                .map(SearchHit::getContent)
-                .map(searchConverter::toSearchVideoVo)
+                .map(hit -> {
+                    SearchVideoVo vo = searchConverter.toSearchVideoVo(hit.getContent());
+                    vo.setHighlightTitle(getHighlightField(hit, "title"));
+                    return vo;
+                })
                 .collect(Collectors.toList());
 
         return PageVo.<SearchVideoVo>builder()
@@ -90,8 +94,11 @@ public class SearchServiceImpl implements SearchService {
         Long userId = UserHolderUtil.getUser().getUserId();
         List<SearchUserVo> records = searchHits.getSearchHits()
                 .stream()
-                .map(SearchHit::getContent)
-                .map(searchConverter::toSearchUserVo)
+                .map(hit -> {
+                    SearchUserVo vo = searchConverter.toSearchUserVo(hit.getContent());
+                    vo.setHighlightUsername(getHighlightField(hit, "username"));
+                    return vo;
+                })
                 .peek(userVo -> {
                     if (userId != null) {
                         userVo.setIsFollow(interactRelationService.queryFollowRelation(userId, userVo.getUserId()).getIsFollow());
@@ -210,10 +217,16 @@ public class SearchServiceImpl implements SearchService {
                 sort
         );
 
-        return new NativeSearchQueryBuilder()
+        NativeSearchQueryBuilder queryBuilder = new NativeSearchQueryBuilder()
                 .withQuery(boolQueryBuilder)
-                .withPageable(pageable)
-                .build();
+                .withPageable(pageable);
+        if (StringUtils.isNotBlank(request.getKeyword())) {
+            HighlightBuilder highlightBuilder = new HighlightBuilder();
+            highlightBuilder.field("title").requireFieldMatch(false).preTags("<em>").postTags("</em>");
+            highlightBuilder.field("title.ngram").requireFieldMatch(false).preTags("<em>").postTags("</em>");
+            queryBuilder.withHighlightBuilder(highlightBuilder);
+        }
+        return queryBuilder.build();
     }
 
     private NativeSearchQuery buildUserQuery(SearchUserRequest request) {
@@ -252,10 +265,30 @@ public class SearchServiceImpl implements SearchService {
                 sort
         );
 
-        return new NativeSearchQueryBuilder()
+        NativeSearchQueryBuilder queryBuilder = new NativeSearchQueryBuilder()
                 .withQuery(boolQueryBuilder)
-                .withPageable(pageable)
-                .build();
+                .withPageable(pageable);
+        if (StringUtils.isNotBlank(request.getKeyword())) {
+            HighlightBuilder highlightBuilder = new HighlightBuilder();
+            highlightBuilder.field("username").requireFieldMatch(false).preTags("<em>").postTags("</em>");
+            highlightBuilder.field("username.ngram").requireFieldMatch(false).preTags("<em>").postTags("</em>");
+            queryBuilder.withHighlightBuilder(highlightBuilder);
+        }
+        return queryBuilder.build();
+    }
+
+    private String getHighlightField(SearchHit<?> hit, String fieldName) {
+        // 优先取 ngram 字段的高亮（可匹配单字符），其次取主字段
+        String ngramField = fieldName + ".ngram";
+        List<String> ngramFragments = hit.getHighlightField(ngramField);
+        if (ngramFragments != null && !ngramFragments.isEmpty()) {
+            return ngramFragments.get(0);
+        }
+        List<String> fragments = hit.getHighlightField(fieldName);
+        if (fragments != null && !fragments.isEmpty()) {
+            return fragments.get(0);
+        }
+        return null;
     }
 
     private Integer normalizePageNum(Integer pageNum) {

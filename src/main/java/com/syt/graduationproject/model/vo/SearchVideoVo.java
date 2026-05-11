@@ -32,5 +32,10 @@ public class SearchVideoVo {
     private Integer duration;
 
     private LocalDateTime collectTime;
+
+    /**
+     * 命中的标题高亮片段（含 em 标签）
+     */
+    private String highlightTitle;
 }
 

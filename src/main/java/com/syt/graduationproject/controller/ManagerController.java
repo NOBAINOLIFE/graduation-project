@@ -2,6 +2,7 @@ package com.syt.graduationproject.controller;
 
 import com.syt.graduationproject.annotation.RequirePermission;
 import com.syt.graduationproject.exception.CustomException;
+import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
 import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
 import com.syt.graduationproject.model.request.ManagerReportListRequest;
@@ -10,6 +11,7 @@ import com.syt.graduationproject.model.request.ManagerUserListRequest;
 import com.syt.graduationproject.model.request.ManagerVideoPartitionListRequest;
 import com.syt.graduationproject.model.request.ManagerVideoTagListRequest;
 import com.syt.graduationproject.model.response.Response;
+import com.syt.graduationproject.model.vo.LoginVo;
 import com.syt.graduationproject.model.vo.ManagerVideoPartitionVo;
 import com.syt.graduationproject.model.vo.ManagerUserVo;
 import com.syt.graduationproject.model.vo.ManagerVideoTagVo;
@@ -17,6 +19,7 @@ import com.syt.graduationproject.model.vo.VideoAuditVo;
 import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.service.ManagerService;
+import com.syt.graduationproject.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -32,6 +35,24 @@ import static com.syt.graduationproject.constant.UserConstant.ADMIN_PERMISSION;
 public class ManagerController {
 
     private final ManagerService managerService;
+
+    private final UserService userService;
+
+    /**
+     * 管理员登录（无需权限校验）
+     */
+    @PostMapping("/login")
+    public Response<LoginVo> login(@RequestBody LoginRequest request) {
+        try {
+            return Response.success(userService.login(request));
+        } catch (CustomException e) {
+            log.warn("管理员登录失败，原因：{}", e.getMessage());
+            return Response.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("管理员登录失败，loginRequest：{}", request, e);
+            return Response.fail("管理员登录失败，系统异常");
+        }
+    }
 
     @PostMapping("/video/audit/list")
     @RequirePermission(ADMIN_PERMISSION)

@@ -57,7 +57,7 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { login } from '../../api/user';
+import { adminLogin } from '../../api/manager';
 import { clearAdminAuth, saveAdminLogin } from '../../utils/auth';
 
 const router = useRouter();
@@ -91,7 +91,7 @@ async function submitLogin() {
 
   try {
     isSubmitting.value = true;
-    const data = await login({
+    const data = await adminLogin({
       account: form.account,
       password: form.password,
       isAdminLogin: true

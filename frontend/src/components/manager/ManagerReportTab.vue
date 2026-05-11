@@ -687,6 +687,7 @@ async function confirmReview() {
       operation: reviewDialog.operation,
       reviewNote: reviewDialog.note || ''
     });
+    operatingId.value = null;
     closeReviewDialog();
     ElMessage.success(reviewDialog.operation === 1 ? '举报审核通过' : '举报已驳回');
     await fetchList();

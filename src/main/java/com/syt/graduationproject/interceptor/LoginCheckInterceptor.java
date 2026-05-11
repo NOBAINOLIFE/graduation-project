@@ -110,7 +110,8 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     }
 
     private boolean isPublicPath(String uri) {
-        return uri.equals("/graduation-project/user/login")
+        return uri.equals("/graduation-project/manager/login")
+                || uri.equals("/graduation-project/user/login")
                 || uri.equals("/graduation-project/user/register")
                 || uri.equals("/graduation-project/video/partitions")
                 || uri.equals("/graduation-project/video/videoPlayList")

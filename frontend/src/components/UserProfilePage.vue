@@ -39,15 +39,14 @@
           <div class="flex-shrink-0 flex items-end gap-3 pb-1" v-if="!isSelf">
             <button
               class="px-6 py-2 bg-[#00a1d6] text-white rounded-lg hover:bg-[#0090c0] transition-colors font-medium text-sm h-9 w-18"
-              :class="userInfo?.isFollow ? 'bg-[#fb7299] hover:bg-[#fc8bab]' : ''"
-              :disabled="isProfileRestricted"
+              :class="userInfo?.isFollow ? 'bg-[#fb7299] hover:bg-[#fc8bab]' : (isProfileRestricted ? 'opacity-50 cursor-not-allowed' : '')"
               @click="handleFollow"
             >
               {{ userInfo?.isFollow ? '已关注' : '+ 关注' }}
             </button>
             <button
               class="px-6 py-2 bg-white/20 backdrop-blur text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30 text-sm h-9 w-18"
-              :disabled="isProfileRestricted"
+              :class="isProfileRestricted ? 'opacity-50 cursor-not-allowed' : ''"
               @click="goToPrivateChat"
             >
               发消息
@@ -66,8 +65,8 @@
                 <div class="rounded-2xl border border-white/20 bg-white/95 p-2 shadow-[0_16px_40px_rgba(15,23,42,0.16)]">
                   <button
                     class="flex w-full items-center rounded-xl px-3 py-2 text-sm text-[#111827] transition hover:bg-[#f5f7fb]"
+                    :class="isProfileRestricted ? 'opacity-50 cursor-not-allowed' : ''"
                     type="button"
-                    :disabled="isProfileRestricted"
                     @click="openBlockDialog({ targetUserId: userInfo?.userId, username: userInfo?.username })"
                   >
                     加入黑名单
@@ -135,8 +134,7 @@
           <div class="flex shrink-0 items-center gap-6 py-2">
             <button
               class="text-center transition-colors"
-              :class="activeTab === 'following' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]'"
-              :disabled="isProfileRestricted"
+              :class="[activeTab === 'following' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]', isProfileRestricted ? 'opacity-50 cursor-not-allowed' : '']"
               @click="switchContentTab('following')"
             >
               <div class="text-xs text-gray-500">关注数</div>
@@ -144,8 +142,7 @@
             </button>
             <button
               class="text-center transition-colors"
-              :class="activeTab === 'fans' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]'"
-              :disabled="isProfileRestricted"
+              :class="[activeTab === 'fans' ? 'text-[#00a1d6]' : 'hover:text-[#00a1d6]', isProfileRestricted ? 'opacity-50 cursor-not-allowed' : '']"
               @click="switchContentTab('fans')"
             >
               <div class="text-xs text-gray-500">粉丝数</div>
@@ -1561,6 +1558,7 @@ function handleVideoKeywordSearch() {
 
 function switchContentTab(tabKey) {
   if (isProfileRestricted.value) {
+    ElMessage.warning(profileRestrictionDescription.value);
     return;
   }
   const nextQuery = { ...route.query };
@@ -1681,7 +1679,11 @@ async function toggleRelationFollow(item) {
 
 // 关注/取消关注
 async function handleFollow() {
-  if (isSelf.value || !userInfo.value?.userId || isProfileRestricted.value) {
+  if (isSelf.value || !userInfo.value?.userId) {
+    return;
+  }
+  if (isProfileRestricted.value) {
+    ElMessage.warning(profileRestrictionDescription.value);
     return;
   }
 
@@ -1704,7 +1706,11 @@ async function handleFollow() {
 }
 
 function openBlockDialog({ targetUserId, username }) {
-  if (!targetUserId || isProfileRestricted.value) {
+  if (!targetUserId) {
+    return;
+  }
+  if (isProfileRestricted.value) {
+    ElMessage.warning(profileRestrictionDescription.value);
     return;
   }
   blockDialog.visible = true;
@@ -1744,6 +1750,7 @@ async function confirmBlockUser() {
     blockDialog.submitting = false;
     closeBlockDialog();
     ElMessage.success('已加入黑名单');
+    await loadProfilePageData();
   } catch (error) {
     console.error('加入黑名单失败:', error);
     ElMessage.error(error.message || '加入黑名单失败');
@@ -1807,7 +1814,11 @@ async function submitUserReport() {
 }
 
 function goToPrivateChat() {
-  if (isSelf.value || !userInfo.value?.userId || isProfileRestricted.value) {
+  if (isSelf.value || !userInfo.value?.userId) {
+    return;
+  }
+  if (isProfileRestricted.value) {
+    ElMessage.warning(profileRestrictionDescription.value);
     return;
   }
   router.push({
