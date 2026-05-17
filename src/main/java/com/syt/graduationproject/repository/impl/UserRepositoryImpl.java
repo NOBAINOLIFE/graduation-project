@@ -2,19 +2,20 @@ package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.syt.graduationproject.enums.UserStatusEnum;
+import com.syt.graduationproject.mapper.UserCoinChangeLogMapper;
 import com.syt.graduationproject.mapper.UserMapper;
 import com.syt.graduationproject.mapper.UserStatsMapper;
+import com.syt.graduationproject.model.po.UserCoinChangeLogPo;
 import com.syt.graduationproject.model.po.UserPo;
 import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
-import static com.syt.graduationproject.constant.CommonConstant.STATUS;
-import static com.syt.graduationproject.constant.UserConstant.ACCOUNT;
-import static com.syt.graduationproject.constant.UserConstant.USER_ID;
 
 @Repository
 @RequiredArgsConstructor
@@ -23,6 +24,8 @@ public class UserRepositoryImpl implements UserRepository {
     private final UserMapper userMapper;
 
     private final UserStatsMapper userStatsMapper;
+
+    private final UserCoinChangeLogMapper userCoinChangeLogMapper;
 
     /**
      * 根据账号查询用户
@@ -75,5 +78,14 @@ public class UserRepositoryImpl implements UserRepository {
                 .userId(userId)
                 .build();
         userStatsMapper.insert(userStatsPo);
+    }
+
+    @Override
+    public List<UserCoinChangeLogPo> queryUserCoinRecord(Long userId, LocalDateTime startTime) {
+        return userCoinChangeLogMapper.selectList(new LambdaQueryWrapper<UserCoinChangeLogPo>()
+                .eq(UserCoinChangeLogPo::getUserId, userId)
+                .ge(UserCoinChangeLogPo::getCreateTime, startTime)
+                .orderByDesc(UserCoinChangeLogPo::getCreateTime)
+                .orderByDesc(UserCoinChangeLogPo::getId));
     }
 }

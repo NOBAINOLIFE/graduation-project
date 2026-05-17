@@ -1,16 +1,15 @@
 package com.syt.graduationproject.service.impl;
 
+import com.syt.graduationproject.client.MyMinioClient;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.ErrorOperationException;
 import com.syt.graduationproject.exception.NotFoundException;
-import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.po.VideoPo;
 import com.syt.graduationproject.model.po.VideoSourcePo;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.ManagerService;
 import com.syt.graduationproject.service.TranscodeService;
-import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,16 +20,16 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.file.FileVisitResult;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -39,7 +38,7 @@ public class TranscodeServiceImpl implements TranscodeService {
 
     private final VideoRepository videoRepository;
 
-    private final MinioService minioService;
+    private final MyMinioClient myMinioClient;
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -80,7 +79,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             String sourceObjectName = sourcePoList.get(0).getPlayUrl();
             log.info("获取到原视频资源，sourceObjectName:{}", sourceObjectName);
 
-            sourcePath = minioService.downloadObjectToTempFile(sourceObjectName, ".mp4");
+            sourcePath = myMinioClient.downloadObjectToTempFile(sourceObjectName, ".mp4");
             outputDir = Files.createTempDirectory("video-hls-" + videoId + "-");
             log.info("下载原视频资源完成，开始转码，sourcePath:{}", sourcePath);
 
@@ -91,7 +90,7 @@ public class TranscodeServiceImpl implements TranscodeService {
             log.info("生成master.m3u8完成，videoId:{}", videoId);
 
             String objectPrefix = "video/hls/" + videoId + "/" + System.currentTimeMillis();
-            minioService.uploadDirectory(outputDir, objectPrefix);
+            myMinioClient.uploadDirectory(outputDir, objectPrefix);
 
             savePlayableSource(videoId, objectPrefix);
             log.info("保存转码后的视频资源信息完成，videoId:{}", videoId);

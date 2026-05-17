@@ -1,8 +1,6 @@
 package com.syt.graduationproject.util;
 
 import com.syt.graduationproject.exception.ErrorParamException;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;

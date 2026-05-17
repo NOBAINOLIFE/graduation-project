@@ -11,7 +11,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,8 +19,6 @@ import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 @Repository
 @RequiredArgsConstructor
 public class InteractRepositoryImpl implements InteractRepository {
-
-    private final FollowRecordMapper followRecordMapper;
 
     private final UserStatsMapper userStatsMapper;
 

@@ -1,17 +1,11 @@
 package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.syt.graduationproject.mapper.CollectionItemMapper;
-import com.syt.graduationproject.mapper.FollowRecordMapper;
-import com.syt.graduationproject.mapper.LikeCommentMapper;
-import com.syt.graduationproject.mapper.LikeVideoMapper;
-import com.syt.graduationproject.mapper.UserCoinChangeLogMapper;
-import com.syt.graduationproject.mapper.VideoStatsMapper;
+import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
 import com.syt.graduationproject.model.po.LikeCommentPo;
 import com.syt.graduationproject.model.po.LikeVideoPo;
-import com.syt.graduationproject.model.po.VideoStatsPo;
 import com.syt.graduationproject.repository.InteractRelationRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;

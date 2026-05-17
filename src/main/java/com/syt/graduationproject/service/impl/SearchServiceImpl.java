@@ -1,6 +1,7 @@
 package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.enums.RoleEnum;
 import com.syt.graduationproject.mapper.UserRoleMapper;
 import com.syt.graduationproject.model.es.UserEsDoc;
@@ -14,7 +15,6 @@ import com.syt.graduationproject.model.vo.SearchVideoVo;
 import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.service.InteractRelationService;
 import com.syt.graduationproject.service.SearchService;
-import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
@@ -281,11 +281,11 @@ public class SearchServiceImpl implements SearchService {
         // 优先取 ngram 字段的高亮（可匹配单字符），其次取主字段
         String ngramField = fieldName + ".ngram";
         List<String> ngramFragments = hit.getHighlightField(ngramField);
-        if (ngramFragments != null && !ngramFragments.isEmpty()) {
+        if (!ngramFragments.isEmpty()) {
             return ngramFragments.get(0);
         }
         List<String> fragments = hit.getHighlightField(fieldName);
-        if (fragments != null && !fragments.isEmpty()) {
+        if (!fragments.isEmpty()) {
             return fragments.get(0);
         }
         return null;

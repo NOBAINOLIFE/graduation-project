@@ -1,20 +1,17 @@
-package com.syt.graduationproject.service.minio;
+package com.syt.graduationproject.client;
 
 import com.syt.graduationproject.exception.CustomException;
-import io.minio.ComposeObjectArgs;
-import io.minio.ComposeSource;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
+import io.minio.*;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -31,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class MinioService {
+public class MyMinioClient {
 
     private final MinioClient minioClient;
 
@@ -144,13 +141,15 @@ public class MinioService {
     public void uploadDirectory(Path directory, String objectPrefix) {
         try {
             Files.walkFileTree(directory, new FileVisitor<Path>() {
+                @NotNull
                 @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                public FileVisitResult preVisitDirectory(Path dir, @NotNull BasicFileAttributes attrs) {
                     return FileVisitResult.CONTINUE;
                 }
 
+                @NotNull
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                public FileVisitResult visitFile(Path file, @NotNull BasicFileAttributes attrs) {
                     String relative = directory.relativize(file).toString().replace('\\', '/');
                     String objectName = objectPrefix + "/" + relative;
                     String contentType = guessContentType(file);
@@ -158,11 +157,13 @@ public class MinioService {
                     return FileVisitResult.CONTINUE;
                 }
 
+                @NotNull
                 @Override
-                public FileVisitResult visitFileFailed(Path file, java.io.IOException exc) {
+                public FileVisitResult visitFileFailed(Path file, @NotNull IOException exc) {
                     return FileVisitResult.TERMINATE;
                 }
 
+                @NotNull
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, java.io.IOException exc) {
                     return FileVisitResult.CONTINUE;

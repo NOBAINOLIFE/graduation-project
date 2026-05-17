@@ -4,6 +4,7 @@ import com.syt.graduationproject.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
@@ -15,8 +16,8 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static com.syt.graduationproject.constant.UserConstant.USER_ID;
 import static com.syt.graduationproject.constant.ChatWsConstant.ATTR_USER_ID;
+import static com.syt.graduationproject.constant.UserConstant.USER_ID;
 
 /**
  * WebSocket 握手拦截器：从 token 中解析 userId 写入 session attributes
@@ -28,8 +29,8 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
     private static final String TOKEN_PARAM = "token";
 
     @Override
-    public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler,
-                                   Map<String, Object> attributes) {
+    public boolean beforeHandshake(@NotNull ServerHttpRequest request, @NotNull ServerHttpResponse response,
+                                   @NotNull WebSocketHandler wsHandler, @NotNull Map<String, Object> attributes) {
         try {
             String token = null;
             if (request instanceof ServletServerHttpRequest) {
@@ -63,7 +64,8 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
     }
 
     @Override
-    public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler, Exception exception) {
+    public void afterHandshake(@NotNull ServerHttpRequest request, @NotNull ServerHttpResponse response,
+                               @NotNull WebSocketHandler wsHandler, Exception exception) {
     }
 
     private String extractQueryParam(String query, String key) {

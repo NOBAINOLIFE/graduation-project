@@ -487,10 +487,12 @@ function submitSearch() {
   const keyword = searchDraft.value.trim();
   if (!keyword) return;
   
-  // 如果当前已经在搜索页且关键词相同，重新发起搜索
+  // 每次都重新发起搜索
+  videoPageNum.value = 1;
+  userPageNum.value = 1;
+  
+  // 如果当前已经在搜索页且关键词相同，直接刷新
   if (route.path === '/search' && normalizedKeyword.value === keyword) {
-    videoPageNum.value = 1;
-    userPageNum.value = 1;
     refreshActiveTab();
     return;
   }

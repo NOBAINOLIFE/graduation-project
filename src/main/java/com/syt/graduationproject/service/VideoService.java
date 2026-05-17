@@ -4,12 +4,9 @@ import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.request.VideoUpdateRequest;
-import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.vo.Page.PageVo;
-import com.syt.graduationproject.model.vo.SearchVideoVo;
-import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
-import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
-import com.syt.graduationproject.model.vo.VideoPartitionVo;
+
 import java.util.List;
 
 public interface VideoService {

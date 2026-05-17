@@ -1,8 +1,8 @@
 package com.syt.graduationproject.converter;
 
 import com.syt.graduationproject.enums.VideoResolutionEnum;
-import com.syt.graduationproject.model.vo.VideoSourceVo;
 import com.syt.graduationproject.model.po.VideoSourcePo;
+import com.syt.graduationproject.model.vo.VideoSourceVo;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
@@ -18,7 +18,7 @@ public interface VideoConverter {
     VideoSourceVo toVideoSourceVo(VideoSourcePo po);
 
     @Named("resolutionToString")
-    default String resolutionToString(Integer resolution) {
-        return VideoResolutionEnum.fromCode(resolution).getName();
+    default String resolutionToString(Integer resolutionCode) {
+        return VideoResolutionEnum.fromCode(resolutionCode).getName();
     }
 }

@@ -2,7 +2,10 @@ package com.syt.graduationproject.interceptor;
 
 import com.syt.graduationproject.model.dto.UserDto;
 import com.syt.graduationproject.model.response.Response;
-import com.syt.graduationproject.util.*;
+import com.syt.graduationproject.util.JsonUtil;
+import com.syt.graduationproject.util.JwtUtil;
+import com.syt.graduationproject.util.RedisKeyUtil;
+import com.syt.graduationproject.util.UserHolderUtil;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,17 +17,13 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.syt.graduationproject.constant.UserConstant.ROLE_CODE;
-import static com.syt.graduationproject.constant.UserConstant.ROLE_ID;
-import static com.syt.graduationproject.constant.UserConstant.USERNAME;
-import static com.syt.graduationproject.constant.UserConstant.USER_ID;
+import static com.syt.graduationproject.constant.UserConstant.*;
 
 @Slf4j
 @Component

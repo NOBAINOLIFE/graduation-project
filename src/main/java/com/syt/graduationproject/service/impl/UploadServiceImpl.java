@@ -1,5 +1,6 @@
 package com.syt.graduationproject.service.impl;
 
+import com.syt.graduationproject.client.MyMinioClient;
 import com.syt.graduationproject.enums.VideoResolutionEnum;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.ErrorOperationException;
@@ -14,7 +15,6 @@ import com.syt.graduationproject.model.request.MultipartUploadInitRequest;
 import com.syt.graduationproject.model.vo.MultipartUploadInitVo;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.UploadService;
-import com.syt.graduationproject.service.minio.MinioService;
 import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
@@ -26,11 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -42,7 +38,7 @@ public class UploadServiceImpl implements UploadService {
 
     private final VideoRepository videoRepository;
 
-    private final MinioService minioService;
+    private final MyMinioClient myMinioClient;
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -89,7 +85,7 @@ public class UploadServiceImpl implements UploadService {
         }
 
         String chunkObjectName = buildChunkObjectName(videoId, uploadToken, chunkIndex);
-        minioService.uploadPartFile(file, chunkObjectName);
+        myMinioClient.uploadPartFile(file, chunkObjectName);
 
         String partKey = RedisKeyUtil.videoUploadPartsKey(videoId, uploadToken);
         stringRedisTemplate.opsForHash().put(partKey, String.valueOf(chunkIndex), chunkObjectName);
@@ -140,7 +136,7 @@ public class UploadServiceImpl implements UploadService {
         }
 
         String mergedObjectName = buildMergedObjectName(videoId, sessionDto.getFileName());
-        minioService.composeObject(orderedParts, mergedObjectName);
+        myMinioClient.composeObject(orderedParts, mergedObjectName);
 
         int updated = videoRepository.updateVideoStatus(videoId,
                 VideoStatusEnum.UPLOADING.getCode(),

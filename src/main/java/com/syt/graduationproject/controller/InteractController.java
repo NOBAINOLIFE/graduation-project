@@ -8,7 +8,6 @@ import com.syt.graduationproject.model.response.Response;
 import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.vo.Page.CommentPageVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
-import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.service.InteractService;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;

@@ -8,18 +8,13 @@ import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.exception.NoPermissionException;
 import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.mapper.*;
-import com.syt.graduationproject.model.es.UserEsDoc;
-import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.*;
 import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.vo.Page.CommentPageVo;
 import com.syt.graduationproject.model.vo.Page.PageVo;
-import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
 import com.syt.graduationproject.model.websocket.*;
-import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.repository.InteractRepository;
-import com.syt.graduationproject.repository.SearchRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.InteractRelationService;
@@ -32,11 +27,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
-import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,8 +44,6 @@ import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.DELETED;
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
-import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.USER_INDEX;
-import static com.syt.graduationproject.repository.impl.SearchRepositoryImpl.VIDEO_INDEX;
 
 @Slf4j
 @Service

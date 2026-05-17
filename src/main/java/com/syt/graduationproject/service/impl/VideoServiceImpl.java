@@ -2,7 +2,10 @@ package com.syt.graduationproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.syt.graduationproject.client.MyMinioClient;
 import com.syt.graduationproject.config.KafkaConfig;
+import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.VideoStatusEnum;
 import com.syt.graduationproject.exception.ErrorOperationException;
@@ -14,32 +17,20 @@ import com.syt.graduationproject.mapper.VideoTagMapper;
 import com.syt.graduationproject.mapper.VideoTagRelMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
-import com.syt.graduationproject.model.vo.VideoSourceVo;
+import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.model.kafka.VideoProcessMessage;
 import com.syt.graduationproject.model.po.*;
 import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.request.VideoUpdateRequest;
-import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.vo.Page.PageVo;
-import com.syt.graduationproject.model.vo.SearchVideoVo;
-import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
 import com.syt.graduationproject.repository.SearchRepository;
-import com.syt.graduationproject.converter.SearchConverter;
-import com.syt.graduationproject.model.es.VideoEsDoc;
-
-import static com.syt.graduationproject.constant.VideoConstant.HOME_PAGE_VIDEO_LIST_SIZE;
-import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
-import com.syt.graduationproject.model.vo.VideoPartitionVo;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
-import com.syt.graduationproject.service.EsSyncService;
-import com.syt.graduationproject.service.InteractRelationService;
-import com.syt.graduationproject.service.InteractService;
-import com.syt.graduationproject.service.ManagerService;
-import com.syt.graduationproject.service.minio.MinioService;
-import com.syt.graduationproject.service.VideoService;
+import com.syt.graduationproject.service.*;
+import com.syt.graduationproject.util.JsonUtil;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
@@ -47,8 +38,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,8 +48,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.syt.graduationproject.util.JsonUtil;
+import static com.syt.graduationproject.constant.RedisKeyTTLConstant.*;
+import static com.syt.graduationproject.constant.VideoConstant.HOME_PAGE_VIDEO_LIST_SIZE;
 
 @Slf4j
 @Service
@@ -67,19 +58,9 @@ public class VideoServiceImpl implements VideoService {
 
     private static final int MAX_TAG_COUNT = 10;
 
-    private static final long PV_DEDUP_WINDOW_SECONDS = 30L;
-
-    private static final long PV_DELTA_KEY_TTL_HOURS = 24L;
-
-    private static final long PARTITION_LIST_CACHE_TTL_HOURS = 1L;
-
-    private static final long VIDEO_INFO_CACHE_TTL_MINUTES = 30L;
-
-    private static final long USER_INFO_CACHE_TTL_MINUTES = 30L;
-
     private final UserRepository userRepository;
 
-    private final MinioService minioService;
+    private final MyMinioClient myMinioClient;
 
     private final VideoRepository videoRepository;
 
@@ -107,6 +88,8 @@ public class VideoServiceImpl implements VideoService {
 
     private final EsSyncService esSyncService;
 
+    private final RedisCacheService redisCacheService;
+
     /**
      * 查询用户视频数
      */
@@ -121,7 +104,7 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public VideoPlayDetailVo queryVideoInfo(Long videoId) {
         Long myId = getCurrentUserIdOrNull();
-        VideoPo videoPo = queryVideoByIdWithCache(videoId);
+        VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(videoId);
         if (Objects.isNull(videoPo)) {
             throw new NotFoundException("视频不存在");
         }
@@ -144,7 +127,7 @@ public class VideoServiceImpl implements VideoService {
         List<VideoSourcePo> videoSourceList = videoRepository.queryVideoSource(videoId, null, true);
         for (VideoSourcePo sourcePo : videoSourceList) {
             if (StringUtils.isNotBlank(sourcePo.getPlayUrl())) {
-                sourcePo.setPlayUrl(minioService.generateGetUrl(sourcePo.getPlayUrl(), 30));
+                sourcePo.setPlayUrl(myMinioClient.generateGetUrl(sourcePo.getPlayUrl(), 30));
             }
         }
         videoPlayDetailVo.setVideoSourceList(videoConverter.toVideoSourceVoList(videoSourceList));
@@ -184,7 +167,7 @@ public class VideoServiceImpl implements VideoService {
                     .collect(Collectors.toList()));
         }
 
-        UserPo userPo = queryUserByIdWithCache(videoPo.getUserId());
+        UserPo userPo = redisCacheService.queryUserByIdWithCache(videoPo.getUserId());
         if (userPo != null) {
             videoPlayDetailVo.setUsername(userPo.getUsername());
             videoPlayDetailVo.setAvatarUrl(userPo.getAvatarUrl());
@@ -329,7 +312,7 @@ public class VideoServiceImpl implements VideoService {
             throw new ErrorParamException("播放进度参数不完整");
         }
         Long userId = UserHolderUtil.getUser().getUserId();
-        VideoPo videoPo = queryVideoByIdWithCache(request.getVideoId());
+        VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(request.getVideoId());
         if (videoPo == null) {
             throw new NotFoundException("视频不存在");
         }
@@ -491,12 +474,12 @@ public class VideoServiceImpl implements VideoService {
                 continue;
             }
 
-            VideoPo videoPo = queryVideoByIdWithCache(historyPo.getVideoId());
+            VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(historyPo.getVideoId());
             if (videoPo == null) {
                 continue;
             }
 
-            UserPo userPo = queryUserByIdWithCache(videoPo.getUserId());
+            UserPo userPo = redisCacheService.queryUserByIdWithCache(videoPo.getUserId());
             result.add(UserVideoHistoryVo.builder()
                     .videoId(videoPo.getId())
                     .title(videoPo.getTitle())
@@ -514,11 +497,14 @@ public class VideoServiceImpl implements VideoService {
 
     @Override
     public PageVo<CreatorVideoManageVo> listCreatorVideos(CreatorVideoQueryRequest request) {
+        if (request == null) {
+            return PageVo.<CreatorVideoManageVo>builder().build();
+        }
         Long userId = UserHolderUtil.getUser().getUserId();
-        int safePageNum = request == null || request.getPageNum() == null || request.getPageNum() < 1 ? 1 : request.getPageNum();
-        int safePageSize = request == null || request.getPageSize() == null ? 12 : Math.min(Math.max(request.getPageSize(), 1), 50);
-        String keyword = request == null ? null : request.getKeyword();
-        Integer status = request == null ? null : request.getStatus();
+        int safePageNum = request.getPageNum() == null || request.getPageNum() < 1 ? 1 : request.getPageNum();
+        int safePageSize = request.getPageSize() == null ? 12 : Math.min(Math.max(request.getPageSize(), 1), 50);
+        String keyword = request.getKeyword();
+        Integer status = request.getStatus();
 
         Page<VideoPo> page = videoRepository.queryCreatorVideoPage(userId, keyword, status, safePageNum, safePageSize);
         List<VideoPo> videoRecords = page.getRecords();
@@ -594,34 +580,5 @@ public class VideoServiceImpl implements VideoService {
 
     private long defaultLong(Long value) {
         return value == null ? 0L : value;
-    }
-
-    private VideoPo queryVideoByIdWithCache(Long videoId) {
-        String cacheKey = RedisKeyUtil.videoInfoKey(videoId);
-        String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
-        if (StringUtils.isNotBlank(cachedJson)) {
-            return JsonUtil.fromJson(cachedJson, VideoPo.class);
-        }
-        VideoPo videoPo = videoRepository.queryVideoById(videoId);
-        if (videoPo != null) {
-            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(videoPo),
-                    VIDEO_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-        }
-        return videoPo;
-    }
-
-    private UserPo queryUserByIdWithCache(Long userId) {
-        String cacheKey = RedisKeyUtil.userInfoKey(userId);
-        String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
-        if (StringUtils.isNotBlank(cachedJson)) {
-            return JsonUtil.fromJson(cachedJson, UserPo.class);
-        }
-        UserPo userPo = userRepository.queryUserById(userId);
-        if (userPo != null) {
-            userPo.setPassword(null);
-            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(userPo),
-                    USER_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-        }
-        return userPo;
     }
 }

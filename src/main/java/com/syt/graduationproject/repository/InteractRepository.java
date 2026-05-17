@@ -1,7 +1,10 @@
 package com.syt.graduationproject.repository;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.po.CollectionDirectoryPo;
+import com.syt.graduationproject.model.po.CollectionItemPo;
+import com.syt.graduationproject.model.po.CommentStatsPo;
+import com.syt.graduationproject.model.po.ReportPo;
 
 import java.time.LocalDateTime;
 import java.util.List;

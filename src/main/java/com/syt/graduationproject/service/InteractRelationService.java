@@ -2,10 +2,8 @@ package com.syt.graduationproject.service;
 
 import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
-import com.syt.graduationproject.model.po.LikeCommentPo;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**

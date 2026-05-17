@@ -6,13 +6,9 @@ import com.syt.graduationproject.model.request.CreatorVideoQueryRequest;
 import com.syt.graduationproject.model.request.VideoPlayProgressRequest;
 import com.syt.graduationproject.model.request.VideoSubmitRequest;
 import com.syt.graduationproject.model.request.VideoUpdateRequest;
-import com.syt.graduationproject.model.vo.CreatorVideoManageVo;
-import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.model.response.Response;
-import com.syt.graduationproject.model.vo.SearchVideoVo;
-import com.syt.graduationproject.model.vo.UserVideoHistoryVo;
-import com.syt.graduationproject.model.vo.VideoPlayDetailVo;
-import com.syt.graduationproject.model.vo.VideoPartitionVo;
+import com.syt.graduationproject.model.vo.*;
+import com.syt.graduationproject.model.vo.Page.PageVo;
 import com.syt.graduationproject.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -172,7 +168,7 @@ public class VideoController {
     @PostMapping("/creator/list")
     public Response<PageVo<CreatorVideoManageVo>> listCreatorVideos(@RequestBody(required = false) CreatorVideoQueryRequest request) {
         try {
-            return Response.success(videoService.listCreatorVideos(request == null ? new CreatorVideoQueryRequest() : request));
+            return Response.success(videoService.listCreatorVideos(request));
         } catch (CustomException e) {
             log.warn("查询创作者稿件列表失败，原因：{}", e.getMessage());
             return Response.fail(e.getMessage());

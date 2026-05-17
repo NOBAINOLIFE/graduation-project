@@ -1,8 +1,12 @@
 package com.syt.graduationproject.repository;
 
 
+import com.syt.graduationproject.model.po.UserCoinChangeLogPo;
 import com.syt.graduationproject.model.po.UserPo;
 import com.syt.graduationproject.model.po.UserStatsPo;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 public interface UserRepository {
 
@@ -35,4 +39,9 @@ public interface UserRepository {
      * 初始化用户统计信息
      */
     void initUserStats(Long userId);
+
+    /**
+     * 查询用户硬币流水
+     */
+    List<UserCoinChangeLogPo> queryUserCoinRecord(Long userId, LocalDateTime startTime);
 }

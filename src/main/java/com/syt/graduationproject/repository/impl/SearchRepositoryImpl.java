@@ -1,8 +1,6 @@
 package com.syt.graduationproject.repository.impl;
 
 import com.syt.graduationproject.model.es.UserEsDoc;
-import java.util.List;
-import java.util.stream.Collectors;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import com.syt.graduationproject.repository.SearchRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +15,9 @@ import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor

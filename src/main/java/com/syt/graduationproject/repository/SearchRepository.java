@@ -1,11 +1,11 @@
 package com.syt.graduationproject.repository;
 
-import java.util.List;
-
 import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
+
+import java.util.List;
 
 public interface SearchRepository {
 

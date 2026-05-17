@@ -3,6 +3,7 @@ package com.syt.graduationproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.syt.graduationproject.client.MyMinioClient;
 import com.syt.graduationproject.converter.VideoConverter;
 import com.syt.graduationproject.enums.*;
 import com.syt.graduationproject.exception.ErrorOperationException;
@@ -10,32 +11,16 @@ import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.exception.NotFoundException;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.po.*;
-import com.syt.graduationproject.model.request.ManagerAuditVideoListRequest;
-import com.syt.graduationproject.model.request.ManagerAuditVideoRequest;
-import com.syt.graduationproject.model.request.ManagerReportListRequest;
-import com.syt.graduationproject.model.request.ManagerReviewReportRequest;
-import com.syt.graduationproject.model.request.ManagerVideoPartitionListRequest;
-import com.syt.graduationproject.model.request.ManagerUserListRequest;
-import com.syt.graduationproject.model.request.ManagerVideoTagListRequest;
-import com.syt.graduationproject.model.vo.ManagerVideoPartitionVo;
-import com.syt.graduationproject.model.vo.ManagerUserVo;
-import com.syt.graduationproject.model.vo.ManagerVideoTagVo;
-import com.syt.graduationproject.model.vo.VideoSourceVo;
-import com.syt.graduationproject.model.vo.VideoAuditVo;
-import com.syt.graduationproject.model.vo.report.CommentReportInfoVo;
-import com.syt.graduationproject.model.vo.report.ManagerReportRecordVo;
+import com.syt.graduationproject.model.request.*;
+import com.syt.graduationproject.model.vo.*;
 import com.syt.graduationproject.model.vo.Page.PageVo;
-import com.syt.graduationproject.model.vo.report.ReportInfoVo;
-import com.syt.graduationproject.model.vo.report.UserReportInfoVo;
-import com.syt.graduationproject.model.vo.report.VideoReportInfoVo;
-import com.syt.graduationproject.model.vo.VideoTagVo;
+import com.syt.graduationproject.model.vo.report.*;
 import com.syt.graduationproject.repository.InteractRepository;
 import com.syt.graduationproject.repository.UserRepository;
 import com.syt.graduationproject.repository.VideoRepository;
 import com.syt.graduationproject.service.EsSyncService;
 import com.syt.graduationproject.service.ManagerService;
-import com.syt.graduationproject.service.minio.MinioService;
-import com.syt.graduationproject.util.JsonUtil;
+import com.syt.graduationproject.service.RedisCacheService;
 import com.syt.graduationproject.util.RedisKeyUtil;
 import com.syt.graduationproject.util.UserHolderUtil;
 import lombok.RequiredArgsConstructor;
@@ -47,16 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -69,8 +45,6 @@ public class ManagerServiceImpl implements ManagerService {
 	private static final int DEFAULT_PAGE_SIZE = 10;
 
 	private static final int MAX_PAGE_SIZE = 100;
-
-	private static final long VIDEO_INFO_CACHE_TTL_MINUTES = 30L;
 
 	private final ReportMapper reportMapper;
 
@@ -100,7 +74,7 @@ public class ManagerServiceImpl implements ManagerService {
 
 	private final EsSyncService esSyncService;
 
-	private final MinioService minioService;
+	private final MyMinioClient myMinioClient;
 
 	private final InteractRepository interactRepository;
 
@@ -109,6 +83,8 @@ public class ManagerServiceImpl implements ManagerService {
 	private final StringRedisTemplate stringRedisTemplate;
 
 	private final UserRoleMapper userRoleMapper;
+
+	private final RedisCacheService redisCacheService;
 
 	@Override
 	public PageVo<VideoAuditVo> queryAuditVideoList(ManagerAuditVideoListRequest request) {
@@ -452,7 +428,7 @@ public class ManagerServiceImpl implements ManagerService {
 			if (sourceList != null) {
 				for (VideoSourcePo sourcePo : sourceList) {
 					if (sourcePo != null && StringUtils.isNotBlank(sourcePo.getPlayUrl())) {
-						sourcePo.setPlayUrl(minioService.generateGetUrl(sourcePo.getPlayUrl(), 30));
+						sourcePo.setPlayUrl(myMinioClient.generateGetUrl(sourcePo.getPlayUrl(), 30));
 					}
 				}
 			}
@@ -869,7 +845,7 @@ public class ManagerServiceImpl implements ManagerService {
 
 	@Override
 	public void banVideo(Long videoId) {
-		VideoPo videoPo = queryVideoByIdWithCache(videoId);
+		VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(videoId);
 		if (videoPo == null) {
 			throw new NotFoundException("视频不存在");
 		}
@@ -885,7 +861,7 @@ public class ManagerServiceImpl implements ManagerService {
 
 	@Override
 	public void unbanVideo(Long videoId) {
-		VideoPo videoPo = queryVideoByIdWithCache(videoId);
+		VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(videoId);
 		if (videoPo == null) {
 			throw new NotFoundException("视频不存在");
 		}
@@ -961,7 +937,7 @@ public class ManagerServiceImpl implements ManagerService {
 		videoTagMapper.deleteById(tagId);
 
 		for (Long videoId : affectedVideoIdList) {
-			VideoPo videoPo = queryVideoByIdWithCache(videoId);
+			VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(videoId);
 			if (videoPo != null && Objects.equals(videoPo.getStatus(), VideoStatusEnum.PUBLISHED.getCode())) {
 				esSyncService.syncVideo(videoId);
 			}
@@ -978,7 +954,7 @@ public class ManagerServiceImpl implements ManagerService {
 		if (videoId == null || request.getOperation() == null) {
 			throw new ErrorParamException("视频审核参数不完整");
 		}
-		VideoPo videoPo = queryVideoByIdWithCache(videoId);
+		VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(videoId);
 		if (videoPo == null) {
 			throw new NotFoundException("视频不存在");
 		}
@@ -1060,23 +1036,9 @@ public class ManagerServiceImpl implements ManagerService {
 		}
 		stringRedisTemplate.delete(RedisKeyUtil.videoInfoKey(videoId));
 
-		VideoPo videoPo = queryVideoByIdWithCache(videoId);
+		VideoPo videoPo = redisCacheService.queryVideoByIdWithCache(videoId);
 		interactRepository.updateUserVideoNum(videoPo.getUserId(), 1L);
 		esSyncService.syncVideo(videoId);
 		esSyncService.syncUser(videoPo.getUserId());
-	}
-
-	private VideoPo queryVideoByIdWithCache(Long videoId) {
-		String cacheKey = RedisKeyUtil.videoInfoKey(videoId);
-		String cachedJson = stringRedisTemplate.opsForValue().get(cacheKey);
-		if (StringUtils.isNotBlank(cachedJson)) {
-			return JsonUtil.fromJson(cachedJson, VideoPo.class);
-		}
-		VideoPo videoPo = videoRepository.queryVideoById(videoId);
-		if (videoPo != null) {
-			stringRedisTemplate.opsForValue().set(cacheKey, JsonUtil.toJson(videoPo),
-					VIDEO_INFO_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-		}
-		return videoPo;
 	}
 }
