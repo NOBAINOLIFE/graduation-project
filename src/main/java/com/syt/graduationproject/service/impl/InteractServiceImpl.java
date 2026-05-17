@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.DELETED;
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
+import static com.syt.graduationproject.enums.CoinChangeTypeEnum.DAILY_REWARD;
+import static com.syt.graduationproject.enums.CoinChangeTypeEnum.VIDEO_REWARD;
 
 @Slf4j
 @Service
@@ -119,10 +121,6 @@ public class InteractServiceImpl implements InteractService {
     private static final int OPERATION_OFF = 0;
 
     private static final int DAILY_LOGIN_REWARD = 1;
-
-    private static final int COIN_CHANGE_TYPE_DAILY_REWARD = 1;
-
-    private static final int COIN_CHANGE_TYPE_VIDEO_REWARD = 2;
 
     private static final String DEFAULT_COLLECTION_NAME = "默认收藏夹";
 
@@ -1474,7 +1472,7 @@ public class InteractServiceImpl implements InteractService {
         }
 
         ensureWalletRow(myId);
-        Integer oldAmount = userCoinChangeLogMapper.sumConsumedCoinByTarget(myId, COIN_CHANGE_TYPE_VIDEO_REWARD, request.getVideoId());
+        Integer oldAmount = userCoinChangeLogMapper.sumConsumedCoinByTarget(myId, VIDEO_REWARD.getCode(), request.getVideoId());
         if (oldAmount == null) {
             oldAmount = 0;
         }
@@ -1488,7 +1486,7 @@ public class InteractServiceImpl implements InteractService {
             throw new ErrorOperationException("硬币余额不足");
         }
 
-        recordCoinChangeLog(myId, -request.getAmount(), COIN_CHANGE_TYPE_VIDEO_REWARD, request.getVideoId());
+        recordCoinChangeLog(myId, -request.getAmount(), VIDEO_REWARD.getCode(), request.getVideoId());
         videoStatsMapper.updateCoinCount(request.getVideoId(), request.getAmount());
     }
 
@@ -1503,7 +1501,7 @@ public class InteractServiceImpl implements InteractService {
         LocalDateTime endTime = startTime.plusDays(1);
         Integer existsCount = userCoinChangeLogMapper.countLogsInRange(
                 userId,
-                COIN_CHANGE_TYPE_DAILY_REWARD,
+                DAILY_REWARD.getCode(),
                 startTime,
                 endTime
         );
@@ -1511,7 +1509,7 @@ public class InteractServiceImpl implements InteractService {
             return false;
         }
         userWalletMapper.updateCoinBalance(userId, (long) DAILY_LOGIN_REWARD);
-        recordCoinChangeLog(userId, DAILY_LOGIN_REWARD, COIN_CHANGE_TYPE_DAILY_REWARD, null);
+        recordCoinChangeLog(userId, DAILY_LOGIN_REWARD, DAILY_REWARD.getCode(), null);
         return true;
     }
 

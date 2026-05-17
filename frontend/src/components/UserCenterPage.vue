@@ -285,7 +285,7 @@
                   </div>
                   <div class="rounded-2xl bg-[#fff8ec] p-5">
                     <p class="text-sm text-[#8b5e00]">近7天总变动</p>
-                    <p class="mt-3 text-lg font-semibold text-[#7c5f1a]">{{ totalChangeLabel }}</p>
+                    <p class="mt-3 text-2xl font-semibold text-[#7c5f1a]">{{ totalChangeLabel }}</p>
                   </div>
                 </div>
               </section>
