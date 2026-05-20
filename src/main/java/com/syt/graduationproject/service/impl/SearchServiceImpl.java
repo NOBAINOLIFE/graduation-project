@@ -1,12 +1,9 @@
 package com.syt.graduationproject.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.syt.graduationproject.converter.SearchConverter;
 import com.syt.graduationproject.enums.RoleEnum;
-import com.syt.graduationproject.mapper.UserRoleMapper;
 import com.syt.graduationproject.model.es.UserEsDoc;
 import com.syt.graduationproject.model.es.VideoEsDoc;
-import com.syt.graduationproject.model.po.UserRoleRelPo;
 import com.syt.graduationproject.model.request.SearchUserRequest;
 import com.syt.graduationproject.model.request.SearchVideoRequest;
 import com.syt.graduationproject.model.vo.Page.PageVo;
@@ -62,8 +59,6 @@ public class SearchServiceImpl implements SearchService {
     private final SearchConverter searchConverter;
 
     private final InteractRelationService interactRelationService;
-
-    private final UserRoleMapper userRoleMapper;
 
     @Override
     public PageVo<SearchVideoVo> searchVideos(SearchVideoRequest request) {
@@ -241,16 +236,8 @@ public class SearchServiceImpl implements SearchService {
             boolQueryBuilder.must(QueryBuilders.matchAllQuery());
         }
 
-        // 排除管理员用户
-        List<Long> adminUserIds = userRoleMapper.selectList(
-                new LambdaQueryWrapper<UserRoleRelPo>()
-                        .eq(UserRoleRelPo::getRoleId, RoleEnum.ADMIN.getRoleId()))
-                .stream()
-                .map(UserRoleRelPo::getUserId)
-                .collect(Collectors.toList());
-        if (CollectionUtils.isNotEmpty(adminUserIds)) {
-            boolQueryBuilder.mustNot(QueryBuilders.termsQuery("userId", adminUserIds));
-        }
+        // 只查询普通用户
+        boolQueryBuilder.filter(QueryBuilders.termQuery("roleId", RoleEnum.USER.getRoleId()));
 
         Sort sort;
         if (request.getSortType() != null && request.getSortType() == USER_SORT_FANS_COUNT) {

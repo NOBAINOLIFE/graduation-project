@@ -19,8 +19,9 @@ public interface UserConverter {
 
     @Mapping(
             target = "changeDesc",
-            expression = "java(buildCoinChangeDesc(po.getChangeType(), po.getRelatedTargetId()))"
+            expression = "java(buildCoinChangeDesc(po.getChangeType(), po.getVideoId()))"
     )
+    @Mapping(target = "relatedTargetId", source = "videoId")
     UserCoinChangeLogVo toUserCoinChangeLogVo(UserCoinChangeLogPo po);
 
     @Named("buildCoinChangeDesc")

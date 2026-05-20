@@ -57,6 +57,12 @@ public class UserPo {
     private String bio;
 
     /**
+     * 用户角色 id
+     */
+    @TableField(value = "role_id")
+    private Long roleId;
+
+    /**
      * 状态：0-删除 1-正常 2-封禁
      */
     @TableField(value = "status")

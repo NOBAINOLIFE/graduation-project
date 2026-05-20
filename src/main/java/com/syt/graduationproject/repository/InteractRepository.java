@@ -12,21 +12,6 @@ import java.util.List;
 public interface InteractRepository {
 
     /**
-     * 查询用户粉丝数量
-     */
-    Long queryUserFansNum(Long myId);
-
-    /**
-     * 查询用户关注数量
-     */
-    Long queryUserFollowNum(Long myId);
-
-    /**
-     * 查询用户获赞数量
-     */
-    Long queryUserLikeNum(Long myId);
-
-    /**
      * 更新用户粉丝数
      */
     void updateUserFansNum(Long userId, Long addNum);

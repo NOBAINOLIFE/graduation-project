@@ -44,6 +44,9 @@ import java.util.stream.Collectors;
 
 import static com.syt.graduationproject.constant.CommonConstant.DELETED;
 import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
+import static com.syt.graduationproject.constant.InteractConstant.*;
+import static com.syt.graduationproject.constant.UserConstant.DAILY_LOGIN_COIN_REWARD_NUM;
+import static com.syt.graduationproject.constant.UserConstant.DEFAULT_COLLECTION_NAME;
 import static com.syt.graduationproject.enums.CoinChangeTypeEnum.DAILY_REWARD;
 import static com.syt.graduationproject.enums.CoinChangeTypeEnum.VIDEO_REWARD;
 
@@ -52,44 +55,50 @@ import static com.syt.graduationproject.enums.CoinChangeTypeEnum.VIDEO_REWARD;
 @RequiredArgsConstructor
 public class InteractServiceImpl implements InteractService {
 
+    /**
+     * 在线映射在 Redis 的 TTL（心跳会刷新）
+     */
+    private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
+    
+    /**
+     * 分享去重缓存 TTL：缓存过期后回查数据库并重建
+     */
+    private static final Duration VIDEO_SHARE_DEDUP_TTL = Duration.ofDays(7);
+    
     private final InteractRepository interactRepository;
 
     private final FollowRecordMapper followRecordMapper;
-
+    
     private final CommentMapper commentMapper;
-
+    
     private final CommentStatsMapper commentStatsMapper;
-
+    
     private final VideoStatsMapper videoStatsMapper;
-
-    private final LikeVideoMapper likeVideoMapper;
-
-    private final LikeCommentMapper likeCommentMapper;
-
+    
+    private final LikeRecordMapper likeRecordMapper;
+    
     private final CollectionDirectoryMapper collectionDirectoryMapper;
-
+    
     private final CollectionItemMapper collectionItemMapper;
-
-    private final UserBlockMapper userBlockMapper;
-
-    private final UserWalletMapper userWalletMapper;
-
+    
+    private final UserBlackMapper userBlackMapper;
+    
     private final UserCoinChangeLogMapper userCoinChangeLogMapper;
-
+    
     private final PrivateMessageMapper privateMessageMapper;
-
+    
     private final ReportMapper reportMapper;
-
+    
     private final VideoMapper videoMapper;
-
+    
     private final StringRedisTemplate stringRedisTemplate;
-
+    
     private final VideoRepository videoRepository;
-
+    
     private final EsSyncService esSyncService;
-
+    
     private final SearchService searchService;
-
+    
     private final InteractRelationService interactRelationService;
 
     /**
@@ -102,27 +111,11 @@ public class InteractServiceImpl implements InteractService {
      */
     private final Map<String, Long> sessionLastSeen = new ConcurrentHashMap<>();
 
-    /**
-     * 在线映射在 Redis 的 TTL（心跳会刷新）
-     */
-    private static final Duration ONLINE_TTL = Duration.ofSeconds(120);
-
-    /**
-     * 分享去重缓存 TTL：缓存过期后回查数据库并重建
-     */
-    private static final Duration VIDEO_SHARE_DEDUP_TTL = Duration.ofDays(7);
-
     private final UserMapper userMapper;
 
     private final VideoShareRecordMapper videoShareRecordMapper;
 
-    private static final int OPERATION_ON = 1;
-
-    private static final int OPERATION_OFF = 0;
-
-    private static final int DAILY_LOGIN_REWARD = 1;
-
-    private static final String DEFAULT_COLLECTION_NAME = "默认收藏夹";
+    private final UserStatsMapper userStatsMapper;
 
     /**
      * 关注/取关
@@ -140,9 +133,6 @@ public class InteractServiceImpl implements InteractService {
         if (Objects.equals(myId, followeeId)) {
             throw new ErrorOperationException("不能关注自己");
         }
-        if (operation != OPERATION_ON && operation != OPERATION_OFF) {
-            throw new ErrorParamException("关注操作类型非法");
-        }
         if (hasMutualBlock(myId, followeeId)) {
             throw new ErrorOperationException("由于隐私设置，无法关注该用户");
         }
@@ -153,7 +143,7 @@ public class InteractServiceImpl implements InteractService {
                 .eq(FollowRecordPo::getFolloweeId, followeeId);
         FollowRecordPo oldRecord = followRecordMapper.selectOne(wrapper);
 
-        if (operation == 1) {
+        if (operation.equals(FOLLOW)) {
             // --- 关注逻辑 ---
             if (Objects.isNull(oldRecord)) {
                 // 数据库没记录：直接插入
@@ -161,26 +151,28 @@ public class InteractServiceImpl implements InteractService {
                 record.setFollowerId(myId);
                 record.setFolloweeId(followeeId);
                 followRecordMapper.insert(record);
-            } else if (oldRecord.getIsDeleted() == 1) {
-                // 数据库有记录但已取关：手动把 1 改回 0
-                oldRecord.setIsDeleted(0);
+            } else if (oldRecord.getIsDeleted().equals(DELETED)) {
+                // 数据库有记录但已取关则恢复逻辑删除
+                oldRecord.setIsDeleted(NOT_DELETED);
                 followRecordMapper.updateById(oldRecord);
             }
             // 更新关注数和粉丝数
             interactRepository.updateUserFollowNum(myId, 1L);
             interactRepository.updateUserFansNum(followeeId, 1L);
             fansChanged = true;
-        } else {
+        } else if (operation.equals(UNFOLLOW)) {
             // --- 取关逻辑 ---
             // 只有当前是关注状态，才执行逻辑删除
-            if (Objects.nonNull(oldRecord) && oldRecord.getIsDeleted() == 0) {
-                oldRecord.setIsDeleted(1);
+            if (Objects.nonNull(oldRecord) && oldRecord.getIsDeleted().equals(NOT_DELETED)) {
+                oldRecord.setIsDeleted(DELETED);
                 followRecordMapper.updateById(oldRecord);
                 // 更新关注数和粉丝数
                 interactRepository.updateUserFollowNum(myId, -1L);
                 interactRepository.updateUserFansNum(followeeId, -1L);
                 fansChanged = true;
             }
+        } else {
+            throw new ErrorParamException("关注操作类型非法");
         }
 
         if (fansChanged) {
@@ -191,64 +183,62 @@ public class InteractServiceImpl implements InteractService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void blockUser(BlockUserRequest request) {
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long userId = UserHolderUtil.getUser().getUserId();
         if (request == null || request.getTargetUserId() == null || request.getOperation() == null) {
             throw new ErrorParamException("拉黑参数不完整");
         }
         Long targetUserId = request.getTargetUserId();
-        if (Objects.equals(myId, targetUserId)) {
+        if (Objects.equals(userId, targetUserId)) {
             throw new ErrorOperationException("不能拉黑自己");
         }
         UserPo targetUser = userMapper.selectById(targetUserId);
         if (targetUser == null) {
             throw new NotFoundException("用户不存在");
         }
-        if (request.getOperation() != OPERATION_ON && request.getOperation() != OPERATION_OFF) {
-            throw new ErrorParamException("拉黑操作类型非法");
-        }
 
-        LambdaQueryWrapper<UserBlockPo> wrapper = new LambdaQueryWrapper<UserBlockPo>()
-                .eq(UserBlockPo::getUserId, myId)
-                .eq(UserBlockPo::getBlockedUserId, targetUserId);
-        UserBlockPo old = userBlockMapper.selectOne(wrapper);
+        LambdaQueryWrapper<UserBlackPo> wrapper = new LambdaQueryWrapper<UserBlackPo>()
+                .eq(UserBlackPo::getUserId, userId)
+                .eq(UserBlackPo::getBlackedUserId, targetUserId);
+        UserBlackPo old = userBlackMapper.selectOne(wrapper);
 
-        if (request.getOperation() == OPERATION_ON) {
+        if (request.getOperation().equals(BLACK)) {
             if (old == null) {
-                userBlockMapper.insert(UserBlockPo.builder()
-                        .userId(myId)
-                        .blockedUserId(targetUserId)
+                userBlackMapper.insert(UserBlackPo.builder()
+                        .userId(userId)
+                        .blackedUserId(targetUserId)
                         .isDeleted(NOT_DELETED)
                         .build());
             } else if (!NOT_DELETED.equals(old.getIsDeleted())) {
                 old.setIsDeleted(NOT_DELETED);
-                userBlockMapper.updateById(old);
+                userBlackMapper.updateById(old);
             }
             // 拉黑后自动互相取关，避免后续可见性和关系异常。
-            cancelFollowIfPresent(myId, targetUserId);
-            cancelFollowIfPresent(targetUserId, myId);
-            return;
-        }
-
-        if (old != null && NOT_DELETED.equals(old.getIsDeleted())) {
-            old.setIsDeleted(1);
-            userBlockMapper.updateById(old);
+            cancelFollowIfPresent(userId, targetUserId);
+            cancelFollowIfPresent(targetUserId, userId);
+        } else if (request.getOperation().equals(UNBLACK)) {
+            if (old != null && NOT_DELETED.equals(old.getIsDeleted())) {
+                old.setIsDeleted(DELETED);
+                userBlackMapper.updateById(old);
+            }
+        } else {
+            throw new ErrorParamException("拉黑操作类型非法");
         }
     }
 
     @Override
     public List<UserSimpleInfoVo> queryMyBlockList() {
         Long myId = UserHolderUtil.getUser().getUserId();
-        List<UserBlockPo> blockRecords = userBlockMapper.selectList(new LambdaQueryWrapper<UserBlockPo>()
-                .eq(UserBlockPo::getUserId, myId)
-                .eq(UserBlockPo::getIsDeleted, NOT_DELETED)
-                .orderByDesc(UserBlockPo::getCreateTime)
-                .orderByDesc(UserBlockPo::getId));
+        List<UserBlackPo> blockRecords = userBlackMapper.selectList(new LambdaQueryWrapper<UserBlackPo>()
+                .eq(UserBlackPo::getUserId, myId)
+                .eq(UserBlackPo::getIsDeleted, NOT_DELETED)
+                .orderByDesc(UserBlackPo::getCreateTime)
+                .orderByDesc(UserBlackPo::getId));
         if (CollectionUtils.isEmpty(blockRecords)) {
             return Collections.emptyList();
         }
 
         List<Long> blockedUserIds = blockRecords.stream()
-                .map(UserBlockPo::getBlockedUserId)
+                .map(UserBlackPo::getBlackedUserId)
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
@@ -278,7 +268,7 @@ public class InteractServiceImpl implements InteractService {
         if (userA == null || userB == null) {
             return false;
         }
-        return userBlockMapper.countAnyDirectionBlock(userA, userB) > 0;
+        return userBlackMapper.countAnyDirectionBlock(userA, userB) > 0;
     }
 
     /**
@@ -386,7 +376,7 @@ public class InteractServiceImpl implements InteractService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void likeVideo(LikeRequest request) {
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long userId = UserHolderUtil.getUser().getUserId();
         Long videoId = request.getTargetId();
         Integer operation = request.getOperation();
         VideoPo videoPo = videoMapper.selectById(videoId);
@@ -397,27 +387,31 @@ public class InteractServiceImpl implements InteractService {
             throw new ErrorOperationException("视频状态异常");
         }
 
-        if (operation == 1) {
+        if (operation.equals(LIKE)) {
             // --- 执行点赞 ---
-            LikeVideoPo likeVideoPo = LikeVideoPo.builder().userId(myId).videoId(videoId).build();
+            LikeRecordPo likeRecordPo = LikeRecordPo.builder()
+                    .userId(userId)
+                    .targetId(videoId)
+                    .targetType(LikeTargetTypeEnum.VIDEO.getCode())
+                    .build();
             try {
-                likeVideoMapper.insert(likeVideoPo);
-                // 插入成功，增加计数
+                likeRecordMapper.insert(likeRecordPo);
                 videoStatsMapper.updateLikeCount(videoId, 1);
                 interactRepository.updateUserLikeNum(videoPo.getUserId(), 1L);
             } catch (DuplicateKeyException e) {
                 // 幂等处理：如果已经点过赞，直接忽略，不重复加分
-                log.warn("用户重复点赞，用户ID：{}，视频ID：{}", myId, videoId);
+                log.warn("用户重复点赞，用户ID：{}，视频ID：{}", userId, videoId);
             }
-        } else if (operation == 0) {
+        } else if (operation.equals(CANCEL_LIKE)) {
             // --- 执行取消 ---
-            QueryWrapper<LikeVideoPo> wrapper = new QueryWrapper<>();
+            QueryWrapper<LikeRecordPo> wrapper = new QueryWrapper<>();
             wrapper.lambda()
-                    .eq(LikeVideoPo::getUserId, myId)
-                    .eq(LikeVideoPo::getVideoId, videoId);
-            int rows = likeVideoMapper.delete(wrapper);
+                    .eq(LikeRecordPo::getUserId, userId)
+                    .eq(LikeRecordPo::getTargetId, videoId)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.VIDEO.getCode());
+            int rows = likeRecordMapper.delete(wrapper);
+            // 只有真正删除了记录，才减少计数
             if (rows > 0) {
-                // 只有真正删除了记录，才减少计数
                 videoStatsMapper.updateLikeCount(videoId, -1);
                 interactRepository.updateUserLikeNum(videoPo.getUserId(), -1L);
             }
@@ -432,31 +426,38 @@ public class InteractServiceImpl implements InteractService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void likeComment(LikeRequest request) {
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long userId = UserHolderUtil.getUser().getUserId();
         Long commentId = request.getTargetId();
         Integer operation = request.getOperation();
-        if (operation == 1) {
+        if (operation.equals(LIKE)) {
             // --- 执行点赞 ---
-            LikeCommentPo likeCommentPo = LikeCommentPo.builder().userId(myId).commentId(commentId).build();
+            LikeRecordPo likeRecordPo = LikeRecordPo.builder()
+                    .userId(userId)
+                    .targetId(commentId)
+                    .targetType(LikeTargetTypeEnum.COMMENT.getCode())
+                    .build();
             try {
-                likeCommentMapper.insert(likeCommentPo);
+                likeRecordMapper.insert(likeRecordPo);
                 // 插入成功，增加计数
                 commentStatsMapper.updateLikeCount(commentId, 1);
             } catch (DuplicateKeyException e) {
                 // 幂等处理：如果已经点过赞，直接忽略，不重复加分
-                log.warn("用户重复点赞，用户ID：{}，评论ID：{}", myId, commentId);
+                log.warn("用户重复点赞，用户ID：{}，评论ID：{}", userId, commentId);
             }
-        } else {
+        } else if (operation.equals(CANCEL_LIKE)) {
             // --- 执行取消 ---
-            QueryWrapper<LikeCommentPo> wrapper = new QueryWrapper<>();
+            QueryWrapper<LikeRecordPo> wrapper = new QueryWrapper<>();
             wrapper.lambda()
-                    .eq(LikeCommentPo::getUserId, myId)
-                    .eq(LikeCommentPo::getCommentId, commentId);
-            int rows = likeCommentMapper.delete(wrapper);
+                    .eq(LikeRecordPo::getUserId, userId)
+                    .eq(LikeRecordPo::getTargetId, commentId)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.COMMENT.getCode());
+            int rows = likeRecordMapper.delete(wrapper);
             if (rows > 0) {
                 // 只有真正删除了记录，才减少计数
                 commentStatsMapper.updateLikeCount(commentId, -1);
             }
+        } else {
+            throw new ErrorParamException("操作类型非法");
         }
     }
 
@@ -587,9 +588,9 @@ public class InteractServiceImpl implements InteractService {
                     .updateTime(LocalDateTime.now())
                     .build();
             privateMessageMapper.update(update, new LambdaQueryWrapper<PrivateMessagePo>()
-                            .eq(PrivateMessagePo::getId, serverMsgId)
-                            // 仅允许 SAVED -> DELIVERED，避免覆盖 ACKED/READ
-                            .eq(PrivateMessagePo::getStatus, PrivateMessageStatusEnum.SAVED.getCode()));
+                    .eq(PrivateMessagePo::getId, serverMsgId)
+                    // 仅允许 SAVED -> DELIVERED，避免覆盖 ACKED/READ
+                    .eq(PrivateMessagePo::getStatus, PrivateMessageStatusEnum.SAVED.getCode()));
         }
 
         // 4) 给发送方推送发送回执（包含是否实时投递成功）
@@ -606,10 +607,10 @@ public class InteractServiceImpl implements InteractService {
         if (Objects.equals(targetUser.getStatus(), UserStatusEnum.BANNED.getCode())) {
             return PrivateMessageFailReasonEnum.RECEIVER_BANNED;
         }
-        if (userBlockMapper.countActiveBlock(fromUserId, toUserId) > 0) {
+        if (userBlackMapper.countActiveBlock(fromUserId, toUserId) > 0) {
             return PrivateMessageFailReasonEnum.SENDER_BLOCKED_RECEIVER;
         }
-        if (userBlockMapper.countActiveBlock(toUserId, fromUserId) > 0) {
+        if (userBlackMapper.countActiveBlock(toUserId, fromUserId) > 0) {
             return PrivateMessageFailReasonEnum.RECEIVER_BLOCKED_SENDER;
         }
         return PrivateMessageFailReasonEnum.NONE;
@@ -893,23 +894,24 @@ public class InteractServiceImpl implements InteractService {
 
     @Override
     public List<LikeReceivedSummaryVo> queryLikeReceivedSummaries() {
-        Long myId = UserHolderUtil.getUser().getUserId();
+        Long userId = UserHolderUtil.getUser().getUserId();
         List<LikeReceivedSummaryVo> summaryList = new ArrayList<>();
 
         List<CommentPo> myComments = commentMapper.selectList(new LambdaQueryWrapper<CommentPo>()
-                .eq(CommentPo::getUserId, myId)
+                .eq(CommentPo::getUserId, userId)
                 .eq(CommentPo::getIsDeleted, NOT_DELETED));
         if (CollectionUtils.isNotEmpty(myComments)) {
             Map<Long, CommentPo> commentMap = myComments.stream()
                     .collect(Collectors.toMap(CommentPo::getId, item -> item, (left, right) -> left));
             List<Long> commentIds = myComments.stream().map(CommentPo::getId).collect(Collectors.toList());
-            List<LikeCommentPo> likeCommentPos = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
-                    .in(LikeCommentPo::getCommentId, commentIds)
-                    .ne(LikeCommentPo::getUserId, myId)
-                    .orderByDesc(LikeCommentPo::getCreateTime)
-                    .orderByDesc(LikeCommentPo::getId));
-            if (CollectionUtils.isNotEmpty(likeCommentPos)) {
-                Set<Long> userIds = likeCommentPos.stream().map(LikeCommentPo::getUserId).collect(Collectors.toSet());
+            List<LikeRecordPo> likeRecordPos = likeRecordMapper.selectList(new LambdaQueryWrapper<LikeRecordPo>()
+                    .in(LikeRecordPo::getTargetId, commentIds)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.COMMENT.getCode())
+                    .ne(LikeRecordPo::getUserId, userId)
+                    .orderByDesc(LikeRecordPo::getCreateTime)
+                    .orderByDesc(LikeRecordPo::getId));
+            if (CollectionUtils.isNotEmpty(likeRecordPos)) {
+                Set<Long> userIds = likeRecordPos.stream().map(LikeRecordPo::getUserId).collect(Collectors.toSet());
                 Set<Long> videoIds = myComments.stream().map(CommentPo::getVideoId).filter(Objects::nonNull).collect(Collectors.toSet());
                 Map<Long, UserPo> userMap = userIds.isEmpty()
                         ? Collections.emptyMap()
@@ -920,8 +922,8 @@ public class InteractServiceImpl implements InteractService {
                         : videoMapper.selectBatchIds(videoIds).stream()
                         .collect(Collectors.toMap(VideoPo::getId, item -> item, (left, right) -> left));
 
-                Map<Long, List<LikeCommentPo>> groupedLikeComments = likeCommentPos.stream()
-                        .collect(Collectors.groupingBy(LikeCommentPo::getCommentId, LinkedHashMap::new, Collectors.toList()));
+                Map<Long, List<LikeRecordPo>> groupedLikeComments = likeRecordPos.stream()
+                        .collect(Collectors.groupingBy(LikeRecordPo::getTargetId, LinkedHashMap::new, Collectors.toList()));
                 groupedLikeComments.forEach((commentId, likes) -> {
                     CommentPo commentPo = commentMap.get(commentId);
                     if (commentPo == null || CollectionUtils.isEmpty(likes)) {
@@ -938,7 +940,7 @@ public class InteractServiceImpl implements InteractService {
                             .videoCoverUrl(videoPo == null ? null : videoPo.getCoverUrl())
                             .totalCount((long) likes.size())
                             .previewUsernames(extractPreviewUsernames(likes.stream()
-                                    .map(LikeCommentPo::getUserId)
+                                    .map(LikeRecordPo::getUserId)
                                     .collect(Collectors.toList()), userMap))
                             .latestLikeTime(likes.get(0).getCreateTime())
                             .build());
@@ -947,25 +949,26 @@ public class InteractServiceImpl implements InteractService {
         }
 
         List<VideoPo> myVideos = videoMapper.selectList(new LambdaQueryWrapper<VideoPo>()
-                .eq(VideoPo::getUserId, myId));
+                .eq(VideoPo::getUserId, userId));
         if (CollectionUtils.isNotEmpty(myVideos)) {
             Map<Long, VideoPo> videoMap = myVideos.stream()
                     .collect(Collectors.toMap(VideoPo::getId, item -> item, (left, right) -> left));
             List<Long> videoIds = myVideos.stream().map(VideoPo::getId).collect(Collectors.toList());
-            List<LikeVideoPo> likeVideoPos = likeVideoMapper.selectList(new LambdaQueryWrapper<LikeVideoPo>()
-                    .in(LikeVideoPo::getVideoId, videoIds)
-                    .ne(LikeVideoPo::getUserId, myId)
-                    .orderByDesc(LikeVideoPo::getCreateTime)
-                    .orderByDesc(LikeVideoPo::getId));
-            if (CollectionUtils.isNotEmpty(likeVideoPos)) {
-                Set<Long> userIds = likeVideoPos.stream().map(LikeVideoPo::getUserId).collect(Collectors.toSet());
+            List<LikeRecordPo> LikeRecordPos = likeRecordMapper.selectList(new LambdaQueryWrapper<LikeRecordPo>()
+                    .in(LikeRecordPo::getTargetId, videoIds)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.VIDEO.getCode())
+                    .ne(LikeRecordPo::getUserId, userId)
+                    .orderByDesc(LikeRecordPo::getCreateTime)
+                    .orderByDesc(LikeRecordPo::getId));
+            if (CollectionUtils.isNotEmpty(LikeRecordPos)) {
+                Set<Long> userIds = LikeRecordPos.stream().map(LikeRecordPo::getUserId).collect(Collectors.toSet());
                 Map<Long, UserPo> userMap = userIds.isEmpty()
                         ? Collections.emptyMap()
                         : userMapper.selectBatchIds(userIds).stream()
                         .collect(Collectors.toMap(UserPo::getId, item -> item, (left, right) -> left));
 
-                Map<Long, List<LikeVideoPo>> groupedLikeVideos = likeVideoPos.stream()
-                        .collect(Collectors.groupingBy(LikeVideoPo::getVideoId, LinkedHashMap::new, Collectors.toList()));
+                Map<Long, List<LikeRecordPo>> groupedLikeVideos = LikeRecordPos.stream()
+                        .collect(Collectors.groupingBy(LikeRecordPo::getTargetId, LinkedHashMap::new, Collectors.toList()));
                 groupedLikeVideos.forEach((videoId, likes) -> {
                     VideoPo videoPo = videoMap.get(videoId);
                     if (videoPo == null || CollectionUtils.isEmpty(likes)) {
@@ -979,7 +982,7 @@ public class InteractServiceImpl implements InteractService {
                             .videoCoverUrl(videoPo.getCoverUrl())
                             .totalCount((long) likes.size())
                             .previewUsernames(extractPreviewUsernames(likes.stream()
-                                    .map(LikeVideoPo::getUserId)
+                                    .map(LikeRecordPo::getUserId)
                                     .collect(Collectors.toList()), userMap))
                             .latestLikeTime(likes.get(0).getCreateTime())
                             .build());
@@ -1017,17 +1020,19 @@ public class InteractServiceImpl implements InteractService {
             if (commentPo == null || !Objects.equals(commentPo.getUserId(), myId) || !Objects.equals(commentPo.getIsDeleted(), NOT_DELETED)) {
                 throw new NotFoundException("评论不存在或无权限查看");
             }
-            List<LikeCommentPo> recentLikes = likeCommentMapper.selectList(new LambdaQueryWrapper<LikeCommentPo>()
-                    .eq(LikeCommentPo::getCommentId, targetId)
-                    .ne(LikeCommentPo::getUserId, myId)
-                    .orderByDesc(LikeCommentPo::getCreateTime)
-                    .orderByDesc(LikeCommentPo::getId)
+            List<LikeRecordPo> recentLikes = likeRecordMapper.selectList(new LambdaQueryWrapper<LikeRecordPo>()
+                    .eq(LikeRecordPo::getTargetId, targetId)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.COMMENT.getCode())
+                    .ne(LikeRecordPo::getUserId, myId)
+                    .orderByDesc(LikeRecordPo::getCreateTime)
+                    .orderByDesc(LikeRecordPo::getId)
                     .last("limit 20"));
-            long totalCount = likeCommentMapper.selectCount(new LambdaQueryWrapper<LikeCommentPo>()
-                    .eq(LikeCommentPo::getCommentId, targetId)
-                    .ne(LikeCommentPo::getUserId, myId));
+            long totalCount = likeRecordMapper.selectCount(new LambdaQueryWrapper<LikeRecordPo>()
+                    .eq(LikeRecordPo::getTargetId, targetId)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.COMMENT.getCode())
+                    .ne(LikeRecordPo::getUserId, myId));
             Map<Long, UserPo> userMap = queryUserMap(recentLikes.stream()
-                    .map(LikeCommentPo::getUserId)
+                    .map(LikeRecordPo::getUserId)
                     .collect(Collectors.toList()));
             VideoPo videoPo = videoMapper.selectById(commentPo.getVideoId());
             return LikeReceivedDetailVo.builder()
@@ -1050,17 +1055,19 @@ public class InteractServiceImpl implements InteractService {
             if (videoPo == null || !Objects.equals(videoPo.getUserId(), myId)) {
                 throw new NotFoundException("视频不存在或无权限查看");
             }
-            List<LikeVideoPo> recentLikes = likeVideoMapper.selectList(new LambdaQueryWrapper<LikeVideoPo>()
-                    .eq(LikeVideoPo::getVideoId, targetId)
-                    .ne(LikeVideoPo::getUserId, myId)
-                    .orderByDesc(LikeVideoPo::getCreateTime)
-                    .orderByDesc(LikeVideoPo::getId)
+            List<LikeRecordPo> recentLikes = likeRecordMapper.selectList(new LambdaQueryWrapper<LikeRecordPo>()
+                    .eq(LikeRecordPo::getTargetId, targetId)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.VIDEO.getCode())
+                    .ne(LikeRecordPo::getUserId, myId)
+                    .orderByDesc(LikeRecordPo::getCreateTime)
+                    .orderByDesc(LikeRecordPo::getId)
                     .last("limit 20"));
-            long totalCount = likeVideoMapper.selectCount(new LambdaQueryWrapper<LikeVideoPo>()
-                    .eq(LikeVideoPo::getVideoId, targetId)
-                    .ne(LikeVideoPo::getUserId, myId));
+            long totalCount = likeRecordMapper.selectCount(new LambdaQueryWrapper<LikeRecordPo>()
+                    .eq(LikeRecordPo::getTargetId, targetId)
+                    .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.VIDEO.getCode())
+                    .ne(LikeRecordPo::getUserId, myId));
             Map<Long, UserPo> userMap = queryUserMap(recentLikes.stream()
-                    .map(LikeVideoPo::getUserId)
+                    .map(LikeRecordPo::getUserId)
                     .collect(Collectors.toList()));
             return LikeReceivedDetailVo.builder()
                     .targetType("video")
@@ -1268,8 +1275,8 @@ public class InteractServiceImpl implements InteractService {
                 .name(request.getName().trim())
                 .description(request.getDescription())
                 .coverUrl(request.getCoverUrl())
-                .isPublic(request.getIsPublic() != null && request.getIsPublic() == OPERATION_ON ? 1 : 0)
-                .isDefault(0)
+                .isPublic(request.getIsPublic())
+                .isDefault(NOT_DEFAULT)
                 .isDeleted(NOT_DELETED)
                 .build();
         collectionDirectoryMapper.insert(po);
@@ -1297,16 +1304,16 @@ public class InteractServiceImpl implements InteractService {
             po.setCoverUrl(request.getCoverUrl());
         }
         if (request.getIsPublic() != null) {
-            po.setIsPublic(request.getIsPublic() == OPERATION_ON ? 1 : 0);
+            po.setIsPublic(request.getIsPublic());
         }
         collectionDirectoryMapper.updateById(po);
     }
 
     @Override
     public List<CollectionDirectoryVo> listCollectionDirectories(Long targetUserId) {
-        Long myId = UserHolderUtil.getUser().getUserId();
-        Long ownerId = targetUserId == null ? myId : targetUserId;
-        if (!Objects.equals(myId, ownerId) && hasMutualBlock(myId, ownerId)) {
+        Long userId = UserHolderUtil.getUser().getUserId();
+        Long ownerId = targetUserId == null ? userId : targetUserId;
+        if (!Objects.equals(userId, ownerId) && hasMutualBlock(userId, ownerId)) {
             throw new ErrorOperationException("由于隐私设置，无法查看收藏夹");
         }
         LambdaQueryWrapper<CollectionDirectoryPo> wrapper = new LambdaQueryWrapper<CollectionDirectoryPo>()
@@ -1314,8 +1321,8 @@ public class InteractServiceImpl implements InteractService {
                 .eq(CollectionDirectoryPo::getIsDeleted, NOT_DELETED)
                 .orderByDesc(CollectionDirectoryPo::getIsDefault)
                 .orderByDesc(CollectionDirectoryPo::getId);
-        if (!Objects.equals(myId, ownerId)) {
-            wrapper.eq(CollectionDirectoryPo::getIsPublic, 1);
+        if (!Objects.equals(userId, ownerId)) {
+            wrapper.eq(CollectionDirectoryPo::getIsPublic, PUBLIC);
         }
         List<CollectionDirectoryPo> list = collectionDirectoryMapper.selectList(wrapper);
         if (list == null || list.isEmpty()) {
@@ -1330,7 +1337,7 @@ public class InteractServiceImpl implements InteractService {
                     .description(po.getDescription())
                     .coverUrl(po.getCoverUrl())
                     .isPublic(po.getIsPublic())
-                    .isDefault(Objects.equals(po.getIsDefault(), 1))
+                    .isDefault(Objects.equals(po.getIsDefault(), DEFAULT))
                     .itemCount(itemCount == null ? 0L : itemCount)
                     .build());
         }
@@ -1357,8 +1364,8 @@ public class InteractServiceImpl implements InteractService {
                     .videoId(videoId)
                     .directoryId(directoryPo.getId())
                     .directoryName(directoryPo.getName())
-                    .isPublic(directoryPo.getIsPublic() == 1)
-                    .isDefault(directoryPo.getIsDefault() == 1)
+                    .isPublic(directoryPo.getIsPublic().equals(PUBLIC))
+                    .isDefault(directoryPo.getIsDefault().equals(DEFAULT))
                     .isCollect(false)
                     .build();
             if (directoryIds.contains(directoryPo.getId())) {
@@ -1444,10 +1451,10 @@ public class InteractServiceImpl implements InteractService {
         int affected = 0;
         for (CollectionItemPo item : items) {
             VideoPo videoPo = videoMapper.selectById(item.getVideoId());
-            boolean invalid = videoPo == null || videoPo.getStatus() == VideoStatusEnum.DELETED.getCode()
-                    || videoPo.getStatus() == VideoStatusEnum.BANNED.getCode();
+            boolean invalid = videoPo == null || videoPo.getStatus().equals(VideoStatusEnum.DELETED.getCode())
+                    || videoPo.getStatus().equals(VideoStatusEnum.BANNED.getCode());
             if (invalid) {
-                item.setIsDeleted(1);
+                item.setIsDeleted(DELETED);
                 collectionItemMapper.updateById(item);
                 videoStatsMapper.updateCollectCount(item.getVideoId(), -1);
                 affected++;
@@ -1471,7 +1478,6 @@ public class InteractServiceImpl implements InteractService {
             throw new NotFoundException("视频不存在或不可投币");
         }
 
-        ensureWalletRow(myId);
         Integer oldAmount = userCoinChangeLogMapper.sumConsumedCoinByTarget(myId, VIDEO_REWARD.getCode(), request.getVideoId());
         if (oldAmount == null) {
             oldAmount = 0;
@@ -1481,12 +1487,12 @@ public class InteractServiceImpl implements InteractService {
             throw new ErrorOperationException("单个视频最多投币2个");
         }
 
-        int deducted = userWalletMapper.deductCoinIfEnough(myId, request.getAmount().longValue());
+        int deducted = userStatsMapper.deductCoinIfEnough(myId, request.getAmount().longValue());
         if (deducted <= 0) {
             throw new ErrorOperationException("硬币余额不足");
         }
 
-        recordCoinChangeLog(myId, -request.getAmount(), VIDEO_REWARD.getCode(), request.getVideoId());
+        recordCoinChangeLog(myId, -request.getAmount().longValue(), VIDEO_REWARD.getCode(), request.getVideoId());
         videoStatsMapper.updateCoinCount(request.getVideoId(), request.getAmount());
     }
 
@@ -1496,7 +1502,6 @@ public class InteractServiceImpl implements InteractService {
         if (userId == null) {
             return false;
         }
-        ensureWalletRow(userId);
         LocalDateTime startTime = LocalDate.now().atStartOfDay();
         LocalDateTime endTime = startTime.plusDays(1);
         Integer existsCount = userCoinChangeLogMapper.countLogsInRange(
@@ -1508,21 +1513,20 @@ public class InteractServiceImpl implements InteractService {
         if (existsCount != null && existsCount > 0) {
             return false;
         }
-        userWalletMapper.updateCoinBalance(userId, (long) DAILY_LOGIN_REWARD);
-        recordCoinChangeLog(userId, DAILY_LOGIN_REWARD, DAILY_REWARD.getCode(), null);
+        userStatsMapper.updateCoinNum(userId, DAILY_LOGIN_COIN_REWARD_NUM);
+        recordCoinChangeLog(userId, DAILY_LOGIN_COIN_REWARD_NUM, DAILY_REWARD.getCode(), null);
         return true;
     }
 
     @Override
     public CoinWalletVo queryMyWallet() {
-        Long myId = UserHolderUtil.getUser().getUserId();
-        ensureWalletRow(myId);
-        UserWalletPo walletPo = userWalletMapper.selectOne(new LambdaQueryWrapper<UserWalletPo>()
-                .eq(UserWalletPo::getUserId, myId)
+        Long userId = UserHolderUtil.getUser().getUserId();
+        UserStatsPo userStatsPo = userStatsMapper.selectOne(new LambdaQueryWrapper<UserStatsPo>()
+                .eq(UserStatsPo::getUserId, userId)
                 .last("limit 1"));
         return CoinWalletVo.builder()
-                .userId(myId)
-                .balance(walletPo == null ? 0L : walletPo.getCoinBalance())
+                .userId(userId)
+                .balance(userStatsPo == null ? 0L : userStatsPo.getCoinNum())
                 .build();
     }
 
@@ -1598,7 +1602,7 @@ public class InteractServiceImpl implements InteractService {
         if (followRecordPo == null) {
             return;
         }
-        followRecordPo.setIsDeleted(1);
+        followRecordPo.setIsDeleted(DELETED);
         followRecordMapper.updateById(followRecordPo);
         interactRepository.updateUserFollowNum(followerId, -1L);
         interactRepository.updateUserFansNum(followeeId, -1L);
@@ -1623,35 +1627,19 @@ public class InteractServiceImpl implements InteractService {
                 .name(DEFAULT_COLLECTION_NAME)
                 .description("系统默认收藏夹")
                 .isPublic(0)
-                .isDefault(1)
+                .isDefault(DEFAULT)
                 .isDeleted(NOT_DELETED)
                 .build();
         collectionDirectoryMapper.insert(po);
         return po;
     }
 
-    private void ensureWalletRow(Long userId) {
-        UserWalletPo walletPo = userWalletMapper.selectOne(new LambdaQueryWrapper<UserWalletPo>()
-                .eq(UserWalletPo::getUserId, userId)
-                .last("limit 1"));
-        if (walletPo != null) {
-            return;
-        }
-        try {
-            userWalletMapper.insert(UserWalletPo.builder()
-                    .userId(userId)
-                    .coinBalance(0L)
-                    .build());
-        } catch (DuplicateKeyException ignore) {
-        }
-    }
-
-    private void recordCoinChangeLog(Long userId, Integer changeAmount, Integer changeType, Long relatedTargetId) {
+    private void recordCoinChangeLog(Long userId, Long changeAmount, Integer changeType, Long relatedTargetId) {
         userCoinChangeLogMapper.insert(UserCoinChangeLogPo.builder()
                 .userId(userId)
                 .changeAmount(changeAmount)
                 .changeType(changeType)
-                .relatedTargetId(relatedTargetId)
+                .videoId(relatedTargetId)
                 .build());
     }
 
@@ -1749,10 +1737,10 @@ public class InteractServiceImpl implements InteractService {
         if (directoryPo == null) {
             throw new NotFoundException("收藏夹不存在或无权限");
         }
-        if (Objects.equals(directoryPo.getIsDefault(), 1)) {
+        if (Objects.equals(directoryPo.getIsDefault(), DEFAULT)) {
             throw new ErrorOperationException("默认收藏夹无法删除");
         }
-        directoryPo.setIsDeleted(1);
+        directoryPo.setIsDeleted(DELETED);
         collectionDirectoryMapper.updateById(directoryPo);
 
         // 同步更新视频统计数据
@@ -1761,7 +1749,7 @@ public class InteractServiceImpl implements InteractService {
                 .eq(CollectionItemPo::getIsDeleted, NOT_DELETED));
         if (items != null && !items.isEmpty()) {
             for (CollectionItemPo item : items) {
-                item.setIsDeleted(1);
+                item.setIsDeleted(DELETED);
                 collectionItemMapper.updateById(item);
                 videoStatsMapper.updateCollectCount(item.getVideoId(), -1);
                 esSyncService.syncVideo(item.getVideoId());
@@ -2320,7 +2308,7 @@ public class InteractServiceImpl implements InteractService {
         if (CollectionUtils.isEmpty(candidateUserIds)) {
             return commentList;
         }
-        List<Long> blockedUserIdList = userBlockMapper.listMutualBlockedUserIds(currentUserId, candidateUserIds);
+        List<Long> blockedUserIdList = userBlackMapper.listMutualBlockedUserIds(currentUserId, candidateUserIds);
         if (CollectionUtils.isEmpty(blockedUserIdList)) {
             return commentList;
         }

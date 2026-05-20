@@ -1,6 +1,5 @@
 package com.syt.graduationproject.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.syt.graduationproject.client.MyMinioClient;
 import com.syt.graduationproject.converter.UserConverter;
 import com.syt.graduationproject.enums.RoleEnum;
@@ -9,9 +8,11 @@ import com.syt.graduationproject.exception.ErrorOperationException;
 import com.syt.graduationproject.exception.ErrorParamException;
 import com.syt.graduationproject.mapper.CollectionDirectoryMapper;
 import com.syt.graduationproject.mapper.UserMapper;
-import com.syt.graduationproject.mapper.UserRoleMapper;
 import com.syt.graduationproject.model.bo.FollowBo;
-import com.syt.graduationproject.model.po.*;
+import com.syt.graduationproject.model.po.CollectionDirectoryPo;
+import com.syt.graduationproject.model.po.UserCoinChangeLogPo;
+import com.syt.graduationproject.model.po.UserPo;
+import com.syt.graduationproject.model.po.UserStatsPo;
 import com.syt.graduationproject.model.request.LoginRequest;
 import com.syt.graduationproject.model.request.RegisterRequest;
 import com.syt.graduationproject.model.request.UserInfoUpdateRequest;
@@ -61,8 +62,6 @@ public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
 
-    private final UserRoleMapper userRoleMapper;
-
     private final StringRedisTemplate stringRedisTemplate;
 
     private final MyMinioClient myMinioClient;
@@ -98,15 +97,10 @@ public class UserServiceImpl implements UserService {
                 .username(username)
                 .avatarUrl(DEFAULT_AVATAR)
                 .bio(DEFAULT_BIO)
+                .roleId(RoleEnum.USER.getRoleId())
                 .build();
         userMapper.insert(newUser);
         stringRedisTemplate.delete(RedisKeyUtil.userInfoKey(newUser.getId()));
-
-        UserRoleRelPo userRoleRelPo = UserRoleRelPo.builder()
-                .userId(newUser.getId())
-                .roleId(RoleEnum.USER.getRoleId())
-                .build();
-        userRoleMapper.insert(userRoleRelPo);
 
         // 初始化用户数据统计信息
         interactRepository.initUserStats(newUser.getId());
@@ -156,13 +150,7 @@ public class UserServiceImpl implements UserService {
         // 生成 JwtToken
         Map<String, Object> claimMap = new HashMap<>();
         Long userId = userPo.getId();
-        Long roleId = RoleEnum.USER.getRoleId();
-        UserRoleRelPo userRoleRelPo = userRoleMapper.selectOne(new QueryWrapper<UserRoleRelPo>()
-                .lambda()
-                .eq(UserRoleRelPo::getUserId, userId));
-        if (userRoleRelPo != null && userRoleRelPo.getRoleId() != null) {
-            roleId = userRoleRelPo.getRoleId();
-        }
+        Long roleId = userPo.getRoleId();
         RoleEnum roleEnum = RoleEnum.fromRoleId(roleId);
         String roleCode = roleEnum == null ? RoleEnum.USER.getRoleCode() : roleEnum.getRoleCode();
 

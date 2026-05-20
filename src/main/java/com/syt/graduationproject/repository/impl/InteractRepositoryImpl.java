@@ -1,7 +1,6 @@
 package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.syt.graduationproject.mapper.*;
 import com.syt.graduationproject.model.po.*;
@@ -33,42 +32,6 @@ public class InteractRepositoryImpl implements InteractRepository {
     private final CommentMapper commentMapper;
 
     private final CommentStatsMapper commentStatsMapper;
-
-    /**
-     * 查询用户粉丝数
-     */
-    @Override
-    public Long queryUserFansNum(Long userId) {
-        QueryWrapper<UserStatsPo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda()
-                .eq(UserStatsPo::getUserId, userId)
-                .eq(UserStatsPo::getIsDeleted, NOT_DELETED);
-        return userStatsMapper.selectOne(queryWrapper).getFansNum();
-    }
-
-    /**
-     * 查询用户关注数
-     */
-    @Override
-    public Long queryUserFollowNum(Long userId) {
-        QueryWrapper<UserStatsPo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda()
-                .eq(UserStatsPo::getUserId, userId)
-                .eq(UserStatsPo::getIsDeleted, NOT_DELETED);
-        return userStatsMapper.selectOne(queryWrapper).getFollowNum();
-    }
-
-    /**
-     * 查询用户点赞数
-     */
-    @Override
-    public Long queryUserLikeNum(Long userId) {
-        QueryWrapper<UserStatsPo> queryWrapper = new QueryWrapper<>();
-        queryWrapper.lambda()
-                .eq(UserStatsPo::getUserId, userId)
-                .eq(UserStatsPo::getIsDeleted, NOT_DELETED);
-        return userStatsMapper.selectOne(queryWrapper).getLikeNum();
-    }
 
     /**
      * 更新用户粉丝数

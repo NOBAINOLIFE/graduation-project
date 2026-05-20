@@ -34,6 +34,12 @@ public class UserStatsPo {
     private Long userId;
 
     /**
+     * 硬币数量
+     */
+    @TableField(value = "coin_num")
+    private Long coinNum;
+
+    /**
      * 视频数量
      */
     @TableField(value = "video_num")

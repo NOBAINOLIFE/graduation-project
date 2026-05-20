@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.syt.graduationproject.mapper.UserBlackMapper">
+
+    <select id="countActiveBlock" resultType="long">
+        SELECT COUNT(1) FROM tb_user_black 
+        WHERE user_id = #{userId} 
+        AND blacked_user_id = #{targetUserId} 
+        AND is_deleted = 0
+    </select>
+
+    <select id="countAnyDirectionBlock" resultType="long">
+        SELECT COUNT(1) FROM tb_user_black 
+        WHERE ((user_id = #{userA} AND blacked_user_id = #{userB}) 
+        OR (user_id = #{userB} AND blacked_user_id = #{userA})) 
+        AND is_deleted = 0
+    </select>
+
+    <select id="listMutualBlockedUserIds" resultType="long">
+        SELECT DISTINCT IF(user_id = #{userId}, blacked_user_id, user_id)
+        FROM tb_user_black
+        WHERE is_deleted = 0
+        AND (
+        (user_id = #{userId} AND blacked_user_id IN
+        <foreach collection='candidateUserIds' item='candidateUserId' open='(' separator=',' close=')'>
+            #{candidateUserId}
+        </foreach>
+        )
+        OR
+        (blacked_user_id = #{userId} AND user_id IN
+        <foreach collection='candidateUserIds' item='candidateUserId' open='(' separator=',' close=')'>
+            #{candidateUserId}
+        </foreach>
+        )
+        )
+    </select>
+</mapper>

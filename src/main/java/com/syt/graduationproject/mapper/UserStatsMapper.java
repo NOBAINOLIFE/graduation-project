@@ -38,4 +38,16 @@ public interface UserStatsMapper extends BaseMapper<UserStatsPo> {
      */
     @Update("update tb_user_stats set play_num = play_num + #{addNum} where user_id = #{userId}")
     void updateUserPlayNum(@Param("userId") Long userId, @Param("addNum") Long addNum);
+
+    /**
+     * 更新用户硬币数
+     */
+    @Update("UPDATE tb_user_stats SET coin_num = coin_num + #{delta} WHERE user_id = #{userId}")
+    int updateCoinNum(@Param("userId") Long userId, @Param("delta") Long delta);
+
+    /**
+     * 扣除用户硬币数
+     */
+    @Update("UPDATE tb_user_stats SET coin_num = coin_num - #{delta} WHERE user_id = #{userId} AND coin_num >= #{delta}")
+    int deductCoinIfEnough(@Param("userId") Long userId, @Param("delta") Long delta);
 }

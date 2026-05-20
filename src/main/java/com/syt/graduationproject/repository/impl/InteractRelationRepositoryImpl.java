@@ -1,11 +1,14 @@
 package com.syt.graduationproject.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.syt.graduationproject.mapper.*;
+import com.syt.graduationproject.enums.LikeTargetTypeEnum;
+import com.syt.graduationproject.mapper.CollectionItemMapper;
+import com.syt.graduationproject.mapper.FollowRecordMapper;
+import com.syt.graduationproject.mapper.LikeRecordMapper;
+import com.syt.graduationproject.mapper.UserCoinChangeLogMapper;
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
-import com.syt.graduationproject.model.po.LikeCommentPo;
-import com.syt.graduationproject.model.po.LikeVideoPo;
+import com.syt.graduationproject.model.po.LikeRecordPo;
 import com.syt.graduationproject.repository.InteractRelationRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
@@ -23,26 +26,25 @@ import static com.syt.graduationproject.constant.CommonConstant.NOT_DELETED;
 @RequiredArgsConstructor
 public class InteractRelationRepositoryImpl implements InteractRelationRepository {
 
-    private final LikeVideoMapper likeVideoMapper;
-
     private final CollectionItemMapper collectionItemMapper;
 
     private final FollowRecordMapper followRecordMapper;
 
     private final UserCoinChangeLogMapper userCoinChangeLogMapper;
 
-    private final LikeCommentMapper likeCommentMapper;
+    private final LikeRecordMapper likeRecordMapper;
 
     /**
      * 查询用户对某视频的点赞记录
      */
     @Override
-    public LikeVideoPo queryLikeVideo(Long userId, Long videoId) {
-        LambdaQueryWrapper<LikeVideoPo> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(LikeVideoPo::getUserId, userId)
-                .eq(LikeVideoPo::getVideoId, videoId)
+    public LikeRecordPo queryLikeVideo(Long userId, Long videoId) {
+        LambdaQueryWrapper<LikeRecordPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(LikeRecordPo::getUserId, userId)
+                .eq(LikeRecordPo::getTargetId, videoId)
+                .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.VIDEO.getCode())
                 .last("LIMIT 1");
-        return likeVideoMapper.selectOne(queryWrapper);
+        return likeRecordMapper.selectOne(queryWrapper);
     }
 
     /**
@@ -81,13 +83,14 @@ public class InteractRelationRepositoryImpl implements InteractRelationRepositor
     }
 
     @Override
-    public List<LikeCommentPo> batchQueryLikeComment(Long userId, List<Long> commentIdList) {
+    public List<LikeRecordPo> batchQueryLikeComment(Long userId, List<Long> commentIdList) {
         if (userId == null || CollectionUtils.isEmpty(commentIdList)) {
             return Collections.emptyList();
         }
-        LambdaQueryWrapper<LikeCommentPo> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(LikeCommentPo::getUserId, userId)
-                .in(LikeCommentPo::getCommentId, commentIdList);
-        return likeCommentMapper.selectList(queryWrapper);
+        LambdaQueryWrapper<LikeRecordPo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(LikeRecordPo::getUserId, userId)
+                .eq(LikeRecordPo::getTargetType, LikeTargetTypeEnum.COMMENT.getCode())
+                .in(LikeRecordPo::getTargetId, commentIdList);
+        return likeRecordMapper.selectList(queryWrapper);
     }
 }

@@ -15,11 +15,11 @@ public interface UserCoinChangeLogMapper extends BaseMapper<UserCoinChangeLogPo>
             "FROM tb_user_coin_change_log " +
             "WHERE user_id = #{userId} " +
             "AND change_type = #{changeType} " +
-            "AND related_target_id = #{targetId} " +
+            "AND video_id = #{videoId} " +
             "AND change_amount < 0")
     Integer sumConsumedCoinByTarget(@Param("userId") Long userId,
                                     @Param("changeType") Integer changeType,
-                                    @Param("targetId") Long targetId);
+                                    @Param("videoId") Long videoId);
 
     @Select("SELECT COUNT(1) " +
             "FROM tb_user_coin_change_log " +

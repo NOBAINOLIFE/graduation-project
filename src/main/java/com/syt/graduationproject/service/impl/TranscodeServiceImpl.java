@@ -194,17 +194,17 @@ public class TranscodeServiceImpl implements TranscodeService {
         String prefix = outputM3u8.getFileName().toString().replace(".m3u8", "");
         Path segmentPath = outputM3u8.getParent().resolve(prefix + "_%03d.ts");
         return Arrays.asList(
-                "ffmpeg", "-y",
-                "-i", input.toString(),
-                "-vf", "scale=-2:" + height,
-                "-c:v", "libx264",
-                "-c:a", "aac",
-                "-ar", "48000",
-                "-g", "48",
-                "-keyint_min", "48",
-                "-hls_time", "6",
-                "-hls_playlist_type", "vod",
-                "-hls_segment_filename", segmentPath.toString(),
+                "ffmpeg", "-y",                                             // 调用 FFmpeg
+                "-i", input.toString(),                                     // 指定输入文件
+                "-vf", "scale=-2:" + height,                                // 指定缩放高度，宽度自动计算为 2 倍
+                "-c:v", "libx264",                                          // 指定视频编码器，采用 H.264 编码
+                "-c:a", "aac",                                              // 指定音频编码器，采用 AAC 编码
+                "-ar", "48000",                                             // 指定音频采样率为 48kHz
+                "-g", "48",                                                 // 指定关键帧间隔为 48 帧
+                "-keyint_min", "48",                                        // 指定最小关键帧间隔为 48 帧
+                "-hls_time", "6",                                           // 指定分片时长为 6 秒
+                "-hls_playlist_type", "vod",                                // 指定播放列表类型为 VOD
+                "-hls_segment_filename", segmentPath.toString(),            // 指定分片文件名
                 outputM3u8.toString()
         );
     }

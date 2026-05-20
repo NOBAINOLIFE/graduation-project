@@ -24,5 +24,7 @@ public class UserEsDoc {
     private Long videoCount;
 
     private String bio;
+
+    private Long roleId;
 }
 

@@ -55,6 +55,9 @@
             "type": "keyword"
           }
         }
+      },
+      "roleId": {
+        "type": "long"
       }
     }
   }

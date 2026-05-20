@@ -60,6 +60,7 @@ public class EsSyncServiceImpl implements EsSyncService {
                     .fansCount(userStatsPo == null || userStatsPo.getFansNum() == null ? 0L : userStatsPo.getFansNum())
                     .videoCount(userStatsPo == null || userStatsPo.getVideoNum() == null ? 0L : userStatsPo.getVideoNum())
                     .bio(userPo.getBio())
+                    .roleId(userPo.getRoleId())
                     .build();
             searchRepository.upsertUserDoc(userEsDoc);
         });

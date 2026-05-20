@@ -11,40 +11,43 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 评论点赞明细表
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_user_role_rel")
-public class UserRoleRelPo {
+@TableName("tb_like_record")
+public class LikeRecordPo {
 
     /**
-     * 主键自增
+     * 唯一 id
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 用户ID
+     * 点赞用户 ID
      */
-    @TableField("user_id")
+    @TableField(value = "user_id")
     private Long userId;
 
     /**
-     * 角色ID
+     * 被点赞内容 ID
      */
-    @TableField("role_id")
-    private Long roleId;
+    @TableField(value = "target_id")
+    private Long targetId;
+
+    /**
+     * 被点赞内容类型
+     */
+    @TableField(value = "target_type")
+    private Integer targetType;
 
     /**
      * 创建时间
      */
-    @TableField("create_time")
+    @TableField(value = "create_time")
     private LocalDateTime createTime;
-
-    /**
-     * 更新时间
-     */
-    @TableField("update_time")
-    private LocalDateTime updateTime;
 }

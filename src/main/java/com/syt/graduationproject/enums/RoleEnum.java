@@ -7,9 +7,9 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum RoleEnum {
 
-    USER(1L, "USER", "普通用户"),
+    ADMIN(0L, "ADMIN", "管理员"),
 
-    ADMIN(2L, "ADMIN", "管理员");
+    USER(1L, "USER", "普通用户");
 
     private final Long roleId;
 
@@ -28,17 +28,4 @@ public enum RoleEnum {
         }
         return null;
     }
-
-    public static RoleEnum fromRoleCode(String roleCode) {
-        if (roleCode == null) {
-            return null;
-        }
-        for (RoleEnum value : values()) {
-            if (value.getRoleCode().equalsIgnoreCase(roleCode)) {
-                return value;
-            }
-        }
-        return null;
-    }
 }
-

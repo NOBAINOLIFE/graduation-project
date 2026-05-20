@@ -2,8 +2,7 @@ package com.syt.graduationproject.repository;
 
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
-import com.syt.graduationproject.model.po.LikeCommentPo;
-import com.syt.graduationproject.model.po.LikeVideoPo;
+import com.syt.graduationproject.model.po.LikeRecordPo;
 
 import java.util.List;
 
@@ -20,7 +19,7 @@ public interface InteractRelationRepository {
      * @param videoId 视频ID
      * @return 点赞记录，不存在则返回null
      */
-    LikeVideoPo queryLikeVideo(Long userId, Long videoId);
+    LikeRecordPo queryLikeVideo(Long userId, Long videoId);
 
     /**
      * 查询用户是否收藏了指定视频（未删除的记录）
@@ -56,5 +55,5 @@ public interface InteractRelationRepository {
      * @param commentIdList 评论ID列表
      * @return 点赞记录列表
      */
-    List<LikeCommentPo> batchQueryLikeComment(Long userId, List<Long> commentIdList);
+    List<LikeRecordPo> batchQueryLikeComment(Long userId, List<Long> commentIdList);
 }

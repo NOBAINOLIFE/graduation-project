@@ -15,36 +15,25 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("tb_role")
-public class RolePo {
+@TableName("tb_user_black")
+public class UserBlackPo {
 
-    /**
-     * 角色ID，主键自增
-     */
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 角色名称
-     */
-    @TableField("role_name")
-    private String roleName;
+    @TableField("user_id")
+    private Long userId;
 
-    /**
-     * 角色描述
-     */
-    @TableField("role_desc")
-    private String roleDesc;
+    @TableField("blacked_user_id")
+    private Long blackedUserId;
 
-    /**
-     * 创建时间
-     */
+    @TableField("is_deleted")
+    private Integer isDeleted;
+
     @TableField("create_time")
     private LocalDateTime createTime;
 
-    /**
-     * 更新时间
-     */
     @TableField("update_time")
     private LocalDateTime updateTime;
 }
+

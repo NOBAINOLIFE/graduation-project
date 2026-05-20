@@ -4,8 +4,7 @@ import com.syt.graduationproject.model.bo.FollowBo;
 import com.syt.graduationproject.model.bo.UserVideoInteractionBo;
 import com.syt.graduationproject.model.po.CollectionItemPo;
 import com.syt.graduationproject.model.po.FollowRecordPo;
-import com.syt.graduationproject.model.po.LikeCommentPo;
-import com.syt.graduationproject.model.po.LikeVideoPo;
+import com.syt.graduationproject.model.po.LikeRecordPo;
 import com.syt.graduationproject.repository.InteractRelationRepository;
 import com.syt.graduationproject.service.InteractRelationService;
 import lombok.RequiredArgsConstructor;
@@ -54,8 +53,8 @@ public class InteractRelationServiceImpl implements InteractRelationService {
         if (userId == null || videoId == null) {
             return false;
         }
-        LikeVideoPo likeVideo = interactRelationRepository.queryLikeVideo(userId, videoId);
-        return likeVideo != null;
+        LikeRecordPo likeRecordPo = interactRelationRepository.queryLikeVideo(userId, videoId);
+        return likeRecordPo != null;
     }
 
     /**
@@ -89,9 +88,9 @@ public class InteractRelationServiceImpl implements InteractRelationService {
         if (userId == null || CollectionUtils.isEmpty(commentIdList)) {
             return Collections.emptySet();
         }
-        List<LikeCommentPo> likeCommentPos = interactRelationRepository.batchQueryLikeComment(userId, commentIdList);
-        return likeCommentPos.stream()
-                .map(LikeCommentPo::getCommentId)
+        List<LikeRecordPo> likeRecordPos = interactRelationRepository.batchQueryLikeComment(userId, commentIdList);
+        return likeRecordPos.stream()
+                .map(LikeRecordPo::getTargetId)
                 .collect(Collectors.toSet());
     }
 

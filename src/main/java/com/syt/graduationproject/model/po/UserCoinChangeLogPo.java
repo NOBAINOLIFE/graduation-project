@@ -25,13 +25,13 @@ public class UserCoinChangeLogPo {
     private Long userId;
 
     @TableField("change_amount")
-    private Integer changeAmount;
+    private Long changeAmount;
 
     @TableField("change_type")
     private Integer changeType;
 
-    @TableField("related_target_id")
-    private Long relatedTargetId;
+    @TableField("videoId")
+    private Long videoId;
 
     @TableField("create_time")
     private LocalDateTime createTime;
